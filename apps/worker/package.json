@@ -1,0 +1,19 @@
+{
+    "name": "worker",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@sentiment-crowd/db": "workspace:*",
+        "@google/genai": "latest",
+        "playwright": "^1.49.0",
+        "cheerio": "^1.0.0-rc.12"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "scripts": {
+        "start": "bun run src/index.ts",
+        "dev": "bun run --watch src/index.ts"
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "sentiment-crowd",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun --filter \"*\" run dev",
+    "build": "bun --filter \"*\" run build",
+    "start": "bun --filter \"*\" run start"
+  }
+}

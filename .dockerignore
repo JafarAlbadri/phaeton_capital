@@ -1,0 +1,6 @@
+node_modules/
+apps/web/node_modules/
+apps/worker/node_modules/
+packages/db/node_modules/
+.next/
+.git/

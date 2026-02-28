@@ -1,0 +1,33 @@
+$ bun run src/index.ts
+Worker Server listening on port 8080
+Starting execution of SentimentCrowd worker...
+Fetching from https://www.reddit.com/r/wallstreetbets/new.json?limit=25
+Scraped 25 posts. Processing...
+Duplicate detected for hash da96f316b2c32776976398205bb72b9ebe05a905a28187c2db840acf97b14a0b. Skipping.
+Duplicate detected for hash b327ee7bc201a295631ddbfb9767b74659bc88c12ae8834b67e1a752b2367a87. Skipping.
+Duplicate detected for hash 4c2b9fafba3ef073f00a77c57681c06018821c49bc9e197ff97327431a42b16d. Skipping.
+Duplicate detected for hash bbbc3051cc6beabb82b2c024130a2636579e53cedd6091877bed3783b7e923a9. Skipping.
+Duplicate detected for hash 263df97dc48461ffca5159be261f9bf0259d657700ae81c80b9b3cc298bf92a8. Skipping.
+Duplicate detected for hash 79f53a2ee900a90a39eb5be3c136235421f0449ff62a2ab5f0673e2e00d1a0de. Skipping.
+Duplicate detected for hash 903b34229d8074c29d8b3d9edf4b034516fca19c21ac1174ea210f83b71d1b9a. Skipping.
+Duplicate detected for hash 55e944cd9fe22cb38e61f58e8194128616484a1d2ca3ce0a8c4967cf58d0f0cc. Skipping.
+Duplicate detected for hash 5a2af712fefe98cbda362e8be64d294c63676072f404952d3ef2d2b8099931b3. Skipping.
+Duplicate detected for hash 69523cc6c3a532a61bfa8505a2f2eb4ba8ca5233201fbffd8fd78b85f25dbb7a. Skipping.
+Duplicate detected for hash 877b13ecd58f45f1b87d4df0ee0553ca0af99fbe75ec7b9a4c04ad5bf59e4c18. Skipping.
+Duplicate detected for hash a20409d1fdbd52b07cf408d0ac5ba49957fb5beb35ef3d708dfe99277dd91e42. Skipping.
+Duplicate detected for hash a099f360ee2e6d9b1e704b8556cfb525b861f204120726bd2a4a3a733e3ecc40. Skipping.
+Duplicate detected for hash 97106ebb5eebb7286c1fad845f6817446e8f4b8b224753a286364a54b2f623b7. Skipping.
+Duplicate detected for hash 26a723adc0cd6a601095f07db5521d8502ace089d2313f200acff3640450b6d2. Skipping.
+Duplicate detected for hash 6b6087b42d52cd631e6f8e888c17884bfc31b06746f4df3bf5282ae52ee97b31. Skipping.
+Duplicate detected for hash 9d63a64d9ba8b4aa9fefc5f9638f978669ac23c2f6d6ea4c5700ed923bba9575. Skipping.
+Duplicate detected for hash 4b9456a4188f6981993e14a544d080815b3e317d84ed366c920109f1403fef33. Skipping.
+Duplicate detected for hash d4f806c547871acf5025ecbefff58e49718810f797500313b2fc708380cdaf6f. Skipping.
+Duplicate detected for hash 81a7958c452571d553ef2e0033206cca3b937766d8389627da46216e10cbde10. Skipping.
+Found 5 new posts. Batching AI requests...
+Saved sentiment for UNKNOWN (-0.2) by sharkykid
+Saved sentiment for UNKNOWN (-0.7) by General_Arm6861
+Saved sentiment for DRVT (0) by Optimal-Ad-5898
+Saved sentiment for MSTR (-0.4) by value1024
+Saved sentiment for PSKY (0.8) by sleepyguy007
+Worker iteration completed. Saved 5 new data points.
+error: script "start" was terminated by signal SIGTERM (Polite quit request)

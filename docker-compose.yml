@@ -1,0 +1,69 @@
+services:
+  list_models:
+    image: oven/bun:latest
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    command: bun run apps/worker/src/listModels.ts
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: sentiment_user
+      POSTGRES_PASSWORD: sentiment_password
+      POSTGRES_DB: sentiment_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U sentiment_user -d sentiment_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_setup:
+    image: oven/bun:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
+    command: sh -c "cd packages/db && bun install && bun run push"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db_setup:
+        condition: service_completed_successfully
+    environment:
+      - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_MODEL=${AI_MODEL:-gemini-2.5-flash}
+      - AI_RPM_LIMIT=${AI_RPM_LIMIT:-4}
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db_setup:
+        condition: service_completed_successfully
+    environment:
+      - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:

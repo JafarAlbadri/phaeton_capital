@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Sentiment {
+  id               String   @id @default(cuid())
+  ticker           String
+  sentiment        Float
+  is_manipulation  Boolean
+  confidence       Float
+  author           String
+  author_karma     Int
+  account_age_days Int
+  post_timestamp   DateTime
+  content          String
+  duplicate_hash   String   @unique
+  createdAt        DateTime @default(now())
+}
