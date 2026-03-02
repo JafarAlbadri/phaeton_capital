@@ -21,3 +21,16 @@ model Sentiment {
   duplicate_hash   String   @unique
   createdAt        DateTime @default(now())
 }
+
+model FundamentalData {
+  ticker          String   @id
+  current_price   Float?
+  target_price    Float?
+  recommendation  String?
+  pe_ratio        Float?
+  high_52_week    Float?
+  low_52_week     Float?
+  market_cap      BigInt?
+  volume          BigInt?
+  updatedAt       DateTime @updatedAt
+}

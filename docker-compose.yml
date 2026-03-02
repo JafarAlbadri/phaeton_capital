@@ -49,6 +49,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - AI_MODEL=${AI_MODEL:-gemini-2.5-flash}
       - AI_RPM_LIMIT=${AI_RPM_LIMIT:-4}
+      - TARGET_KEYWORD=${TARGET_KEYWORD:-wallstreetbets}
     ports:
       - "8080:8080"
 
@@ -62,6 +63,7 @@ services:
         condition: service_completed_successfully
     environment:
       - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
+      - TARGET_KEYWORD=${TARGET_KEYWORD:-wallstreetbets}
     ports:
       - "3000:3000"
 

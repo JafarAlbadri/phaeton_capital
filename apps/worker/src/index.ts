@@ -1,15 +1,47 @@
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
-import { scrapeReddit, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
+import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
+import { fetchFundamentals } from './fundamentals';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
 const delayMs = Math.ceil(60000 / aiRpmLimit);
 
-async function processPosts() {
-    console.log('Starting execution of SentimentCrowd worker...');
+const targetKeyword = process.env.TARGET_KEYWORD || 'wallstreetbets';
 
-    const posts = await scrapeReddit('wallstreetbets', 25);
-    console.log(`Scraped ${posts.length} posts. Processing...`);
+async function processPosts() {
+    console.log(`Starting execution of SentimentCrowd worker for keyword: ${targetKeyword}...`);
+
+    // Fetch Fundamentals
+    const fundamentals = await fetchFundamentals(targetKeyword);
+    if (fundamentals) {
+        try {
+            await prisma.fundamentalData.upsert({
+                where: { ticker: targetKeyword },
+                update: {
+                    current_price: fundamentals.current_price,
+                    target_price: fundamentals.target_price,
+                    recommendation: fundamentals.recommendation,
+                    pe_ratio: fundamentals.pe_ratio,
+                    high_52_week: fundamentals.high_52_week,
+                    low_52_week: fundamentals.low_52_week,
+                    market_cap: fundamentals.market_cap,
+                    volume: fundamentals.volume,
+                },
+                create: {
+                    ...fundamentals
+                }
+            });
+            console.log(`Saved fundamentals for ${targetKeyword}`);
+        } catch (e) {
+            console.error('Failed to save fundamentals to DB:', e);
+        }
+    }
+
+    const redditPosts = await scrapeReddit(targetKeyword, 15);
+    const newsPosts = await scrapeGoogleNews(targetKeyword);
+    const yahooPosts = await scrapeYahooFinanceNews(targetKeyword);
+    const posts = [...redditPosts, ...newsPosts, ...yahooPosts];
+    console.log(`Scraped ${redditPosts.length} from Reddit, ${newsPosts.length} from Google News, and ${yahooPosts.length} from Yahoo. Processing...`);
 
     let count = 0;
     const newPosts: ScrapedPost[] = [];
@@ -111,7 +143,7 @@ async function start() {
     // Start server to allow manual trigger via Next.js api proxy
     Bun.serve({
         port: 8080,
-        async fetch(req) {
+        async fetch(req: Request) {
             const url = new URL(req.url);
             if (url.pathname === '/trigger' && req.method === 'POST') {
                 processPosts(); // Run async
