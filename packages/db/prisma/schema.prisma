@@ -34,3 +34,34 @@ model FundamentalData {
   volume          BigInt?
   updatedAt       DateTime @updatedAt
 }
+
+model FinancialHistory {
+  id                String   @id @default(cuid())
+  ticker            String
+  year              Int
+  eps               Float?
+  revenue_per_share Float?
+  roe               Float?
+  net_debt_ebitda   Float?
+  pe_ratio          Float?
+  ps_ratio          Float?
+  pb_ratio          Float?
+  ev_ebit           Float?
+
+  @@unique([ticker, year])
+  @@index([ticker])
+}
+
+model InsiderTrade {
+  id            String   @id @default(cuid())
+  ticker        String
+  insider_name  String
+  position      String?
+  transaction   String
+  shares        Int
+  value         Float
+  date          DateTime
+
+  @@index([ticker, date(sort: Desc)])
+}
+

@@ -8,15 +8,20 @@ const delayMs = Math.ceil(60000 / aiRpmLimit);
 
 const targetKeyword = process.env.TARGET_KEYWORD || 'wallstreetbets';
 
-async function processPosts() {
-    console.log(`Starting execution of SentimentCrowd worker for keyword: ${targetKeyword}...`);
+async function processPosts(keywordOverride?: string) {
+    let currentKeyword = (keywordOverride || targetKeyword).trim();
+
+    // Normalize string to uppercase if it's a short stock ticker (to standardize fundamentals keys)
+    if (currentKeyword.length <= 5) currentKeyword = currentKeyword.toUpperCase();
+
+    console.log(`Starting execution of SentimentCrowd worker for keyword: ${currentKeyword}...`);
 
     // Fetch Fundamentals
-    const fundamentals = await fetchFundamentals(targetKeyword);
+    const fundamentals = await fetchFundamentals(currentKeyword);
     if (fundamentals) {
         try {
             await prisma.fundamentalData.upsert({
-                where: { ticker: targetKeyword },
+                where: { ticker: currentKeyword },
                 update: {
                     current_price: fundamentals.current_price,
                     target_price: fundamentals.target_price,
@@ -28,18 +33,77 @@ async function processPosts() {
                     volume: fundamentals.volume,
                 },
                 create: {
-                    ...fundamentals
+                    ticker: fundamentals.ticker,
+                    current_price: fundamentals.current_price,
+                    target_price: fundamentals.target_price,
+                    recommendation: fundamentals.recommendation,
+                    pe_ratio: fundamentals.pe_ratio,
+                    high_52_week: fundamentals.high_52_week,
+                    low_52_week: fundamentals.low_52_week,
+                    market_cap: fundamentals.market_cap,
+                    volume: fundamentals.volume,
                 }
             });
-            console.log(`Saved fundamentals for ${targetKeyword}`);
+
+            if (fundamentals.history && fundamentals.history.length > 0) {
+                for (const h of fundamentals.history) {
+                    await prisma.financialHistory.upsert({
+                        where: {
+                            ticker_year: { ticker: currentKeyword, year: h.year }
+                        },
+                        update: {
+                            eps: h.eps,
+                            revenue_per_share: h.revenue_per_share,
+                            roe: h.roe,
+                            net_debt_ebitda: h.net_debt_ebitda,
+                            pe_ratio: h.pe_ratio,
+                            ps_ratio: h.ps_ratio,
+                            pb_ratio: h.pb_ratio,
+                            ev_ebit: h.ev_ebit
+                        },
+                        create: {
+                            ticker: currentKeyword,
+                            year: h.year,
+                            eps: h.eps,
+                            revenue_per_share: h.revenue_per_share,
+                            roe: h.roe,
+                            net_debt_ebitda: h.net_debt_ebitda,
+                            pe_ratio: h.pe_ratio,
+                            ps_ratio: h.ps_ratio,
+                            pb_ratio: h.pb_ratio,
+                            ev_ebit: h.ev_ebit
+                        }
+                    });
+                }
+            }
+
+            if (fundamentals.insiders && fundamentals.insiders.length > 0) {
+                // Wipe old records for this ticker to avoid stale/duplicate IDs on every fetch
+                await prisma.insiderTrade.deleteMany({
+                    where: { ticker: currentKeyword }
+                });
+                await prisma.insiderTrade.createMany({
+                    data: fundamentals.insiders.map(i => ({
+                        ticker: currentKeyword,
+                        insider_name: i.insider_name,
+                        position: i.position,
+                        transaction: i.transaction,
+                        shares: i.shares,
+                        value: i.value,
+                        date: new Date(i.date)
+                    }))
+                });
+            }
+
+            console.log(`Saved fundamentals, ${fundamentals.history?.length || 0} years of history, and ${fundamentals.insiders?.length || 0} insider trades for ${currentKeyword}`);
         } catch (e) {
             console.error('Failed to save fundamentals to DB:', e);
         }
     }
 
-    const redditPosts = await scrapeReddit(targetKeyword, 15);
-    const newsPosts = await scrapeGoogleNews(targetKeyword);
-    const yahooPosts = await scrapeYahooFinanceNews(targetKeyword);
+    const redditPosts = await scrapeReddit(currentKeyword, 100);
+    const newsPosts = await scrapeGoogleNews(currentKeyword);
+    const yahooPosts = await scrapeYahooFinanceNews(currentKeyword);
     const posts = [...redditPosts, ...newsPosts, ...yahooPosts];
     console.log(`Scraped ${redditPosts.length} from Reddit, ${newsPosts.length} from Google News, and ${yahooPosts.length} from Yahoo. Processing...`);
 
@@ -76,10 +140,36 @@ async function processPosts() {
 
     console.log(`Found ${newPosts.length} new posts. Batching AI requests...`);
 
-    // Batch into chunks of 20
-    const chunkSize = 20;
-    for (let i = 0; i < newPosts.length; i += chunkSize) {
-        const batch = newPosts.slice(i, i + chunkSize);
+    // 3. Smart Token Batching
+    // Build batches based on approximate token count (1 token ~= 4 chars) to prevent API 429 TPM errors
+    const MAX_TOKENS_PER_BATCH = 4000;
+    const MAX_POSTS_PER_BATCH = 25; // Safety net so the prompt isn't too conceptually giant
+    const allBatches: ScrapedPost[][] = [];
+
+    let currentBatch: ScrapedPost[] = [];
+    let currentTokens = 0;
+
+    for (const post of newPosts) {
+        const estTokens = Math.ceil(post.content.length / 4);
+
+        if (currentBatch.length > 0 && (currentTokens + estTokens > MAX_TOKENS_PER_BATCH || currentBatch.length >= MAX_POSTS_PER_BATCH)) {
+            allBatches.push(currentBatch);
+            currentBatch = [];
+            currentTokens = 0;
+        }
+
+        currentBatch.push(post);
+        currentTokens += estTokens;
+    }
+
+    if (currentBatch.length > 0) {
+        allBatches.push(currentBatch);
+    }
+
+    console.log(`Segmented ${newPosts.length} posts into ${allBatches.length} smart token-sized batches.`);
+
+    for (let i = 0; i < allBatches.length; i++) {
+        const batch = allBatches[i];
 
         const aiInputs: AiInput[] = batch.map(p => ({
             id: p.id,
@@ -140,14 +230,24 @@ async function processPosts() {
 }
 
 async function start() {
-    // Start server to allow manual trigger via Next.js api proxy
     Bun.serve({
         port: 8080,
         async fetch(req: Request) {
             const url = new URL(req.url);
             if (url.pathname === '/trigger' && req.method === 'POST') {
-                processPosts(); // Run async
-                return new Response(JSON.stringify({ status: 'started' }), {
+                let dynamicKeyword = undefined;
+                try {
+                    const body = await req.clone().json();
+                    if (body && body.keyword) {
+                        dynamicKeyword = body.keyword;
+                    }
+                } catch (e) {
+                    // Ignore JSON parse errors (e.g. empty body)
+                }
+
+                processPosts(dynamicKeyword); // Run async with optional override
+
+                return new Response(JSON.stringify({ status: 'started', keyword: dynamicKeyword || targetKeyword }), {
                     headers: { 'Content-Type': 'application/json' }
                 });
             }

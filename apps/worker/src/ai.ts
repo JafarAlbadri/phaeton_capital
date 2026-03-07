@@ -83,8 +83,44 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
             is_manipulation: !!item.is_manipulation,
             confidence: typeof item.confidence === 'number' ? item.confidence : 0,
         }));
-    } catch (err) {
-        console.error('Error calling Gemini:', err);
-        return null;
+    } catch (err: any) {
+        // Dynamic Fallback Router
+        if (err?.message?.includes('429') || err?.status === 429 || err?.message?.includes('Quota') || !!err?.status) {
+            console.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-1.5-flash...`);
+            try {
+                // Instantly re-attempt using the free/fast tier fallback model
+                const response = await ai.models.generateContent({
+                    model: 'gemini-1.5-flash',
+                    contents: inputContent,
+                    config: {
+                        systemInstruction,
+                        responseMimeType: 'application/json',
+                    }
+                });
+
+                let output = response.text;
+                if (!output) return null;
+
+                if (output.startsWith('```json')) output = output.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+                else if (output.startsWith('```')) output = output.replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+                const parsed = JSON.parse(output.trim());
+                if (!Array.isArray(parsed)) return null;
+
+                return parsed.map((item: any) => ({
+                    id: item.id,
+                    ticker: item.ticker || 'UNKNOWN',
+                    sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
+                    is_manipulation: !!item.is_manipulation,
+                    confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+                }));
+            } catch (fallbackErr) {
+                console.error('[AI Route] Secondary fallback model also failed:', fallbackErr);
+                return null;
+            }
+        } else {
+            console.error('Error calling Gemini:', err);
+            return null;
+        }
     }
 }

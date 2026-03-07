@@ -12,7 +12,8 @@
         "rss-parser": "^3.13.0"
     },
     "devDependencies": {
-        "@types/bun": "latest"
+        "@types/bun": "latest",
+        "@types/node": "latest"
     },
     "scripts": {
         "start": "bun run src/index.ts",

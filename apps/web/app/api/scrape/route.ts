@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(req: Request) {
     try {
+        let keyword = undefined;
+        try {
+            const body = await req.json();
+            if (body && body.keyword) keyword = body.keyword;
+        } catch (e) {
+            // No body provided.
+        }
+
         // In docker-compose, the worker service is accessible at http://worker:8080
         const res = await fetch('http://worker:8080/trigger', {
             method: 'POST',
-            cache: 'no-store'
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keyword })
         });
 
         if (res.ok) {

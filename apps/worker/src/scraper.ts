@@ -23,10 +23,10 @@ export function generateDuplicateHash(content: string): string {
 
 import Parser from 'rss-parser';
 
-export async function scrapeReddit(keyword: string, limit = 25): Promise<ScrapedPost[]> {
+export async function scrapeReddit(keyword: string, limit = 100): Promise<ScrapedPost[]> {
     // If keyword is provided, search, otherwise fallback to wsb new
     const query = encodeURIComponent(keyword);
-    const url = `https://www.reddit.com/search.json?q=${query}&sort=new&limit=${limit}`;
+    const url = `https://www.reddit.com/search.json?q=${query}&sort=new&limit=${limit}&t=month`;
 
     console.log(`Fetching from ${url}`);
 
@@ -70,14 +70,15 @@ const parser = new Parser();
 
 export async function scrapeGoogleNews(keyword: string): Promise<ScrapedPost[]> {
     const query = encodeURIComponent(keyword);
-    const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+    // Added when:30d to Google news query to get past 30 days
+    const url = `https://news.google.com/rss/search?q=${query}+when:30d&hl=en-US&gl=US&ceid=US:en`;
 
     console.log(`Fetching News RSS from ${url}`);
 
     try {
         const feed = await parser.parseURL(url);
 
-        return feed.items.slice(0, 25).map((item: any) => {
+        return feed.items.slice(0, 100).map((item: any) => {
             return {
                 id: generateDuplicateHash(item.link || item.title || Math.random().toString()),
                 source: 'google_news',
@@ -104,7 +105,7 @@ export async function scrapeYahooFinanceNews(keyword: string): Promise<ScrapedPo
     try {
         const feed = await parser.parseURL(url);
 
-        return feed.items.slice(0, 15).map((item: any) => {
+        return feed.items.slice(0, 50).map((item: any) => {
             return {
                 id: generateDuplicateHash(item.link || item.title || Math.random().toString()),
                 source: 'yahoo_finance',

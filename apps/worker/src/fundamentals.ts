@@ -1,5 +1,26 @@
 import * as cheerio from 'cheerio';
 
+export interface FundamentalHistoryNode {
+    year: number;
+    eps: number | null;
+    revenue_per_share: number | null;
+    roe: number | null;
+    net_debt_ebitda: number | null;
+    pe_ratio: number | null;
+    ps_ratio: number | null;
+    pb_ratio: number | null;
+    ev_ebit: number | null;
+}
+
+export interface FundamentalInsiderTrade {
+    insider_name: string;
+    position: string;
+    transaction: string;
+    shares: number;
+    value: number;
+    date: string;
+}
+
 export interface FundamentalAnalysis {
     ticker: string;
     current_price: number | null;
@@ -10,6 +31,8 @@ export interface FundamentalAnalysis {
     low_52_week: number | null;
     market_cap: bigint | null;
     volume: bigint | null;
+    history?: FundamentalHistoryNode[];
+    insiders?: FundamentalInsiderTrade[];
 }
 
 export async function fetchFundamentals(ticker: string): Promise<FundamentalAnalysis | null> {
@@ -57,7 +80,9 @@ export async function fetchFundamentals(ticker: string): Promise<FundamentalAnal
             high_52_week: data.high_52_week || null,
             low_52_week: data.low_52_week || null,
             market_cap: data.market_cap ? BigInt(data.market_cap) : null,
-            volume: data.volume ? BigInt(data.volume) : null
+            volume: data.volume ? BigInt(data.volume) : null,
+            history: data.history || [],
+            insiders: data.insiders || []
         };
     } catch (error) {
         console.error(`Error executing python wrapper for ${ticker}:`, error);
