@@ -11,7 +11,9 @@ def safe_float(val):
 
 def get_stock_data(ticker_symbol):
     try:
-        stock = yf.Ticker(ticker_symbol)
+        # yfinance uses dashes instead of dots for class shares (e.g. BRK-A instead of BRK.A)
+        normalized_ticker = ticker_symbol.replace('.', '-').upper()
+        stock = yf.Ticker(normalized_ticker)
         info = stock.info
         
         current_data = {
@@ -72,13 +74,35 @@ def get_stock_data(ticker_symbol):
                     net_debt = (total_debt or 0) - (cash or 0)
                     net_debt_ebitda = net_debt / ebitda if ebitda and ebitda > 0 else None
 
-                    # Ratios based on current price (simulated trailing ratios for the historical year using end of year metrics)
-                    # Note: True historical P/E requires historical price. We approximate or leave None if current_price unavailable.
-                    # Or we skip P/E for history if we don't fetch historical price. Let's pull historical price for the end of that year.
-            
-            # Since historical price per year is complex and slows down the scraper, 
-            # Avanza style usually relies on fundamental data reported.
-            # We will use the info.get proxies or basic math if possible, otherwise we leave None for now.
+                    # Ratios based on historical price for the end of that year.
+                    pe_ratio = None
+                    ps_ratio = None
+                    pb_ratio = None
+                    ev_ebit = None
+
+                    try:
+                        # Grab the price closest to the reporting date (or end of year)
+                        hist = stock.history(start=f"{year}-01-01", end=f"{year}-12-31")
+                        if not hist.empty:
+                            year_end_price = hist['Close'].iloc[-1]
+                            
+                            if eps and eps > 0:
+                                pe_ratio = year_end_price / eps
+                            
+                            if rev_per_share and rev_per_share > 0:
+                                ps_ratio = year_end_price / rev_per_share
+                                
+                            if total_equity and shares_out:
+                                bvps = total_equity / shares_out
+                                if bvps > 0:
+                                    pb_ratio = year_end_price / bvps
+                            
+                            if shares_out and ebit and ebit > 0:
+                                ev = (year_end_price * shares_out) + net_debt
+                                ev_ebit = ev / ebit
+
+                    except Exception as e:
+                        pass # if price fetching fails, leave as None
                     
                     history_list.append({
                         "year": int(year),
@@ -86,10 +110,10 @@ def get_stock_data(ticker_symbol):
                         "revenue_per_share": safe_float(rev_per_share),
                         "roe": safe_float(roe),
                         "net_debt_ebitda": safe_float(net_debt_ebitda),
-                        "pe_ratio": None, # Complex to calculate historically without exact price
-                        "ps_ratio": None,
-                        "pb_ratio": None,
-                        "ev_ebit": None
+                        "pe_ratio": safe_float(pe_ratio),
+                        "ps_ratio": safe_float(ps_ratio),
+                        "pb_ratio": safe_float(pb_ratio),
+                        "ev_ebit": safe_float(ev_ebit)
                     })
         except Exception as inner_e:
             pass # Ignore history failures to guarantee current data is returned at least

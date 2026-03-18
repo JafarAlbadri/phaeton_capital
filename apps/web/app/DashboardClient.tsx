@@ -102,16 +102,23 @@ export default function DashboardClient({
 
     const triggerScrape = () => {
         setLoading(true);
+        const keywordToScrape = searchQuery.trim() || targetKeyword;
         fetch('/api/scrape', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword: searchQuery.trim() || targetKeyword })
+            body: JSON.stringify({ keyword: keywordToScrape })
         })
             .then(res => res.json())
             .then(data => {
-                alert(data.message);
+                // Wait 4-5 seconds for the Python fundamental scraper to finish saving to DB
+                setTimeout(() => {
+                    setLoading(false);
+                    startTransition(() => {
+                        router.push(`/?q=${encodeURIComponent(keywordToScrape)}`);
+                    });
+                }, 5000);
             })
-            .finally(() => {
+            .catch(() => {
                 setLoading(false);
             });
     };

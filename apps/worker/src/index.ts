@@ -88,8 +88,8 @@ async function processPosts(keywordOverride?: string) {
                         insider_name: i.insider_name,
                         position: i.position,
                         transaction: i.transaction,
-                        shares: i.shares,
-                        value: i.value,
+                        shares: i.shares || 0,
+                        value: i.value || 0,
                         date: new Date(i.date)
                     }))
                 });
