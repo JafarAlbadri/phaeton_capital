@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
     try {
+        const authHeader = req.headers.get('Authorization');
+        const configuredSecret = process.env.SCRAPE_SECRET;
+        
+        // If a secret is configured in env, enforce it
+        if (configuredSecret && authHeader !== `Bearer ${configuredSecret}`) {
+            return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+        }
+
         let keyword = undefined;
         try {
             const body = await req.json();

@@ -7,20 +7,26 @@ const config: Config = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ["var(--font-inter)", "sans-serif"],
-                display: ["var(--font-outfit)", "sans-serif"],
+                sans: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", 'Courier New', "monospace"],
+                display: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", 'Courier New', "monospace"],
             },
             colors: {
-                background: "#050505",
-                foreground: "#fafafa",
-                border: "#27272a",
+                background: "#000000",
+                foreground: "#ffb700",
+                border: "#333333",
                 brand: {
-                    50: '#ecfdf5',
-                    100: '#d1fae5',
-                    400: '#34d399',
-                    500: '#10b981',
-                    900: '#064e3b',
-                    glow: 'rgba(16, 185, 129, 0.5)'
+                    50: '#fffbf0',
+                    100: '#fef3c7',
+                    400: '#fbbf24',
+                    500: '#f59e0b',
+                    900: '#78350f',
+                    glow: 'transparent'
+                },
+                terminal: {
+                    amber: '#ffb700',
+                    green: '#00ff00',
+                    red: '#ff0000',
+                    blue: '#00ffff'
                 }
             },
             animation: {

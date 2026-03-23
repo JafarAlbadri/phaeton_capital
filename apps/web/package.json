@@ -16,8 +16,7 @@
         "lucide-react": "^0.460.0",
         "recharts": "^2.13.0",
         "clsx": "^2.1.1",
-        "tailwind-merge": "^2.5.4",
-        "yahoo-finance2": "^2.13.0"
+        "tailwind-merge": "^2.5.4"
     },
     "devDependencies": {
         "@types/node": "^20",

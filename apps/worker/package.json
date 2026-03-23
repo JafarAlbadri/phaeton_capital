@@ -6,9 +6,6 @@
     "dependencies": {
         "@sentiment-crowd/db": "workspace:*",
         "@google/genai": "latest",
-        "playwright": "^1.49.0",
-        "cheerio": "^1.0.0-rc.12",
-        "yahoo-finance2": "^2.13.0",
         "rss-parser": "^3.13.0"
     },
     "devDependencies": {

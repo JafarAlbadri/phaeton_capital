@@ -3,6 +3,7 @@ import sys
 import json
 import numpy as np
 import pandas as pd
+import re
 
 def safe_float(val):
     if val is None or pd.isna(val) or np.isinf(val):
@@ -11,8 +12,9 @@ def safe_float(val):
 
 def get_stock_data(ticker_symbol):
     try:
-        # yfinance uses dashes instead of dots for class shares (e.g. BRK-A instead of BRK.A)
-        normalized_ticker = ticker_symbol.replace('.', '-').upper()
+        # Replace dot with dash ONLY for US class shares (e.g. BRK.A -> BRK-A), 
+        # but preserve exchange suffixes (e.g. VOLV-B.ST)
+        normalized_ticker = re.sub(r'\.([A-Z])$', r'-\1', ticker_symbol.upper())
         stock = yf.Ticker(normalized_ticker)
         info = stock.info
         

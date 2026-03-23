@@ -32,26 +32,79 @@ export default async function Page(
         ticker: item.ticker,
     }));
 
-    // 1b. Gaussian Math Computations
-    const organicSentiments = recentData.map(d => d.sentiment);
-    const mean = organicSentiments.length > 0
-        ? organicSentiments.reduce((acc, val) => acc + val, 0) / organicSentiments.length
-        : 0;
+    // 1b. Advanced Math Computations (Phase 3 & 5)
+    const now = Date.now();
+    const halfLifeMs = 48 * 60 * 60 * 1000;
 
-    const variance = organicSentiments.length > 1
-        ? organicSentiments.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (organicSentiments.length - 1)
-        : 0;
-    const stdDev = Math.sqrt(variance) || 0.2; // Fallback to 0.2 if variance is 0 (e.g. 1 item identical)
+    let weightedSum = 0;
+    let weightTotal = 0;
+    const validSentiments: number[] = [];
+
+    for (const d of recentData) {
+        // Phase 5: NaN filter
+        if (isNaN(d.sentiment) || isNaN(d.confidence)) continue;
+
+        // Phase 3: Exponential decay (48h half-life)
+        const ageMs = now - new Date(d.post_timestamp).getTime();
+        const timeWeight = Math.pow(0.5, ageMs / halfLifeMs);
+
+        // Phase 3: Confidence-weighted
+        const confWeight = d.confidence || 0.1;
+        
+        const totalWeight = timeWeight * confWeight;
+        weightedSum += d.sentiment * totalWeight;
+        weightTotal += totalWeight;
+        
+        validSentiments.push(d.sentiment);
+    }
+
+    const n = validSentiments.length;
+    const mean = weightTotal > 0 ? weightedSum / weightTotal : 0;
+
+    // Bootstrap 95% CI
+    let lowerBound = 0;
+    let upperBound = 0;
+    if (n > 1) {
+        const numBootstraps = 1000;
+        const bootstrapMeans = [];
+        for (let i = 0; i < numBootstraps; i++) {
+            let bSum = 0;
+            for (let j = 0; j < n; j++) {
+                const randIdx = Math.floor(Math.random() * n);
+                bSum += validSentiments[randIdx];
+            }
+            bootstrapMeans.push(bSum / n);
+        }
+        bootstrapMeans.sort((a, b) => a - b);
+        lowerBound = bootstrapMeans[Math.floor(numBootstraps * 0.025)];
+        upperBound = bootstrapMeans[Math.floor(numBootstraps * 0.975)];
+    }
+
+    // T-test (One-sample) against 0 (neutral) approximation
+    let pValue = 1;
+    let isSignificant = false;
+    let stdDev = 0.2; // default
+    if (n > 1) {
+        const unweightedMean = validSentiments.reduce((acc, v) => acc + v, 0) / n;
+        const variance = validSentiments.reduce((acc, v) => acc + Math.pow(v - unweightedMean, 2), 0) / (n - 1);
+        stdDev = Math.sqrt(variance) || 0.2;
+        
+        const standardError = stdDev / Math.sqrt(n);
+        const tStat = standardError > 0 ? unweightedMean / standardError : 0;
+        const absZ = Math.abs(tStat);
+        pValue = Math.exp(-0.717 * absZ - 0.416 * Math.pow(absZ, 2));
+        isSignificant = pValue < 0.05;
+    }
 
     function gaussianPDF(x: number, mean: number, stdDev: number) {
         const exponent = Math.exp(-Math.pow(x - mean, 2) / (2 * Math.pow(stdDev, 2)));
         return (1 / (stdDev * Math.sqrt(2 * Math.PI))) * exponent;
     }
 
-    const gaussianData = [];
+    const gaussianDataList = [];
     for (let x = -1; x <= 1; x += 0.05) {
         const xVal = parseFloat(x.toFixed(2));
-        gaussianData.push({
+        gaussianDataList.push({
             sentiment: xVal,
             density: gaussianPDF(xVal, mean, stdDev)
         });
@@ -100,7 +153,16 @@ export default async function Page(
             financialHistory={financialHistory}
             insiderTrades={insiderTrades}
             usdSekRate={usdSekRate}
-            gaussianData={{ curve: gaussianData, mean, stdDev }}
+            gaussianData={{ 
+                curve: gaussianDataList, 
+                mean, 
+                stdDev, 
+                n, 
+                lowerBound, 
+                upperBound, 
+                pValue, 
+                isSignificant 
+            }}
         />
     );
 }

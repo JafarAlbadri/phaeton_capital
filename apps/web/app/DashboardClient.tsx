@@ -7,23 +7,23 @@ import { Activity, AlertTriangle, RefreshCw, BarChart2, TrendingUp, TrendingDown
 
 const SparkBarChart = ({ data, dataKey }: { data: any[], dataKey: string }) => {
     if (!data || data.length === 0 || data.every(d => d[dataKey] == null)) {
-        return <div className="h-16 w-full mt-2 flex items-center justify-center text-xs text-zinc-600">No data</div>;
+        return <div className="h-16 w-full mt-2 flex items-center justify-center text-[10px] text-zinc-600 font-mono uppercase">ERR_NO_DATA</div>;
     }
     return (
         <div className="h-16 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data}>
                     <Tooltip
-                        contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', fontSize: '12px', borderRadius: '8px' }}
-                        itemStyle={{ color: '#60a5fa' }}
-                        labelFormatter={(label) => `Year: ${label}`}
+                        contentStyle={{ backgroundColor: '#000', borderColor: '#333', fontSize: '10px', borderRadius: '0' }}
+                        itemStyle={{ color: '#ffb700' }}
+                        labelFormatter={(label) => `YR: ${label}`}
                         cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                        formatter={(val: number) => [val.toFixed(2), dataKey.toUpperCase().replace(/_/g, ' ')]}
+                        formatter={(val: number) => [val.toFixed(2), dataKey.toUpperCase()]}
                     />
                     <XAxis dataKey="year" hide />
-                    <Bar dataKey={dataKey} radius={[2, 2, 0, 0]}>
+                    <Bar dataKey={dataKey} radius={[0, 0, 0, 0]} isAnimationActive={false}>
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry[dataKey] != null && entry[dataKey] < 0 ? '#ef4444' : '#2563eb'} />
+                            <Cell key={`cell-${index}`} fill={entry[dataKey] != null && entry[dataKey] < 0 ? '#ff0000' : '#ffb700'} />
                         ))}
                     </Bar>
                 </BarChart>
@@ -94,13 +94,11 @@ export default function DashboardClient({
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!searchQuery.trim()) return;
-        startTransition(() => {
-            router.push(`/?q=${encodeURIComponent(searchQuery.trim())}`);
-        });
+        triggerScrape();
     };
 
     const triggerScrape = () => {
+        if (!searchQuery.trim()) return;
         setLoading(true);
         const keywordToScrape = searchQuery.trim() || targetKeyword;
         fetch('/api/scrape', {
@@ -110,13 +108,11 @@ export default function DashboardClient({
         })
             .then(res => res.json())
             .then(data => {
-                // Wait 4-5 seconds for the Python fundamental scraper to finish saving to DB
-                setTimeout(() => {
-                    setLoading(false);
-                    startTransition(() => {
-                        router.push(`/?q=${encodeURIComponent(keywordToScrape)}`);
-                    });
-                }, 5000);
+                startTransition(() => {
+                    router.push(`/?q=${encodeURIComponent(keywordToScrape)}`);
+                    router.refresh();
+                });
+                setLoading(false);
             })
             .catch(() => {
                 setLoading(false);
@@ -124,41 +120,40 @@ export default function DashboardClient({
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-10 relative z-10 font-sans">
+        <div className="p-4 max-w-7xl mx-auto space-y-4 relative z-10 font-sans">
             {/* Header */}
-            <header className="flex flex-col md:flex-row items-start md:items-center justify-between glass-panel p-6 rounded-2xl animate-float">
+            <header className="flex flex-col md:flex-row items-start md:items-center justify-between border border-border bg-background p-4 rounded-none">
                 <div>
-                    <h1 className="text-5xl font-extrabold tracking-tight font-display bg-gradient-to-br from-emerald-300 via-emerald-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-4 drop-shadow-md">
-                        <Activity className="text-emerald-400 animate-pulse-slow" size={40} />
+                    <h1 className="text-2xl font-bold text-terminal-amber flex items-center gap-2 uppercase tracking-tight">
+                        <Activity className="text-terminal-amber" size={24} />
                         SentimentCrowd
                     </h1>
-                    <p className="text-zinc-400 mt-2 text-lg font-light tracking-wide">100% Bun-Native Trading Intelligence Pipeline</p>
+                    <p className="text-zinc-500 mt-1 text-xs font-mono tracking-widest uppercase">100% Bun-Native Trading Intelligence Pipeline</p>
                 </div>
 
-                <div className="flex items-center gap-6 mt-6 md:mt-0">
+                <div className="flex items-center gap-4 mt-4 md:mt-0">
                     {/* USD to SEK Ticker Pill */}
                     {usdSekRate && (
-                        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-full px-5 py-2 flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(16,185,129,0.1)] transition-all hover:bg-white/10">
-                            <DollarSign className="text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]" size={18} />
-                            <span className="font-medium tracking-wide text-zinc-300 text-sm">USD/SEK</span>
-                            <span className="text-lg font-bold text-white tracking-widest">{usdSekRate.toFixed(4)}</span>
+                        <div className="border border-border bg-black px-3 py-1 flex items-center justify-center gap-2">
+                            <span className="font-bold tracking-wider text-zinc-500 text-xs">USD/SEK</span>
+                            <span className="text-sm font-bold text-terminal-amber tracking-widest">{usdSekRate.toFixed(4)}</span>
                         </div>
                     )}
 
                     <form onSubmit={handleSearchSubmit} className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search size={18} className="text-zinc-400 group-focus-within:text-emerald-400 transition-colors" />
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search size={14} className="text-zinc-600" />
                         </div>
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Enter ticker..."
-                            className="w-48 md:w-64 pl-11 pr-4 py-3 bg-black/40 border border-white/10 rounded-full text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all font-medium tracking-wider"
+                            placeholder="TICKER..."
+                            className="w-48 md:w-64 pl-9 pr-4 py-1.5 bg-black border border-border rounded-none text-terminal-amber placeholder-zinc-700 focus:outline-none focus:ring-1 focus:ring-terminal-amber transition-none font-bold uppercase tracking-wider text-sm"
                         />
                         {isPending && (
-                            <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
-                                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <div className="w-3 h-3 border border-terminal-amber border-t-transparent animate-spin"></div>
                             </div>
                         )}
                     </form>
@@ -166,55 +161,49 @@ export default function DashboardClient({
                     <button
                         onClick={triggerScrape}
                         disabled={loading}
-                        className="group relative flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-8 py-3 rounded-full font-bold transition-all duration-300 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
+                        className="flex items-center gap-2 bg-terminal-amber text-black border border-terminal-amber px-4 py-1.5 font-bold uppercase text-sm hover:bg-yellow-500 disabled:opacity-50 transition-none"
                     >
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                        <RefreshCw size={20} className={`relative z-10 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-                        <span className="relative z-10">{loading ? 'Scanning...' : 'Manual Scan'}</span>
+                        <RefreshCw size={14} className={`${loading ? "animate-spin" : ""}`} />
+                        <span>{loading ? 'SCANNING' : 'SCAN'}</span>
                     </button>
                 </div>
             </header>
 
             {/* Fundamental Analysis Card */}
-            <div className="glass-panel rounded-3xl p-8 mb-8 relative overflow-hidden group hover:border-emerald-500/30 transition-colors duration-500">
-                <div className="absolute -top-10 -right-10 p-4 opacity-5 text-emerald-400 rotate-12 group-hover:rotate-0 transition-transform duration-700 group-hover:scale-110">
-                    <Briefcase size={200} />
-                </div>
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-
+            <div className="border border-border bg-background p-4 mb-4">
                 <div className="relative z-10">
-                    <h2 className="text-2xl font-bold font-display mb-8 flex items-center gap-3 text-zinc-100">
-                        <Info className="text-emerald-400" /> Fundamental Analysis Snapshot
-                        <span className="text-emerald-950 bg-emerald-400 px-4 py-1 rounded-full text-base tracking-widest ml-2 shadow-[0_0_10px_rgba(16,185,129,0.4)]">
+                    <h2 className="text-sm font-bold uppercase mb-4 flex items-center gap-2 text-zinc-400 border-b border-border pb-2">
+                        <Info size={14} className="text-terminal-amber" /> FUNDAMENTAL P/L
+                        <span className="text-terminal-amber bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-xs ml-2">
                             {targetKeyword.toUpperCase()}
                         </span>
                     </h2>
 
                     {fundamentalData ? (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
-                                { label: 'Current Price', val: `$${fundamentalData.current_price?.toFixed(2) || 'N/A'}`, icon: DollarSign },
-                                { label: 'Target Price', val: `$${fundamentalData.target_price?.toFixed(2) || 'N/A'}`, icon: Target },
-                                { label: 'P/E Ratio', val: fundamentalData.pe_ratio?.toFixed(2) || 'N/A', icon: Activity },
-                                { label: 'Recommends', val: fundamentalData.recommendation || 'N/A', icon: AlertTriangle, color: 'text-emerald-400 capitalize drop-shadow-md' },
-                                { label: '52-wk High', val: `$${fundamentalData.high_52_week?.toFixed(2) || 'N/A'}`, icon: TrendingUp },
-                                { label: '52-wk Low', val: `$${fundamentalData.low_52_week?.toFixed(2) || 'N/A'}`, icon: TrendingDown },
-                                { label: 'Market Cap', val: fundamentalData.market_cap ? (Number(fundamentalData.market_cap) / 1e9).toFixed(2) + 'B' : 'N/A', icon: Briefcase }
+                                { label: 'PX_LAST', val: fundamentalData.current_price?.toFixed(2) || 'N/A', icon: DollarSign },
+                                { label: 'PX_TARGET', val: fundamentalData.target_price?.toFixed(2) || 'N/A', icon: Target },
+                                { label: 'PE_RATIO', val: fundamentalData.pe_ratio?.toFixed(2) || 'N/A', icon: Activity },
+                                { label: 'EQY_REC_CONS', val: fundamentalData.recommendation || 'N/A', icon: AlertTriangle, color: 'text-terminal-green capitalize' },
+                                { label: '52W_HIGH', val: fundamentalData.high_52_week?.toFixed(2) || 'N/A', icon: TrendingUp },
+                                { label: '52W_LOW', val: fundamentalData.low_52_week?.toFixed(2) || 'N/A', icon: TrendingDown },
+                                { label: 'CUR_MKT_CAP', val: fundamentalData.market_cap ? (Number(fundamentalData.market_cap) / 1e9).toFixed(2) + 'B' : 'N/A', icon: Briefcase }
                             ].map((stat, idx) => (
-                                <div key={idx} className="bg-black/20 hover:bg-black/40 border border-white/5 rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-white/10 group/stat">
-                                    <p className="text-zinc-500 text-sm font-medium mb-2 flex items-center gap-2 uppercase tracking-wider">
-                                        <stat.icon size={14} className="text-zinc-400 group-hover/stat:text-emerald-400 transition-colors" /> {stat.label}
+                                <div key={idx} className="border border-border bg-black p-3 group/stat">
+                                    <p className="text-zinc-600 text-xs font-bold mb-1 flex items-center gap-2 uppercase tracking-wide">
+                                        <stat.icon size={12} className="text-zinc-700 group-hover/stat:text-terminal-amber transition-colors" /> {stat.label}
                                     </p>
-                                    <p className={`text-3xl font-display font-bold ${stat.color || 'text-white'}`}>{stat.val}</p>
+                                    <p className={`text-xl font-bold font-mono ${stat.color || 'text-terminal-amber'}`}>{stat.val}</p>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="bg-amber-950/20 border border-amber-500/20 rounded-2xl p-8 text-center backdrop-blur-sm">
-                            <AlertTriangle className="mx-auto text-amber-500 mb-4 drop-shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse" size={40} />
-                            <h3 className="text-xl font-bold font-display text-amber-400 mb-2">No Fundamental Data</h3>
-                            <p className="text-zinc-400 max-w-md mx-auto">
-                                Check the <strong className="text-white">TARGET_KEYWORD</strong> in the  <code>.env</code> file. "{targetKeyword}" might not be a valid Yahoo Finance ticker.
+                        <div className="border border-terminal-red bg-black p-4 text-center">
+                            <AlertTriangle className="mx-auto text-terminal-red mb-2" size={24} />
+                            <h3 className="text-sm font-bold text-terminal-red mb-1 uppercase">ERR_SYS_NO_DATA</h3>
+                            <p className="text-zinc-500 text-xs uppercase">
+                                KEYWORD "{targetKeyword}" INVALID TICKER SYMBOL
                             </p>
                         </div>
                     )}
@@ -222,65 +211,54 @@ export default function DashboardClient({
             </div>
 
             {/* Top Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                    <div className="absolute -right-4 -bottom-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-                        <BarChart2 size={120} />
-                    </div>
-                    <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} /> Total Posts Scanned</h3>
-                    <p className="text-5xl font-display font-black bg-gradient-to-br from-white to-zinc-500 bg-clip-text text-transparent">{manipulationStats.totalCount}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="border border-border bg-background p-4 flex flex-col justify-between">
+                    <h3 className="text-zinc-500 text-xs font-bold uppercase mb-1 flex items-center gap-2"><Activity size={12} /> VOL_TOT_SCANNED</h3>
+                    <p className="text-3xl font-bold text-terminal-amber font-mono">{manipulationStats.totalCount}</p>
                 </div>
 
-                <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 border-t-emerald-500/30">
-                    <div className="absolute -top-4 -right-4 p-4 opacity-5 text-emerald-400 group-hover:opacity-20 transition-opacity group-hover:rotate-12 duration-500">
-                        <TrendingUp size={120} />
-                    </div>
-                    <h3 className="text-emerald-500/80 text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Target size={14} /> Pure Organic Signals</h3>
-                    <p className="text-5xl font-display font-black drop-shadow-[0_0_15px_rgba(16,185,129,0.3)] text-white">{manipulationStats.organicCount}</p>
+                <div className="border border-border bg-background p-4 flex flex-col justify-between">
+                    <h3 className="text-terminal-green text-xs font-bold uppercase mb-1 flex items-center gap-2"><Target size={12} /> VOL_ORG_ANALYZED(n)</h3>
+                    <p className="text-3xl font-bold text-terminal-green font-mono">{gaussianData.n || manipulationStats.organicCount}</p>
                 </div>
 
-                <div className="glass-panel p-8 rounded-3xl relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 border-b-rose-500/20">
-                    <div className="absolute top-1/2 -translate-y-1/2 -right-4 p-4 opacity-5 text-rose-500 group-hover:opacity-20 transition-opacity group-hover:-rotate-12 duration-500">
-                        <Bot size={120} />
-                    </div>
-                    <h3 className="text-rose-500/80 text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <AlertTriangle size={14} /> Slop/Bots Blocked
+                <div className="border border-border bg-background p-4 flex flex-col justify-between">
+                    <h3 className="text-terminal-red text-xs font-bold uppercase mb-1 flex items-center gap-2">
+                        <AlertTriangle size={12} /> ERR_SLOP_BLOCKED
                     </h3>
-                    <p className="text-5xl font-display font-black text-rose-400 drop-shadow-[0_0_15px_rgba(244,63,94,0.3)]">{manipulationStats.manipulatedCount}</p>
-                    <div className="text-xs text-rose-500/50 mt-3 font-medium uppercase tracking-widest">Weight neutralized to 0</div>
+                    <p className="text-3xl font-bold text-terminal-red font-mono">{manipulationStats.manipulatedCount}</p>
+                    <div className="text-[10px] text-terminal-red mt-1 uppercase">WT_NEUTRALIZED = 0</div>
                 </div>
             </div>
 
             {/* Nyckeltal (Avanza-style Key Ratios) Section */}
             {financialHistory && financialHistory.length > 0 && (
-                <div className="glass-panel p-8 rounded-3xl mt-2 mb-2 group">
-                    <div className="flex justify-between items-center mb-8">
+                <div className="border border-border bg-background p-4 mb-4">
+                    <div className="flex justify-between items-center mb-4 border-b border-border pb-2">
                         <div>
-                            <h2 className="text-2xl font-bold font-display flex items-center gap-3 text-zinc-100 mb-2">
-                                <ListPlus className="text-blue-500" /> Nyckeltal
+                            <h2 className="text-sm font-bold flex items-center gap-2 text-zinc-400 uppercase">
+                                <ListPlus size={14} className="text-terminal-amber" /> FA_HIST_RATIOS
                             </h2>
-                            <p className="text-sm text-zinc-500">Här visar vi utvecklingen för varje nyckeltal de senaste åren.</p>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-10 gap-x-8">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-4">
                         {[
-                            { key: 'eps', label: 'Vinst/aktie', format: (val: number) => `${val.toFixed(2)} USD` },
-                            { key: 'revenue_per_share', label: 'Omsättning/aktie', format: (val: number) => `${val.toFixed(2)} USD` },
+                            { key: 'eps', label: 'EPS', format: (val: number) => val.toFixed(2) },
+                            { key: 'revenue_per_share', label: 'REV/SH', format: (val: number) => val.toFixed(2) },
                             { key: 'roe', label: 'ROE', format: (val: number) => `${(val * 100).toFixed(2)}%` },
-                            { key: 'net_debt_ebitda', label: 'Nettoskuld/EBITDA', format: (val: number) => val.toFixed(2) },
-                            { key: 'pe_ratio', label: 'P/E-tal', format: (val: number) => val.toFixed(2) },
-                            { key: 'ps_ratio', label: 'P/S-tal', format: (val: number) => val.toFixed(2) },
-                            { key: 'pb_ratio', label: 'P/B-tal', format: (val: number) => val.toFixed(2) },
+                            { key: 'net_debt_ebitda', label: 'ND/EBITDA', format: (val: number) => val.toFixed(2) },
+                            { key: 'pe_ratio', label: 'P/E', format: (val: number) => val.toFixed(2) },
+                            { key: 'ps_ratio', label: 'P/S', format: (val: number) => val.toFixed(2) },
+                            { key: 'pb_ratio', label: 'P/B', format: (val: number) => val.toFixed(2) },
                             { key: 'ev_ebit', label: 'EV/EBIT', format: (val: number) => val.toFixed(2) },
                         ].map((metric, idx) => {
-                            // Find the most recent non-null value for the header display
                             const latestValue = [...financialHistory].reverse().find(h => h[metric.key] != null)?.[metric.key] as number | undefined;
 
                             return (
-                                <div key={idx} className="flex flex-col">
-                                    <div className="text-xs text-zinc-400 mb-1">{metric.label}</div>
-                                    <div className="text-lg font-bold text-zinc-100 mb-2">
+                                <div key={idx} className="flex flex-col border border-zinc-800 bg-zinc-950 p-2">
+                                    <div className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">{metric.label}</div>
+                                    <div className="text-md font-bold text-terminal-amber mb-1 font-mono">
                                         {latestValue != null ? metric.format(latestValue) : '-'}
                                     </div>
                                     <SparkBarChart data={financialHistory} dataKey={metric.key} />
@@ -293,31 +271,24 @@ export default function DashboardClient({
 
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {/* Timeline Chart */}
-                <div className="glass-panel rounded-3xl p-8 group">
-                    <h2 className="text-2xl font-bold font-display mb-8 flex items-center gap-3 text-zinc-100">
-                        <TrendingUp className="text-emerald-400 animate-pulse-slow" /> Sentiment Timeline
+                <div className="border border-border bg-background p-4 mb-4">
+                    <h2 className="text-sm font-bold uppercase mb-4 flex items-center gap-2 text-zinc-400 border-b border-border pb-2">
+                        <TrendingUp size={14} className="text-terminal-amber" /> SENTIMENT TIMELINE
                     </h2>
-                    <div className="h-96 w-full">
+                    <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={recentSentiments} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorSentimentPremium" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.6} />
-                                        <stop offset="50%" stopColor="#34d399" stopOpacity={0.2} />
-                                        <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff0a" vertical={false} />
-                                <XAxis dataKey="timeLabel" stroke="#52525b" tick={{ fill: '#a1a1aa', fontSize: 12, fontFamily: 'var(--font-inter)' }} axisLine={false} tickLine={false} dy={10} />
-                                <YAxis stroke="#52525b" tick={{ fill: '#a1a1aa', fontSize: 12, fontFamily: 'var(--font-inter)' }} axisLine={false} tickLine={false} domain={[-1, 1]} dx={-10} />
+                                <CartesianGrid strokeDasharray="1 3" stroke="#333333" vertical={false} />
+                                <XAxis dataKey="timeLabel" stroke="#52525b" tick={{ fill: '#ffb700', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} dy={10} />
+                                <YAxis stroke="#52525b" tick={{ fill: '#ffb700', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} domain={[-1, 1]} dx={-10} />
                                 <Tooltip
-                                    contentStyle={{ backgroundColor: 'rgba(9, 9, 11, 0.8)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
-                                    itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
-                                    labelStyle={{ color: '#a1a1aa', marginBottom: '4px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}
+                                    contentStyle={{ backgroundColor: '#000', border: '1px solid #333', padding: '8px', fontSize: '10px', textTransform: 'uppercase' }}
+                                    itemStyle={{ color: '#ffb700', fontWeight: 'bold' }}
+                                    labelStyle={{ color: '#aaa', marginBottom: '2px' }}
                                 />
-                                <Area type="monotone" dataKey="sentiment" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorSentimentPremium)" animationDuration={1500} />
+                                <Area type="step" dataKey="sentiment" stroke="#ffb700" strokeWidth={1} fillOpacity={0.1} fill="#ffb700" isAnimationActive={false} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -325,103 +296,94 @@ export default function DashboardClient({
 
                 {/* Gaussian Distribution Chart */}
                 {gaussianData && (
-                    <div className="glass-panel rounded-3xl p-8 group">
-                        <div className="flex justify-between items-start mb-8">
-                            <h2 className="text-2xl font-bold font-display flex items-center gap-3 text-zinc-100">
-                                <Activity className="text-indigo-400 animate-pulse-slow" /> General Opinion Curve
+                    <div className="border border-border bg-background p-4 mb-4">
+                        <div className="flex justify-between items-start mb-4 border-b border-border pb-2">
+                            <h2 className="text-sm font-bold flex items-center gap-2 text-zinc-400 uppercase">
+                                <Activity size={14} className="text-terminal-amber" /> GEN_OPINION_CURVE
                             </h2>
-                            <div className="text-right bg-black/20 px-4 py-2 rounded-xl border border-white/5">
-                                <div className="text-xs text-zinc-500 uppercase tracking-widest font-bold mb-1">Market Consensus</div>
-                                <div className={`font-display font-black text-2xl ${gaussianData.mean > 0.2 ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.4)]' : gaussianData.mean < -0.2 ? 'text-rose-400 drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]' : 'text-zinc-300'}`}>
-                                    {(gaussianData.mean * 100).toFixed(0)}% <span className="text-sm font-medium tracking-normal opacity-60 ml-1">{gaussianData.mean > 0.2 ? 'Bullish' : gaussianData.mean < -0.2 ? 'Bearish' : 'Neutral'}</span>
+                            <div className="text-right">
+                                <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">MKT_CONSENSUS(N={gaussianData.n})</div>
+                                <div className={`font-bold text-xl font-mono ${gaussianData.mean > 0 ? 'text-terminal-green' : 'text-terminal-red'}`}>
+                                    {(gaussianData.mean * 100).toFixed(0)}% <span className="text-xs ml-1">
+                                        {gaussianData.isSignificant ? (gaussianData.mean > 0 ? 'BULL' : 'BEAR') : 'NEUTRAL'}
+                                    </span>
+                                </div>
+                                <div className="text-[10px] text-zinc-500 mt-1 font-mono uppercase">
+                                    95% CI: [{Math.round(gaussianData.lowerBound * 100)}%, {Math.round(gaussianData.upperBound * 100)}%] | P={gaussianData.pValue?.toFixed(3)}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="h-96 w-full">
+                        <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={gaussianData.curve} margin={{ top: 10, right: 30, left: -20, bottom: 20 }}>
-                                    <defs>
-                                        <linearGradient id="colorGaussianPremium" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#818cf8" stopOpacity={0.6} />
-                                            <stop offset="50%" stopColor="#6366f1" stopOpacity={0.2} />
-                                            <stop offset="100%" stopColor="#4f46e5" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff0a" vertical={false} />
+                                    <CartesianGrid strokeDasharray="1 3" stroke="#333333" vertical={false} />
                                     <XAxis
                                         dataKey="sentiment"
                                         stroke="#52525b"
-                                        tick={{ fill: '#a1a1aa', fontSize: 12, fontFamily: 'var(--font-inter)' }}
+                                        tick={{ fill: '#ffb700', fontSize: 10, fontFamily: 'monospace' }}
                                         axisLine={false}
                                         tickLine={false}
                                         domain={[-1, 1]}
                                         type="number"
                                         dy={10}
-                                        label={{ value: "← Bearish | Organic Spread | Bullish →", position: "bottom", fill: "#52525b", fontSize: 11, fontWeight: "bold", textAnchor: "middle", dy: 15 }}
+                                        label={{ value: "← BEAR | SPREAD | BULL →", position: "bottom", fill: "#52525b", fontSize: 10, fontFamily: "monospace", dy: 15 }}
                                     />
                                     <YAxis hide={true} />
                                     <Tooltip
-                                        cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2, strokeDasharray: '5 5' }}
-                                        contentStyle={{ backgroundColor: 'rgba(9, 9, 11, 0.8)', backdropFilter: 'blur(12px)', borderColor: 'rgba(99,102,241,0.3)', borderRadius: '16px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
-                                        itemStyle={{ color: '#818cf8', fontWeight: 'bold' }}
-                                        labelFormatter={(val) => `Sentiment Score: ${val}`}
-                                        labelStyle={{ color: '#a1a1aa', marginBottom: '4px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}
+                                        cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1, strokeDasharray: '2 2' }}
+                                        contentStyle={{ backgroundColor: '#000', border: '1px solid #333', padding: '8px', fontSize: '10px', textTransform: 'uppercase' }}
+                                        itemStyle={{ color: '#ffb700', fontWeight: 'bold' }}
+                                        labelFormatter={(val) => `SCORE: ${val}`}
+                                        labelStyle={{ color: '#aaa', marginBottom: '2px' }}
                                     />
                                     <ReferenceLine
                                         x={gaussianData.mean}
-                                        stroke="#f43f5e"
-                                        strokeWidth={2}
-                                        strokeDasharray="4 4"
-                                        label={{ position: 'top', value: 'MEAN', fill: '#f43f5e', fontSize: 10, fontWeight: 'bold' }}
+                                        stroke="#00ff00"
+                                        strokeWidth={1}
+                                        strokeDasharray="2 2"
+                                        label={{ position: 'top', value: 'MEAN', fill: '#00ff00', fontSize: 10 }}
                                     />
-                                    <Area type="monotone" dataKey="density" stroke="#818cf8" strokeWidth={4} fillOpacity={1} fill="url(#colorGaussianPremium)" animationDuration={1500} />
+                                    <Area type="step" dataKey="density" stroke="#ffb700" strokeWidth={1} fillOpacity={0.1} fill="#ffb700" isAnimationActive={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
                 )}
                 {/* Insider Trades Module */}
-                <div className="bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-3xl p-8 mb-8 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                    <div className="flex items-center justify-between mb-8 relative z-10">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-indigo-500/10 rounded-2xl ring-1 ring-indigo-500/20">
-                                <Briefcase className="w-6 h-6 text-indigo-400" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">Insynshandel</h2>
-                                <p className="text-sm text-zinc-500 font-medium tracking-wide mt-1">LATEST CORPORATE INSIDER TRANSACTIONS</p>
-                            </div>
+                <div className="border border-border bg-background p-4 mb-4 col-span-1 xl:col-span-2">
+                    <div className="flex items-center justify-between mb-4 border-b border-border pb-2">
+                        <div className="flex items-center gap-2">
+                            <Briefcase size={14} className="text-terminal-amber" />
+                            <h2 className="text-sm font-bold uppercase text-zinc-400">INSYN_TRANSACTIONS</h2>
                         </div>
                     </div>
 
                     {insiderTrades && insiderTrades.length > 0 && (
                         <>
                             {/* Summary Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-10">
-                                <div className="bg-black/20 border border-emerald-500/20 rounded-2xl p-5 hover:bg-black/40 transition-colors group/stat">
-                                    <div className="text-emerald-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        Total Buy Volume
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div className="border border-zinc-800 bg-zinc-950 p-3 flex flex-col justify-between">
+                                    <div className="text-terminal-green text-[10px] font-bold uppercase tracking-widest mb-1">
+                                        VOL_BUY
                                     </div>
-                                    <div className="text-3xl font-display font-black text-emerald-400">
+                                    <div className="text-2xl font-bold font-mono text-terminal-green">
                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(insiderStats.buyVolume)}
                                     </div>
                                 </div>
-                                <div className="bg-black/20 border border-rose-500/20 rounded-2xl p-5 hover:bg-black/40 transition-colors group/stat">
-                                    <div className="text-rose-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        Total Sell Volume
+                                <div className="border border-zinc-800 bg-zinc-950 p-3 flex flex-col justify-between">
+                                    <div className="text-terminal-red text-[10px] font-bold uppercase tracking-widest mb-1">
+                                        VOL_SELL
                                     </div>
-                                    <div className="text-3xl font-display font-black text-rose-400">
+                                    <div className="text-2xl font-bold font-mono text-terminal-red">
                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(insiderStats.sellVolume)}
                                     </div>
                                 </div>
-                                <div className={`bg-black/20 border rounded-2xl p-5 hover:bg-black/40 transition-colors group/stat ${insiderStats.netVolume >= 0 ? 'border-emerald-500/20' : 'border-rose-500/20'}`}>
-                                    <div className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 ${insiderStats.netVolume >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                        Net Volume
+                                <div className="border border-zinc-800 bg-zinc-950 p-3 flex flex-col justify-between">
+                                    <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${insiderStats.netVolume >= 0 ? 'text-terminal-green' : 'text-terminal-red'}`}>
+                                        NET_VOL
                                     </div>
-                                    <div className={`text-3xl font-display font-black ${insiderStats.netVolume >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <div className={`text-2xl font-bold font-mono ${insiderStats.netVolume >= 0 ? 'text-terminal-green' : 'text-terminal-red'}`}>
                                         {insiderStats.netVolume > 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(insiderStats.netVolume)}
                                     </div>
                                 </div>
@@ -429,74 +391,75 @@ export default function DashboardClient({
 
                             {/* Aggregation Chart */}
                             {insiderStats.chartData.length > 0 && (
-                                <div className="h-64 mb-8 relative z-10">
-                                    <h3 className="text-zinc-400 text-sm font-semibold mb-4 tracking-wider uppercase">Volume Trend</h3>
+                                <div className="h-48 mb-4">
+                                    <h3 className="text-zinc-600 text-[10px] font-bold mb-2 tracking-wider uppercase">VOL_TREND_HIST</h3>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={insiderStats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff0a" vertical={false} />
-                                            <XAxis dataKey="month" stroke="#52525b" tick={{ fill: '#a1a1aa', fontSize: 12 }} axisLine={false} tickLine={false} dy={10} />
-                                            <YAxis stroke="#52525b" tick={{ fill: '#a1a1aa', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${(value / 1e6).toFixed(1)}M`} dx={-10} />
+                                            <CartesianGrid strokeDasharray="1 3" stroke="#333333" vertical={false} />
+                                            <XAxis dataKey="month" stroke="#52525b" tick={{ fill: '#ffb700', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} dy={10} />
+                                            <YAxis stroke="#52525b" tick={{ fill: '#ffb700', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${(value / 1e6).toFixed(1)}M`} dx={-10} />
                                             <Tooltip
                                                 cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                                contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                                                contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '0' }}
                                                 formatter={(value: number, name: string) => [new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value), name.toUpperCase()]}
-                                                labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                                                labelStyle={{ color: '#aaa', marginBottom: '2px', fontSize: '10px' }}
+                                                itemStyle={{ fontSize: '10px', fontWeight: 'bold' }}
                                             />
-                                            <Bar dataKey="buy" name="Buy Volume" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                            <Bar dataKey="sell" name="Sell Volume" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="buy" name="Buy Volume" fill="#00ff00" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+                                            <Bar dataKey="sell" name="Sell Volume" fill="#ff0000" radius={[0, 0, 0, 0]} isAnimationActive={false} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
                             )}
 
                             {/* Filters */}
-                            <div className="flex items-center gap-2 mb-6 relative z-10">
-                                <button onClick={() => setTradeFilter('all')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tradeFilter === 'all' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}>All Trades</button>
-                                <button onClick={() => setTradeFilter('buy')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tradeFilter === 'buy' ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/30' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}>Buys Only</button>
-                                <button onClick={() => setTradeFilter('sell')} className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${tradeFilter === 'sell' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}>Sells Only</button>
+                            <div className="flex items-center gap-2 mb-4">
+                                <button onClick={() => setTradeFilter('all')} className={`px-2 py-1 text-[10px] font-bold border ${tradeFilter === 'all' ? 'bg-terminal-amber text-black border-terminal-amber' : 'bg-black text-terminal-amber border-border hover:bg-zinc-900'}`}>ALL</button>
+                                <button onClick={() => setTradeFilter('buy')} className={`px-2 py-1 text-[10px] font-bold border ${tradeFilter === 'buy' ? 'bg-terminal-green text-black border-terminal-green' : 'bg-black text-terminal-amber border-border hover:bg-zinc-900'}`}>BUYS</button>
+                                <button onClick={() => setTradeFilter('sell')} className={`px-2 py-1 text-[10px] font-bold border ${tradeFilter === 'sell' ? 'bg-terminal-red text-black border-terminal-red' : 'bg-black text-terminal-amber border-border hover:bg-zinc-900'}`}>SELLS</button>
                             </div>
                         </>
                     )}
 
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[800px]">
+                        <table className="w-full text-left font-mono text-[10px] md:text-xs">
                             <thead>
-                                <tr className="border-b border-white/5 text-zinc-500 text-xs uppercase tracking-wider">
-                                    <th className="pb-4 font-semibold">Insider</th>
-                                    <th className="pb-4 font-semibold">Position</th>
-                                    <th className="pb-4 font-semibold text-center">Transaktion</th>
-                                    <th className="pb-4 font-semibold text-right">Antal</th>
-                                    <th className="pb-4 font-semibold text-right">Värde (USD)</th>
-                                    <th className="pb-4 font-semibold text-right">Datum</th>
+                                <tr className="border-b border-zinc-800 text-zinc-500 uppercase tracking-wider">
+                                    <th className="py-2 font-normal">INSIDER</th>
+                                    <th className="py-2 font-normal">POS</th>
+                                    <th className="py-2 font-normal text-center">TYPE</th>
+                                    <th className="py-2 font-normal text-right">QTY</th>
+                                    <th className="py-2 font-normal text-right">VAL_USD</th>
+                                    <th className="py-2 font-normal text-right">DATE</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-white/5">
+                            <tbody className="divide-y divide-zinc-900">
                                 {insiderStats.filteredTrades && insiderStats.filteredTrades.length > 0 ? insiderStats.filteredTrades.map((trade: any) => (
-                                    <tr key={trade.id} className="hover:bg-white/[0.02] transition-colors">
-                                        <td className="py-4 font-medium text-zinc-200">{trade.insider_name}</td>
-                                        <td className="py-4 text-zinc-400 text-sm max-w-[200px] truncate" title={trade.position}>{trade.position || '-'}</td>
-                                        <td className="py-4 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${trade.transaction?.toLowerCase().includes('buy') || trade.transaction?.toLowerCase().includes('purchase')
-                                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    <tr key={trade.id} className="hover:bg-zinc-950 transition-colors">
+                                        <td className="py-2 text-terminal-amber truncate max-w-[150px]">{trade.insider_name}</td>
+                                        <td className="py-2 text-zinc-400 max-w-[100px] truncate">{trade.position || '-'}</td>
+                                        <td className="py-2 text-center">
+                                            <span className={`px-1 py-0.5 border ${trade.transaction?.toLowerCase().includes('buy') || trade.transaction?.toLowerCase().includes('purchase')
+                                                ? 'bg-black text-terminal-green border-terminal-green'
                                                 : trade.transaction?.toLowerCase().includes('sell') || trade.transaction?.toLowerCase().includes('sale')
-                                                    ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                                    : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
+                                                    ? 'bg-black text-terminal-red border-terminal-red'
+                                                    : 'bg-black text-zinc-400 border-zinc-600'
                                                 }`}>
                                                 {trade.transaction}
                                             </span>
                                         </td>
-                                        <td className="py-4 text-right text-zinc-300 font-medium">{trade.shares?.toLocaleString()}</td>
-                                        <td className="py-4 text-right text-zinc-300 font-medium">
+                                        <td className="py-2 text-right text-terminal-amber">{trade.shares?.toLocaleString()}</td>
+                                        <td className="py-2 text-right text-terminal-amber">
                                             {trade.value ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(trade.value) : '-'}
                                         </td>
-                                        <td className="py-4 text-right text-zinc-500 text-sm">
+                                        <td className="py-2 text-right text-zinc-500">
                                             {new Date(trade.date).toLocaleDateString('sv-SE')}
                                         </td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan={6} className="py-8 text-center text-zinc-500 text-sm">
-                                            Inga insynstransaktioner hittades.
+                                        <td colSpan={6} className="py-4 text-center text-zinc-600 uppercase">
+                                            NO_DATA_FOUND
                                         </td>
                                     </tr>
                                 )}

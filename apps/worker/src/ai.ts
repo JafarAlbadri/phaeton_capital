@@ -19,6 +19,7 @@ export interface AiLabelResult {
     sentiment: number; // -1 to 1
     is_manipulation: boolean;
     confidence: number; // 0 to 1
+    ai_model: string; // The specific model used (main or fallback)
 }
 
 export async function labelSentimentAndDetectManipulation(posts: AiInput[]): Promise<AiLabelResult[] | null> {
@@ -50,11 +51,15 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
 
         if (isGemma) {
             requestArgs.contents = `${systemInstruction}\n\nPOSTS TO ANALYZE:\n${inputContent}`;
+            requestArgs.config = {
+                temperature: 0,
+            };
         } else {
             requestArgs.contents = inputContent;
             requestArgs.config = {
                 systemInstruction,
                 responseMimeType: 'application/json',
+                temperature: 0,
             };
         }
 
@@ -82,10 +87,11 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
             sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
             is_manipulation: !!item.is_manipulation,
             confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+            ai_model: aiModel,
         }));
     } catch (err: any) {
         // Dynamic Fallback Router
-        if (err?.message?.includes('429') || err?.status === 429 || err?.message?.includes('Quota') || !!err?.status) {
+        if (err?.message?.includes('429') || err?.status === 429 || err?.message?.includes('Quota')) {
             console.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-1.5-flash...`);
             try {
                 // Instantly re-attempt using the free/fast tier fallback model
@@ -95,6 +101,7 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
                     config: {
                         systemInstruction,
                         responseMimeType: 'application/json',
+                        temperature: 0,
                     }
                 });
 
@@ -113,6 +120,7 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
                     sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
                     is_manipulation: !!item.is_manipulation,
                     confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+                    ai_model: 'gemini-1.5-flash',
                 }));
             } catch (fallbackErr) {
                 console.error('[AI Route] Secondary fallback model also failed:', fallbackErr);

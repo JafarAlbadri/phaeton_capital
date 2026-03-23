@@ -20,6 +20,12 @@ model Sentiment {
   content          String
   duplicate_hash   String   @unique
   createdAt        DateTime @default(now())
+
+  source           String?
+  ai_model         String?
+  scrape_batch_id  String?
+
+  @@index([ticker])
 }
 
 model FundamentalData {

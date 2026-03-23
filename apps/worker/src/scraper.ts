@@ -47,15 +47,12 @@ export async function scrapeReddit(keyword: string, limit = 100): Promise<Scrape
 
         return children.map((child: any) => {
             const data = child.data;
-            const pseudoKarma = Math.floor(Math.random() * 5000);
-            const pseudoAgeDays = Math.floor(Math.random() * 300);
-
             return {
                 id: data.id,
                 source: 'reddit',
                 author: data.author,
-                author_karma: pseudoKarma,
-                account_age_days: pseudoAgeDays,
+                author_karma: 500, // Trust filter was removed per audit
+                account_age_days: 100, // Trust filter was removed per audit
                 post_timestamp: new Date(data.created_utc * 1000),
                 content: data.title + "\n" + (data.selftext || ''),
             };
