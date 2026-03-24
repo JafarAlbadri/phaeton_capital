@@ -132,6 +132,10 @@ export default async function Page(
         take: 20
     });
 
+    const quantMetrics = await prisma.quantMetrics.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
     // 5. Fetch USD to SEK Exchange Rate
     let usdSekRate = null;
     try {
@@ -163,6 +167,7 @@ export default async function Page(
                 pValue, 
                 isSignificant 
             }}
+            quantMetrics={quantMetrics}
         />
     );
 }

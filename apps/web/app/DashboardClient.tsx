@@ -40,7 +40,8 @@ export default function DashboardClient({
     financialHistory,
     usdSekRate,
     gaussianData,
-    insiderTrades
+    insiderTrades,
+    quantMetrics
 }: any) {
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
@@ -91,6 +92,20 @@ export default function DashboardClient({
             filteredTrades
         };
     }, [insiderTrades, tradeFilter]);
+
+    const mergedDistributionData = useMemo(() => {
+        if (!gaussianData || !gaussianData.curve) return [];
+        const base = [...gaussianData.curve];
+        if (quantMetrics && quantMetrics.kde_data && Array.isArray(quantMetrics.kde_data)) {
+            base.forEach(b => {
+                const nearestKde = quantMetrics.kde_data.reduce((prev: any, curr: any) => 
+                    Math.abs(curr.x - b.sentiment) < Math.abs(prev.x - b.sentiment) ? curr : prev
+                );
+                b.kde_density = nearestKde ? nearestKde.density : 0;
+            });
+        }
+        return base;
+    }, [gaussianData, quantMetrics]);
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -231,6 +246,49 @@ export default function DashboardClient({
                 </div>
             </div>
 
+            {/* Advanced Quant Section */}
+            {quantMetrics && (
+                <div className="border border-border bg-background p-4 mb-4">
+                    <div className="flex justify-between items-center mb-4 border-b border-border pb-2">
+                        <h2 className="text-sm font-bold flex items-center gap-2 text-zinc-400 uppercase">
+                            <Bot size={14} className="text-terminal-amber" /> ADVANCED QUANTITATIVE MODELS
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="border border-zinc-800 bg-zinc-950 p-3">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">HMM REGIME</div>
+                            <div className={`text-xl font-bold font-mono ${quantMetrics.hmm_state === 1 ? 'text-terminal-green' : (quantMetrics.hmm_state === 0 ? 'text-terminal-red' : 'text-terminal-amber')}`}>
+                                {quantMetrics.hmm_state === 1 ? 'BULL' : (quantMetrics.hmm_state === 0 ? 'BEAR' : 'CALC...')}
+                            </div>
+                        </div>
+                        <div className="border border-zinc-800 bg-zinc-950 p-3">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">KELLY ALLOC.</div>
+                            <div className="text-xl font-bold font-mono text-terminal-amber">
+                                {quantMetrics.kelly_fraction != null ? `${(quantMetrics.kelly_fraction * 100).toFixed(1)}%` : 'N/A'}
+                            </div>
+                        </div>
+                        <div className="border border-zinc-800 bg-zinc-950 p-3">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">HURST EXP.</div>
+                            <div className="text-xl font-bold font-mono text-terminal-amber">
+                                {quantMetrics.hurst_exponent != null ? quantMetrics.hurst_exponent.toFixed(2) : 'N/A'}
+                            </div>
+                        </div>
+                        <div className="border border-zinc-800 bg-zinc-950 p-3">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">GRANGER CAUSALITY (p)</div>
+                            <div className={`text-xl font-bold font-mono ${quantMetrics.granger_p_value != null && quantMetrics.granger_p_value < 0.05 ? 'text-terminal-green' : 'text-zinc-500'}`}>
+                                {quantMetrics.granger_p_value != null ? quantMetrics.granger_p_value.toFixed(3) : 'N/A'}
+                            </div>
+                        </div>
+                        <div className="border border-zinc-800 bg-zinc-950 p-3">
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">MC(15d) E[x]</div>
+                            <div className="text-xl font-bold font-mono text-terminal-amber">
+                                {quantMetrics.monte_carlo_mean != null ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(quantMetrics.monte_carlo_mean) : 'N/A'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Nyckeltal (Avanza-style Key Ratios) Section */}
             {financialHistory && financialHistory.length > 0 && (
                 <div className="border border-border bg-background p-4 mb-4">
@@ -316,7 +374,7 @@ export default function DashboardClient({
 
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={gaussianData.curve} margin={{ top: 10, right: 30, left: -20, bottom: 20 }}>
+                                <AreaChart data={mergedDistributionData} margin={{ top: 10, right: 30, left: -20, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="1 3" stroke="#333333" vertical={false} />
                                     <XAxis
                                         dataKey="sentiment"
@@ -344,7 +402,8 @@ export default function DashboardClient({
                                         strokeDasharray="2 2"
                                         label={{ position: 'top', value: 'MEAN', fill: '#00ff00', fontSize: 10 }}
                                     />
-                                    <Area type="step" dataKey="density" stroke="#ffb700" strokeWidth={1} fillOpacity={0.1} fill="#ffb700" isAnimationActive={false} />
+                                    <Area type="monotone" dataKey="density" stroke="#ffb700" strokeWidth={1} fillOpacity={0.1} fill="#ffb700" isAnimationActive={false} />
+                                    <Area type="monotone" dataKey="kde_density" stroke="#3b82f6" strokeWidth={1} fillOpacity={0.15} fill="#3b82f6" isAnimationActive={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>

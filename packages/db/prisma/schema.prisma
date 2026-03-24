@@ -71,3 +71,20 @@ model InsiderTrade {
   @@index([ticker, date(sort: Desc)])
 }
 
+model QuantMetrics {
+  ticker                String   @id
+  beta_alpha            Float?
+  beta_beta             Float?
+  kde_data              Json?    // Array of {x, density}
+  granger_p_value       Float?
+  hmm_state             Int?     // e.g. 0 for Bear, 1 for Bear-Neutral, 2 for Bull
+  kelly_fraction        Float?
+  hurst_exponent        Float?
+  monte_carlo_paths     Json?    // Optional: sample price paths
+  monte_carlo_mean      Float?
+  monte_carlo_var       Float?
+  z_score               Float?
+  updatedAt             DateTime @updatedAt
+
+  @@index([ticker])
+}

@@ -1,6 +1,7 @@
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
 import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
+import { executeQuantModels } from './quant';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -84,6 +85,10 @@ async function processPosts(keywordOverride?: string) {
 
         await syncFundamentals(currentKeyword);
 
+        // --- PHASE 4 FIX: Instantly generate institutional price models (HMM, Hurst, MC) 
+        // to populate the UI dashboard immediately, before the 60+ second LLM sentiment scrape begins.
+        await executeQuantModels(currentKeyword);
+
     const redditPosts = await scrapeReddit(currentKeyword, 100);
     const newsPosts = await scrapeGoogleNews(currentKeyword);
     const yahooPosts = await scrapeYahooFinanceNews(currentKeyword);
@@ -117,7 +122,8 @@ async function processPosts(keywordOverride?: string) {
     }
 
     if (newPosts.length === 0) {
-        console.log('No new posts to process.');
+        console.log('No new posts to process. Executing Quant models periodically...');
+        await executeQuantModels(currentKeyword);
         return;
     }
 
@@ -220,6 +226,10 @@ async function processPosts(keywordOverride?: string) {
     }
 
     console.log(`Worker iteration completed. Saved ${count} new data points.`);
+    
+    // Final Step: Execute advanced Python quantitative models with newly scraped data
+    await executeQuantModels(currentKeyword);
+
     } finally {
         isScraping = false;
     }
