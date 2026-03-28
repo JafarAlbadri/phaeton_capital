@@ -26,19 +26,30 @@ model Sentiment {
   scrape_batch_id  String?
 
   @@index([ticker])
+  @@index([ticker, createdAt(sort: Desc)])
 }
 
 model FundamentalData {
-  ticker          String   @id
-  current_price   Float?
-  target_price    Float?
-  recommendation  String?
-  pe_ratio        Float?
-  high_52_week    Float?
-  low_52_week     Float?
-  market_cap      BigInt?
-  volume          BigInt?
-  updatedAt       DateTime @updatedAt
+  ticker              String    @id
+  current_price       Float?
+  target_price        Float?
+  recommendation      String?
+  pe_ratio            Float?
+  high_52_week        Float?
+  low_52_week         Float?
+  market_cap          BigInt?
+  volume              BigInt?
+  target_low_price    Float?
+  target_high_price   Float?
+  analyst_strong_buy  Int?
+  analyst_buy         Int?
+  analyst_hold        Int?
+  analyst_sell        Int?
+  analyst_strong_sell Int?
+  next_earnings_date  DateTime?
+  sector              String?
+  industry            String?
+  updatedAt           DateTime  @updatedAt
 }
 
 model FinancialHistory {
@@ -84,7 +95,113 @@ model QuantMetrics {
   monte_carlo_mean      Float?
   monte_carlo_var       Float?
   z_score               Float?
+  garch_volatility      Float?
+  sharpe_ratio          Float?
+  sortino_ratio         Float?
+  calmar_ratio          Float?
+  rolling_beta          Float?
+  iv_hv_ratio           Float?
+  bayes_posterior       Float?
+  bayes_std             Float?
+  sentiment_price_corr  Float?
+  adf_stationary        Boolean?
+  transfer_entropy      Float?
+  ou_theta              Float?
+  ou_mu                 Float?
+  ou_sigma              Float?
+  dominant_cycle_days   Float?
+  max_drawdown          Float?
+  monte_carlo_p5        Float?
+  monte_carlo_p25       Float?
+  monte_carlo_p75       Float?
+  monte_carlo_p95       Float?
+  var_95                Float?
+  var_99                Float?
+  cvar_95               Float?
   updatedAt             DateTime @updatedAt
+
+  @@index([ticker])
+}
+
+model TechnicalIndicators {
+  ticker           String   @id
+  rsi_14           Float?
+  macd             Float?
+  macd_signal      Float?
+  macd_histogram   Float?
+  bb_upper         Float?
+  bb_middle        Float?
+  bb_lower         Float?
+  sma_20           Float?
+  sma_50           Float?
+  sma_200          Float?
+  ema_12           Float?
+  ema_26           Float?
+  volume_sma_20    Float?
+  atr_14           Float?
+  price_vs_bb      Float?
+  technical_signal String?
+  golden_cross     Boolean?
+  death_cross      Boolean?
+  updatedAt        DateTime @updatedAt
+}
+
+model MacroIndicators {
+  ticker                 String   @id
+  fed_funds_rate         Float?
+  ten_year_yield         Float?
+  vix                    Float?
+  cpi_yoy                Float?
+  sector_etf             String?
+  sector_etf_momentum_1m Float?
+  sector_etf_momentum_3m Float?
+  spy_pe_ratio           Float?
+  fear_greed_index       Float?
+  rate_sensitive         Boolean?
+  pe_premium_pct         Float?
+  updatedAt              DateTime @updatedAt
+}
+
+model RiskProfile {
+  ticker              String   @id
+  max_drawdown        Float?
+  avg_drawdown        Float?
+  recovery_days       Int?
+  liquidity_score     Float?
+  event_risk_flag     Boolean  @default(false)
+  overall_risk_rating Int?
+  var_95              Float?
+  var_99              Float?
+  cvar_95             Float?
+  stress_test_p5      Float?
+  updatedAt           DateTime @updatedAt
+}
+
+model RecommendationScore {
+  ticker            String   @id
+  composite_score   Float?
+  signal            String?
+  sentiment_score   Float?
+  technical_score   Float?
+  fundamental_score Float?
+  quant_score       Float?
+  insider_score     Float?
+  macro_score       Float?
+  risk_score        Float?
+  confidence        Float?
+  risk_override     Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+}
+
+model PredictionRecord {
+  id              String   @id @default(cuid())
+  ticker          String
+  signal          String
+  price_at_signal Float
+  price_15d_later Float?
+  outcome         String?
+  composite_score Float?
+  createdAt       DateTime @default(now())
 
   @@index([ticker])
 }

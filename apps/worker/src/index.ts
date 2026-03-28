@@ -1,7 +1,10 @@
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
-import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
+import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
 import { executeQuantModels } from './quant';
+import { fetchAndSaveMacro } from './macro';
+import { computeRiskProfile } from './risk';
+import { computeRecommendation } from './recommendation';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -10,6 +13,10 @@ const delayMs = Math.ceil(60000 / aiRpmLimit);
 const targetKeyword = process.env.TARGET_KEYWORD || 'wallstreetbets';
 
 let isScraping = false;
+
+// Job queue state (module-level so server handler and interval share the same queue)
+let jobQueue: string[] = [];
+let isRunning = false;
 
 async function syncFundamentals(currentKeyword: string) {
     const fundamentals = await fetchFundamentals(currentKeyword);
@@ -21,25 +28,102 @@ async function syncFundamentals(currentKeyword: string) {
             update: {
                 current_price: fundamentals.current_price,
                 target_price: fundamentals.target_price,
+                target_low_price: fundamentals.target_low_price,
+                target_high_price: fundamentals.target_high_price,
                 recommendation: fundamentals.recommendation,
                 pe_ratio: fundamentals.pe_ratio,
                 high_52_week: fundamentals.high_52_week,
                 low_52_week: fundamentals.low_52_week,
                 market_cap: fundamentals.market_cap,
                 volume: fundamentals.volume,
+                analyst_strong_buy: fundamentals.analyst_strong_buy,
+                analyst_buy: fundamentals.analyst_buy,
+                analyst_hold: fundamentals.analyst_hold,
+                analyst_sell: fundamentals.analyst_sell,
+                analyst_strong_sell: fundamentals.analyst_strong_sell,
+                next_earnings_date: fundamentals.next_earnings_date ? new Date(fundamentals.next_earnings_date) : null,
+                sector: fundamentals.sector,
+                industry: fundamentals.industry,
             },
             create: {
-                ticker: fundamentals.ticker,
+                ticker: currentKeyword,
                 current_price: fundamentals.current_price,
                 target_price: fundamentals.target_price,
+                target_low_price: fundamentals.target_low_price,
+                target_high_price: fundamentals.target_high_price,
                 recommendation: fundamentals.recommendation,
                 pe_ratio: fundamentals.pe_ratio,
                 high_52_week: fundamentals.high_52_week,
                 low_52_week: fundamentals.low_52_week,
                 market_cap: fundamentals.market_cap,
                 volume: fundamentals.volume,
+                analyst_strong_buy: fundamentals.analyst_strong_buy,
+                analyst_buy: fundamentals.analyst_buy,
+                analyst_hold: fundamentals.analyst_hold,
+                analyst_sell: fundamentals.analyst_sell,
+                analyst_strong_sell: fundamentals.analyst_strong_sell,
+                next_earnings_date: fundamentals.next_earnings_date ? new Date(fundamentals.next_earnings_date) : null,
+                sector: fundamentals.sector,
+                industry: fundamentals.industry,
             }
         });
+
+        if (fundamentals.technical_indicators) {
+            const ti = fundamentals.technical_indicators;
+            await prisma.technicalIndicators.upsert({
+                where: { ticker: currentKeyword },
+                update: {
+                    rsi_14: ti.rsi_14,
+                    macd: ti.macd,
+                    macd_signal: ti.macd_signal,
+                    macd_histogram: ti.macd_histogram,
+                    bb_upper: ti.bb_upper,
+                    bb_middle: ti.bb_middle,
+                    bb_lower: ti.bb_lower,
+                    sma_20: ti.sma_20,
+                    sma_50: ti.sma_50,
+                    sma_200: ti.sma_200,
+                    ema_12: ti.ema_12,
+                    ema_26: ti.ema_26,
+                    volume_sma_20: ti.volume_sma_20,
+                    atr_14: ti.atr_14,
+                    price_vs_bb: ti.price_vs_bb,
+                    technical_signal: ti.technical_signal,
+                    golden_cross: ti.golden_cross,
+                    death_cross: ti.death_cross,
+                },
+                create: {
+                    ticker: currentKeyword,
+                    rsi_14: ti.rsi_14,
+                    macd: ti.macd,
+                    macd_signal: ti.macd_signal,
+                    macd_histogram: ti.macd_histogram,
+                    bb_upper: ti.bb_upper,
+                    bb_middle: ti.bb_middle,
+                    bb_lower: ti.bb_lower,
+                    sma_20: ti.sma_20,
+                    sma_50: ti.sma_50,
+                    sma_200: ti.sma_200,
+                    ema_12: ti.ema_12,
+                    ema_26: ti.ema_26,
+                    volume_sma_20: ti.volume_sma_20,
+                    atr_14: ti.atr_14,
+                    price_vs_bb: ti.price_vs_bb,
+                    technical_signal: ti.technical_signal,
+                    golden_cross: ti.golden_cross,
+                    death_cross: ti.death_cross,
+                }
+            });
+        }
+
+        // Also pass iv_hv_ratio to QuantMetrics
+        if (fundamentals.iv_hv_ratio != null) {
+            await prisma.quantMetrics.upsert({
+                where: { ticker: currentKeyword },
+                update: { iv_hv_ratio: fundamentals.iv_hv_ratio },
+                create: { ticker: currentKeyword, iv_hv_ratio: fundamentals.iv_hv_ratio }
+            });
+        }
 
         if (fundamentals.history && fundamentals.history.length > 0) {
             for (const h of fundamentals.history) {
@@ -89,11 +173,15 @@ async function processPosts(keywordOverride?: string) {
         // to populate the UI dashboard immediately, before the 60+ second LLM sentiment scrape begins.
         await executeQuantModels(currentKeyword);
 
-    const redditPosts = await scrapeReddit(currentKeyword, 100);
-    const newsPosts = await scrapeGoogleNews(currentKeyword);
-    const yahooPosts = await scrapeYahooFinanceNews(currentKeyword);
-    const posts = [...redditPosts, ...newsPosts, ...yahooPosts];
-    console.log(`Scraped ${redditPosts.length} from Reddit, ${newsPosts.length} from Google News, and ${yahooPosts.length} from Yahoo. Processing...`);
+    const [redditPosts, newsPosts, yahooPosts, stockTwitsPosts, edgarPosts] = await Promise.all([
+        scrapeReddit(currentKeyword, 100),
+        scrapeGoogleNews(currentKeyword),
+        scrapeYahooFinanceNews(currentKeyword),
+        scrapeStockTwits(currentKeyword),
+        scrapeEDGAR(currentKeyword),
+    ]);
+    const posts = [...redditPosts, ...newsPosts, ...yahooPosts, ...stockTwitsPosts, ...edgarPosts];
+    console.log(`Scraped ${redditPosts.length} Reddit, ${newsPosts.length} GNews, ${yahooPosts.length} Yahoo, ${stockTwitsPosts.length} StockTwits, ${edgarPosts.length} EDGAR.`);
 
     let count = 0;
     const newPosts: ScrapedPost[] = [];
@@ -226,9 +314,16 @@ async function processPosts(keywordOverride?: string) {
     }
 
     console.log(`Worker iteration completed. Saved ${count} new data points.`);
-    
+
     // Final Step: Execute advanced Python quantitative models with newly scraped data
     await executeQuantModels(currentKeyword);
+
+    // Run macro, risk, and recommendation in parallel
+    await Promise.all([
+        fetchAndSaveMacro(currentKeyword),
+        computeRiskProfile(currentKeyword),
+    ]);
+    await computeRecommendation(currentKeyword);
 
     } finally {
         isScraping = false;
@@ -263,8 +358,9 @@ async function start() {
                 if (finalKeyword.length <= 5) finalKeyword = finalKeyword.toUpperCase();
                 await syncFundamentals(finalKeyword);
 
-                // Run slow sentiment analysis backwards in background
-                processPosts(finalKeyword).catch(e => console.error('Unhandled processPosts error:', e));
+                // Push to job queue and drain (prevents backlog if a job is already running)
+                jobQueue.push(finalKeyword);
+                drainQueue().catch(e => console.error('Job queue drain error:', e));
 
                 return new Response(JSON.stringify({ status: 'started', keyword: finalKeyword }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -276,11 +372,24 @@ async function start() {
 
     console.log('Worker Server listening on port 8080');
 
-    // Trigger one run on startup
-    await processPosts();
+    async function drainQueue() {
+        if (isRunning) return;
+        if (jobQueue.length === 0) {
+            jobQueue.push(targetKeyword); // default
+        }
+        isRunning = true;
+        const next = jobQueue.shift()!;
+        try {
+            await processPosts(next);
+        } finally {
+            isRunning = false;
+        }
+    }
 
-    // Setup standard repeating cron
-    setInterval(processPosts, 15 * 60 * 1000); // 15 minutes
+    // Startup run
+    drainQueue().catch(console.error);
+    // Recurring 15-min interval
+    setInterval(() => drainQueue().catch(console.error), 15 * 60 * 1000);
 }
 
 start().catch(console.error);

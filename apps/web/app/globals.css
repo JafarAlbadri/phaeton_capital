@@ -1,33 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-.glass-panel {
-  background-color: #000000;
-  border: 1px solid #333333;
+:root {
+  --bg: #08081a;
+  --surface: #0e0e24;
+  --surface-2: #14142e;
+  --border: rgba(255,255,255,0.07);
+  --border-strong: rgba(255,255,255,0.12);
+  --gold: #f59e0b;
+  --gold-dim: rgba(245,158,11,0.12);
+  --bull: #10b981;
+  --bear: #ef4444;
+  --text: #e2e8f0;
+  --muted: #64748b;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+* {
+  box-sizing: border-box;
 }
 
-::-webkit-scrollbar-track {
-  background: #050505;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+html {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 body {
-  background-color: #000000;
-  color: #ffb700;
-  font-family: 'Courier New', Courier, monospace;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(245,158,11,0.04) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* Card base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-image: linear-gradient(135deg, rgba(255,255,255,0.025) 0%, transparent 100%);
+  transition: border-color 0.2s;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+/* Stat tile */
+.stat-tile {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: all 0.2s;
+}
+
+.stat-tile:hover {
+  border-color: var(--border-strong);
+  background: rgba(255,255,255,0.03);
+}
+
+/* Number display */
+.num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pill badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Section header line */
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* Glow utilities */
+.glow-gold { box-shadow: 0 0 24px rgba(245,158,11,0.25); }
+.glow-bull  { box-shadow: 0 0 24px rgba(16,185,129,0.20); }
+.glow-bear  { box-shadow: 0 0 24px rgba(239,68,68,0.20); }
+
+/* Score bar */
+.score-bar-track {
+  height: 4px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Chart tooltip override */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #0e0e24 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
 }

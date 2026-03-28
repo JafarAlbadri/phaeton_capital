@@ -670,7 +670,7 @@ def build_report():
     pdf.cell(0, 7, "This report was generated automatically. All findings should be verified", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 7, "against the current state of the codebase before taking action.", align="C", new_x="LMARGIN", new_y="NEXT")
 
-    output_path = "/Users/allancaman/Jafar-Kod/phaeton_capital/AUDIT_REPORT_Statistical_Review.pdf"
+    output_path = "AUDIT_REPORT_Statistical_Review.pdf"
     pdf.output(output_path)
     print(f"Report generated: {output_path}")
     return output_path

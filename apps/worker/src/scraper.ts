@@ -119,3 +119,71 @@ export async function scrapeYahooFinanceNews(keyword: string): Promise<ScrapedPo
         return [];
     }
 }
+
+export async function scrapeStockTwits(ticker: string): Promise<ScrapedPost[]> {
+    const url = `https://api.stocktwits.com/api/2/streams/symbol/${ticker.toUpperCase()}.json?limit=30`;
+    console.log(`Fetching StockTwits for ${ticker}`);
+    try {
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'SentimentCrowd/1.0.0' },
+            signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) {
+            console.error(`StockTwits returned ${response.status}`);
+            return [];
+        }
+        const json = await response.json();
+        const messages = json?.messages || [];
+        return messages.map((msg: any) => ({
+            id: String(msg.id),
+            source: 'stocktwits',
+            author: msg.user?.username || 'unknown',
+            author_karma: msg.user?.followers || 0,
+            account_age_days: msg.user?.join_date
+                ? Math.floor((Date.now() - new Date(msg.user.join_date).getTime()) / (24 * 60 * 60 * 1000))
+                : 100,
+            post_timestamp: new Date(msg.created_at),
+            content: msg.body || '',
+        })).filter((p: ScrapedPost) => p.content.trim().length > 5);
+    } catch (err) {
+        console.error('StockTwits scrape failed:', err);
+        return [];
+    }
+}
+
+export async function scrapeEDGAR(ticker: string): Promise<ScrapedPost[]> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const url = `https://efts.sec.gov/LATEST/search-index?q="${ticker}"&dateRange=custom&startdt=${thirtyDaysAgo}&forms=8-K,10-Q`;
+    console.log(`Fetching SEC EDGAR filings for ${ticker}`);
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'SentimentCrowd research@sentimentcrowd.com',
+                'Accept': 'application/json'
+            },
+            signal: AbortSignal.timeout(15000)
+        });
+        if (!response.ok) {
+            console.error(`EDGAR returned ${response.status}`);
+            return [];
+        }
+        const json = await response.json();
+        const hits = json?.hits?.hits || [];
+        return hits.slice(0, 10).map((hit: any) => {
+            const src = hit._source || {};
+            const content = `${src.form_type || ''}: ${src.display_names?.join(', ') || ''} - ${src.period_of_report || ''} - ${src.entity_name || ''}`;
+            return {
+                id: hit._id || generateDuplicateHash(content),
+                source: 'sec_edgar',
+                author: src.entity_name || 'SEC EDGAR',
+                author_karma: 10000, // Official filing
+                account_age_days: 10000,
+                post_timestamp: src.file_date ? new Date(src.file_date) : new Date(),
+                content,
+            };
+        }).filter((p: ScrapedPost) => p.content.trim().length > 10);
+    } catch (err) {
+        console.error('SEC EDGAR scrape failed:', err);
+        return [];
+    }
+}

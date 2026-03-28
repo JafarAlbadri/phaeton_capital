@@ -80,6 +80,15 @@ export default async function Page(
         upperBound = bootstrapMeans[Math.floor(numBootstraps * 0.975)];
     }
 
+    // Use Bayesian CI if available, otherwise fall back to bootstrap
+    const bayesPosterior = (quantMetrics as any)?.bayes_posterior;
+    const bayesStd = (quantMetrics as any)?.bayes_std;
+    if (bayesPosterior != null && bayesStd != null) {
+        // Use Bayesian credible interval (95% = ±1.96 * std)
+        lowerBound = bayesPosterior - 1.96 * bayesStd;
+        upperBound = bayesPosterior + 1.96 * bayesStd;
+    }
+
     // T-test (One-sample) against 0 (neutral) approximation
     let pValue = 1;
     let isSignificant = false;
@@ -136,6 +145,32 @@ export default async function Page(
         where: { ticker: targetKeyword }
     });
 
+    const technicalIndicators = await prisma.technicalIndicators.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
+    const macroIndicators = await prisma.macroIndicators.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
+    const riskProfile = await prisma.riskProfile.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
+    const recommendationScore = await prisma.recommendationScore.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
+    // Prediction accuracy
+    const predictionRecords = await prisma.predictionRecord.findMany({
+        where: { ticker: targetKeyword, outcome: { not: 'PENDING' } },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+    });
+    const totalPredictions = predictionRecords.length;
+    const correctPredictions = predictionRecords.filter(p => p.outcome === 'CORRECT').length;
+    const predictionAccuracy = totalPredictions > 0 ? correctPredictions / totalPredictions : null;
+
     // 5. Fetch USD to SEK Exchange Rate
     let usdSekRate = null;
     try {
@@ -157,17 +192,14 @@ export default async function Page(
             financialHistory={financialHistory}
             insiderTrades={insiderTrades}
             usdSekRate={usdSekRate}
-            gaussianData={{ 
-                curve: gaussianDataList, 
-                mean, 
-                stdDev, 
-                n, 
-                lowerBound, 
-                upperBound, 
-                pValue, 
-                isSignificant 
-            }}
+            gaussianData={{ curve: gaussianDataList, mean, stdDev, n, lowerBound, upperBound, pValue, isSignificant }}
             quantMetrics={quantMetrics}
+            technicalIndicators={technicalIndicators}
+            macroIndicators={macroIndicators}
+            riskProfile={riskProfile}
+            recommendationScore={recommendationScore}
+            predictionAccuracy={predictionAccuracy}
+            predictionCount={totalPredictions}
         />
     );
 }
