@@ -1,680 +1,522 @@
-#!/usr/bin/env python3
-"""Generate PDF audit report for Phaeton Capital / SentimentCrowd."""
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    HRFlowable, PageBreak, ListFlowable, ListItem
+)
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 
-from fpdf import FPDF
-from datetime import date
+OUTPUT = "/Users/jafaralbadri/repos/phaeton_capital/PHAETON_CAPITAL_ASSESSMENT.pdf"
 
+C_BG      = colors.HexColor("#0a0a0f")
+C_SURFACE = colors.HexColor("#13131a")
+C_GOLD    = colors.HexColor("#d4a017")
+C_GOLD2   = colors.HexColor("#f0c040")
+C_RED     = colors.HexColor("#e05252")
+C_ORANGE  = colors.HexColor("#e07a30")
+C_YELLOW  = colors.HexColor("#e0c040")
+C_GREEN   = colors.HexColor("#4caf7d")
+C_TEXT    = colors.HexColor("#e8e8f0")
+C_MUTED   = colors.HexColor("#8888aa")
+C_BORDER  = colors.HexColor("#2a2a3a")
+C_ACCENT  = colors.HexColor("#3a3a5a")
 
-class AuditReport(FPDF):
-    def __init__(self):
-        super().__init__()
-        self.set_auto_page_break(auto=True, margin=20)
+def S(name, **kw): return ParagraphStyle(name, **kw)
 
-    def header(self):
-        self.set_font("Helvetica", "B", 9)
-        self.set_text_color(120, 120, 120)
-        self.cell(0, 8, "Phaeton Capital - Statistical Audit Report", align="L")
-        self.cell(0, 8, f"{date.today().isoformat()}", align="R", new_x="LMARGIN", new_y="NEXT")
-        self.set_draw_color(200, 200, 200)
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(4)
+ST = {
+    "cover_title": S("cover_title", fontSize=34, leading=42, textColor=C_GOLD, fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=6),
+    "cover_sub":   S("cover_sub",   fontSize=13, leading=18, textColor=C_MUTED, fontName="Helvetica", alignment=TA_CENTER, spaceAfter=4),
+    "cover_meta":  S("cover_meta",  fontSize=10, leading=14, textColor=C_MUTED, fontName="Helvetica", alignment=TA_CENTER),
+    "h1":  S("h1",  fontSize=20, leading=26, textColor=C_GOLD,  fontName="Helvetica-Bold", spaceBefore=18, spaceAfter=8),
+    "h2":  S("h2",  fontSize=14, leading=20, textColor=C_GOLD2, fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6),
+    "h3":  S("h3",  fontSize=11, leading=16, textColor=C_TEXT,  fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4),
+    "body": S("body", fontSize=9.5, leading=15, textColor=C_TEXT, fontName="Helvetica", spaceAfter=6, alignment=TA_JUSTIFY),
+    "muted": S("muted", fontSize=8.5, leading=13, textColor=C_MUTED, fontName="Helvetica", spaceAfter=4),
+    "code": S("code", fontSize=8, leading=12, textColor=C_GOLD2, fontName="Courier", spaceAfter=4, backColor=C_SURFACE, borderPadding=(4,6,4,6)),
+    "tb":   S("tb",   fontSize=8.5, leading=12, textColor=C_TEXT, fontName="Helvetica"),
+    "th":   S("th",   fontSize=8.5, leading=12, textColor=C_GOLD, fontName="Helvetica-Bold"),
+}
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Helvetica", "I", 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", align="C")
+def p(t, s="body"): return Paragraph(t, ST[s])
+def sp(h=6):        return Spacer(1, h)
+def hr():           return HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=8, spaceBefore=4)
+def pb():           return PageBreak()
 
-    def title_page(self):
-        self.add_page()
-        self.ln(50)
-        self.set_font("Helvetica", "B", 28)
-        self.set_text_color(30, 30, 30)
-        self.cell(0, 15, "Phaeton Capital", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.set_font("Helvetica", "B", 20)
-        self.set_text_color(80, 80, 80)
-        self.cell(0, 12, "SentimentCrowd", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.ln(8)
-        self.set_draw_color(50, 120, 200)
-        self.set_line_width(0.8)
-        self.line(60, self.get_y(), 150, self.get_y())
-        self.ln(10)
-        self.set_font("Helvetica", "", 16)
-        self.set_text_color(60, 60, 60)
-        self.cell(0, 10, "Statistical & Mathematical Audit Report", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.ln(6)
-        self.set_font("Helvetica", "", 12)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 8, "Multi-Agent Deep Review", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 8, "5 Specialists + Devil's Advocate", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.ln(30)
-        self.set_font("Helvetica", "", 11)
-        self.set_text_color(80, 80, 80)
-        self.cell(0, 7, f"Date: {date.today().strftime('%B %d, %Y')}", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, "Prepared by: Claude Opus 4.6 Multi-Agent Team", align="C", new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, "Repository: github.com/JafarAlbadri/phaeton_capital", align="C", new_x="LMARGIN", new_y="NEXT")
+def h1(t): return [sp(4), p(t,"h1"), hr()]
+def h2(t): return [p(t,"h2")]
 
-    def section_title(self, title, level=1):
-        if level == 1:
-            self.ln(6)
-            self.set_font("Helvetica", "B", 16)
-            self.set_text_color(30, 60, 120)
-            self.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
-            self.set_draw_color(30, 60, 120)
-            self.set_line_width(0.5)
-            self.line(10, self.get_y(), 200, self.get_y())
-            self.ln(4)
-        elif level == 2:
-            self.ln(4)
-            self.set_font("Helvetica", "B", 13)
-            self.set_text_color(50, 80, 140)
-            self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
-            self.ln(2)
-        elif level == 3:
-            self.ln(2)
-            self.set_font("Helvetica", "B", 11)
-            self.set_text_color(70, 70, 70)
-            self.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
-            self.ln(1)
+def bullets(items):
+    return [ListFlowable(
+        [ListItem(p(i), leftIndent=10, bulletColor=C_GOLD) for i in items],
+        bulletType='bullet', leftIndent=14, spaceAfter=6
+    )]
 
-    def body_text(self, text):
-        self.set_font("Helvetica", "", 10)
-        self.set_text_color(50, 50, 50)
-        self.multi_cell(0, 5.5, text)
-        self.ln(1)
+def tbl(data, widths, bg_alt=True):
+    t = Table(data, colWidths=widths)
+    style = [
+        ("BACKGROUND",(0,0),(-1,0), C_ACCENT),
+        ("GRID",(0,0),(-1,-1), 0.4, C_BORDER),
+        ("VALIGN",(0,0),(-1,-1),"TOP"),
+        ("TOPPADDING",(0,0),(-1,-1),5),
+        ("BOTTOMPADDING",(0,0),(-1,-1),5),
+        ("LEFTPADDING",(0,0),(-1,-1),6),
+        ("RIGHTPADDING",(0,0),(-1,-1),6),
+    ]
+    if bg_alt:
+        for i in range(1, len(data)):
+            bg = C_SURFACE if i % 2 == 1 else C_BG
+            style.append(("BACKGROUND",(0,i),(-1,i), bg))
+    t.setStyle(TableStyle(style))
+    return t
 
-    def bullet(self, text, indent=10):
-        x = self.get_x()
-        self.set_font("Helvetica", "", 10)
-        self.set_text_color(50, 50, 50)
-        self.set_x(x + indent)
-        self.cell(5, 5.5, "-")
-        self.multi_cell(0, 5.5, text)
-        self.ln(0.5)
+def on_page(canvas, doc):
+    canvas.saveState()
+    canvas.setFillColor(C_BG)
+    canvas.rect(0,0,A4[0],A4[1],fill=1,stroke=0)
+    canvas.setFillColor(C_MUTED)
+    canvas.setFont("Helvetica", 7.5)
+    canvas.drawString(20*mm, 12*mm, "PHAETON CAPITAL — TECHNICAL ASSESSMENT  |  CONFIDENTIAL")
+    canvas.drawRightString(A4[0]-20*mm, 12*mm, f"Page {doc.page}")
+    canvas.setStrokeColor(C_BORDER)
+    canvas.setLineWidth(0.4)
+    canvas.line(20*mm,16*mm,A4[0]-20*mm,16*mm)
+    canvas.restoreState()
 
-    def code_block(self, code):
-        self.set_font("Courier", "", 8.5)
-        self.set_fill_color(245, 245, 245)
-        self.set_text_color(40, 40, 40)
-        self.set_draw_color(220, 220, 220)
-        x = self.get_x() + 5
-        y = self.get_y()
-        self.set_x(x)
-        lines = code.strip().split("\n")
-        h = len(lines) * 4.5 + 6
-        if self.get_y() + h > self.h - 25:
-            self.add_page()
-            y = self.get_y()
-        self.rect(x - 2, y, 180, h, style="DF")
-        self.ln(3)
-        for line in lines:
-            self.set_x(x + 2)
-            self.cell(0, 4.5, line[:95], new_x="LMARGIN", new_y="NEXT")
-        self.ln(3)
+def build():
+    doc = SimpleDocTemplate(OUTPUT, pagesize=A4,
+        leftMargin=20*mm, rightMargin=20*mm, topMargin=22*mm, bottomMargin=22*mm,
+        title="Phaeton Capital — Technical Assessment", author="Claude Code")
+    s = []
 
-    def severity_badge(self, severity):
-        colors = {
-            "CRITICAL": (200, 30, 30),
-            "HIGH": (220, 100, 30),
-            "MEDIUM": (200, 170, 30),
-            "LOW": (80, 160, 80),
-            "FALSE POSITIVE": (150, 150, 150),
+    # COVER
+    s += [sp(40), p("PHAETON CAPITAL","cover_title"), p("TECHNICAL ASSESSMENT & ROADMAP","cover_sub"), sp(6)]
+    s += [HRFlowable(width="60%",thickness=1.5,color=C_GOLD,hAlign="CENTER",spaceAfter=16,spaceBefore=8)]
+    s += [p("Prepared for: Antigravity Development Team","cover_meta")]
+    s += [p("Date: 29 March 2026","cover_meta")]
+    s += [p("Specialists: Quant Analyst  ·  Backend Engineer  ·  Frontend Engineer  ·  Data/AI Pipeline","cover_meta")]
+    s += [sp(30), p("CLASSIFICATION: INTERNAL — DO NOT DISTRIBUTE","muted"), pb()]
+
+    # EXECUTIVE SUMMARY
+    s += h1("EXECUTIVE SUMMARY")
+    s += [p("Phaeton Capital has the right vision, an exceptional visual design, and a technically ambitious foundation. "
+            "Four specialist reviews were conducted in parallel across quantitative finance, backend architecture, "
+            "frontend/UX, and data/AI pipeline. The findings are consistent: the system creates the <b>appearance of "
+            "predictive rigour</b> without the substance. Several models contain mathematical errors. The data pipeline "
+            "silently loses records in production. The AI sentiment pipeline has no calibration. The frontend displays "
+            "hardcoded fictional market data.")]
+    s += [p("This document details every issue found, its severity, and the exact fix required. "
+            "It is structured as a prioritised engineering backlog. Nothing here requires an architectural rewrite — "
+            "these are targeted, concrete fixes that can be completed in two sprints.")]
+
+    grades = [
+        ("HMM Regime Detection","F","Lookahead bias — trained and tested on the same data"),
+        ("Hurst Exponent","D","Formula mathematically wrong; lag range 2–20 days is too short"),
+        ("Kelly Criterion","D","Formula is mean/var — this is not Kelly criterion"),
+        ("Monte Carlo","C-","Correct structure; naive GBM; no jumps, no vol clustering"),
+        ("GARCH / Volatility","B-","Mostly correct; needs Student-t dist and convergence checks"),
+        ("Sentiment Pipeline","D+","Overstated weight; LLM confidence uncalibrated; no test set"),
+        ("Technical Indicators","B","Calculations correct; misused (lagging signals treated as leading)"),
+        ("Fundamental Analysis","C","Basic metrics only; P/E not growth-adjusted; no quality screens"),
+        ("Macro Framework","C-","VIX/yield concepts sound; fear/greed index is ad-hoc"),
+        ("Recommendation Engine","D","Arbitrary weights; no backtest; no ablation; no alpha proof"),
+        ("Backend Architecture","D+","Race conditions; silent data loss; Python zombie processes"),
+        ("Data Pipeline","D","Bot-contaminated; RSS fragility; no authentication; no fallback"),
+        ("AI Pipeline","D+","No ground truth; no prompt versioning; fallback silently changes model"),
+        ("Frontend / UX","C+","Exceptional design; fake live data; 987-line god component; no mobile"),
+    ]
+    gc_map = {"A":C_GREEN,"B":C_GREEN,"B-":C_GREEN,"C":C_YELLOW,"C-":C_YELLOW,"C+":C_YELLOW,
+              "D":C_ORANGE,"D+":C_ORANGE,"D-":C_RED,"F":C_RED}
+    hrow = [p("Area","th"), p("Grade","th"), p("Core Problem","th")]
+    rows = [hrow] + [
+        [p(a,"tb"),
+         Paragraph(g, ParagraphStyle("gx",fontSize=9,leading=12,textColor=gc_map.get(g,C_TEXT),fontName="Helvetica-Bold")),
+         p(n,"tb")] for a,g,n in grades
+    ]
+    s += [tbl(rows,[52*mm,18*mm,100*mm]), sp(8), pb()]
+
+    # SECTION 1 QUANT
+    s += h1("1.  QUANTITATIVE MODELS")
+    s += [p("The app implements HMM, Hurst exponent, Monte Carlo, Kelly Criterion, GARCH, Granger causality, "
+            "Bayesian aggregation, Ornstein-Uhlenbeck, and ADF stationarity tests. Several contain fundamental "
+            "errors. None have been validated out-of-sample.")]
+
+    s += h2("1.1  Hidden Markov Model — Lookahead Bias")
+    s += [p("<b>File:</b> apps/worker/src/advanced_math.py  lines 102–116","muted")]
+    s += [p("model.fit(returns)  →  model.predict(returns)   # same data = data leakage","code")]
+    s += [p("The model is trained and tested on identical data. It will always appear to identify regimes correctly "
+            "while being useless on future data. 126 trading days is also too short for regime structure to stabilise.")]
+    s += bullets([
+        "<b>Fix:</b> Expanding-window training — fit on data up to day T, predict day T+1 only.",
+        "<b>Fix:</b> Use 3–4 states with economically labelled transition matrices.",
+        "<b>Fix:</b> Remove random_state=42 from production code.",
+        "<b>Fix:</b> Require minimum 2 years of daily data before running.",
+    ])
+
+    s += h2("1.2  Hurst Exponent — Wrong Formula")
+    s += [p("<b>File:</b> apps/worker/src/advanced_math.py  lines 118–128","muted")]
+    s += [p("lags = range(2, 20)          # too short — minimum 50+ required\nhurst_exponent = poly[0] * 2.0  # constant is unjustified","code")]
+    s += [p("The scaling formula applies sqrt(std) where raw variance is required. The lag range 2–20 is far below "
+            "the minimum (50+) needed for the estimate to stabilise. The ×2.0 multiplier is unexplained.")]
+    s += bullets([
+        "<b>Fix:</b> Implement DFA (Detrended Fluctuation Analysis) with lags from 10 to N/4.",
+        "<b>Fix:</b> Detrend the price series before computing.",
+        "<b>Fix:</b> Require minimum 500 observations; flag result as inconclusive if CI spans 0.3–0.7.",
+    ])
+
+    s += h2("1.3  Kelly Criterion — Mathematically Incorrect")
+    s += [p("<b>File:</b> apps/worker/src/advanced_math.py  lines 130–137","muted")]
+    s += [p("kelly_fraction = mean_ret / var_ret   # NOT Kelly\n# Correct: f* = (bp - q) / b  where b=odds, p=win_prob, q=loss_prob","code")]
+    s += [p("The formula computed is mean/variance. Kelly requires win/loss odds and probabilities. "
+            "Full Kelly on 6 months of non-stationary returns also implies ~40% max drawdown even with edge.")]
+    s += bullets([
+        "<b>Fix:</b> Implement correct continuous Kelly (μ/σ²) with explicit documentation of assumptions.",
+        "<b>Fix:</b> Apply fractional Kelly ×0.25 to limit drawdown.",
+        "<b>Fix:</b> Subtract estimated transaction costs from μ before computing.",
+    ])
+
+    s += h2("1.4  Monte Carlo — No Fat Tails")
+    s += [p("<b>File:</b> apps/worker/src/advanced_math.py  lines 165–208","muted")]
+    s += [p("shock = sigma * np.random.normal()   # thin-tailed — underestimates downside","code")]
+    s += bullets([
+        "<b>Fix:</b> Replace normal shocks with Student-t (df=4–6) to capture fat tails.",
+        "<b>Fix:</b> Propagate GARCH vol forward through each path — not just today's vol for all 15 days.",
+        "<b>Fix:</b> Add Poisson jump component for earnings/news gap risk.",
+    ])
+
+    s += h2("1.5  Granger, TE, ADF — Computed but Discarded")
+    s += [p("Granger p-value, transfer entropy, ADF stationarity, and OU calibration are all computed in "
+            "advanced_math.py and stored, but recommendation.ts never reads them. The ADF test on bounded "
+            "[-1,1] sentiment is trivially stationary — it adds nothing.")]
+    s += bullets([
+        "<b>Fix:</b> Incorporate Granger p-value into signal score (downweight sentiment when p > 0.1) or delete the computation.",
+        "<b>Fix:</b> Delete ADF stationarity test on sentiment.",
+        "<b>Fix:</b> Replace transfer entropy with Pearson correlation — simpler and more interpretable.",
+    ])
+
+    s += h2("1.6  Recommendation Weights — Arbitrary Guesses")
+    s += [p("sentiment:0.25  technical:0.20  fundamental:0.20  quant:0.20  insider:0.10  macro:0.05","code")]
+    s += [p("No backtest, no regression, no factor study proves sentiment is 5× more important than macro. "
+            "These are guesses codified as science.")]
+    s += bullets([
+        "<b>Fix:</b> Run 2-year walk-forward backtest. Use ridge regression to learn optimal weights from prediction outcomes.",
+        "<b>Fix:</b> Add regime-conditional weights: in high-VIX, macro → 0.30, sentiment → 0.10.",
+        "<b>Fix:</b> Ablation study: measure Sharpe with and without each signal source.",
+    ])
+    s += [pb()]
+
+    # SECTION 2 BACKEND
+    s += h1("2.  BACKEND ARCHITECTURE")
+    s += [p("The worker is a monolith coordinating scraping, AI batching, DB writes, Python subprocesses, "
+            "risk computation, and scheduling in a single process with in-memory state. "
+            "It will fail silently and frequently in production.")]
+
+    s += h2("2.1  Race Conditions & Silent Data Loss")
+    s += [p("<b>File:</b> apps/worker/src/index.ts  lines 196–210 and 285–313","muted")]
+    s += [p("// findUnique() then create() — another worker inserts same hash in between\n"
+            "// P2002 unique constraint fires → record silently dropped, no retry","code")]
+    s += bullets([
+        "<b>Fix:</b> Use createMany({ skipDuplicates: true }) — one atomic operation eliminates the race entirely.",
+        "<b>Fix:</b> Wrap all financial history upserts in prisma.$transaction() — currently a crash mid-loop leaves permanent partial data.",
+        "<b>Fix:</b> Log every skipped record to an audit table with reason code.",
+    ])
+
+    s += h2("2.2  Python Subprocess Resource Leak")
+    s += [p("<b>Files:</b> fundamentals.ts, quant.ts, macro.ts","muted")]
+    s += [p("Bun.spawn([\"python3\", ...])  // spawned per request, no guaranteed cleanup\nsetTimeout(() => proc.kill(), 30000)  // SIGTERM often ignored by Python","code")]
+    s += [p("Three modules each spawn a Python process per request. After thousands of calls, zombie processes "
+            "accumulate until the system exhausts file descriptors and crashes.")]
+    s += bullets([
+        "<b>Fix:</b> Replace all three Python callers with a single persistent FastAPI service exposing /fundamentals, /quant, /macro.",
+        "<b>Fix:</b> Add to docker-compose.yml as a dedicated python_worker service. Call over HTTP from TypeScript.",
+        "<b>Fix:</b> This also eliminates stdout buffering issues, JSON split reads, and timeout ambiguity.",
+    ])
+
+    s += h2("2.3  In-Memory Job Queue — Lost on Restart")
+    s += [p("<b>File:</b> apps/worker/src/index.ts  lines 17–19","muted")]
+    s += [p("let jobQueue: string[] = [];  // lost on pod restart\nlet isRunning = false;         // not thread-safe","code")]
+    s += bullets([
+        "<b>Fix:</b> Replace with BullMQ backed by the Redis instance already in docker-compose.yml.",
+        "<b>Fix:</b> Add dead-letter queue with exponential backoff for failed jobs.",
+        "<b>Fix:</b> De-duplicate jobs: same ticker within 10 minutes should not re-queue.",
+    ])
+
+    s += h2("2.4  500 Individual DB Inserts Per Scrape")
+    s += bullets([
+        "<b>Fix:</b> Collect all validated sentiment objects, call prisma.sentiment.createMany() once per batch.",
+        "<b>Fix:</b> Set explicit pool in DATABASE_URL: ?connection_limit=20&pool_timeout=30",
+    ])
+
+    s += h2("2.5  Zero Observability")
+    s += bullets([
+        "<b>Fix:</b> Add /health and /ready HTTP endpoints for container orchestration.",
+        "<b>Fix:</b> Replace console.log/error with structured JSON logging (pino) with correlation IDs.",
+        "<b>Fix:</b> Expose Prometheus metrics: sentiment_saved_total, ai_batch_duration_ms, queue_depth, python_errors_total.",
+    ])
+    s += [pb()]
+
+    # SECTION 3 DATA
+    s += h1("3.  DATA SOURCES & AI PIPELINE")
+
+    s += h2("3.1  Reddit — Trust Filter Removed")
+    s += [p("<b>File:</b> apps/worker/src/scraper.ts  lines 54–55","muted")]
+    s += [p("author_karma: 500,       // HARDCODED FAKE — comment says 'removed per audit'\nauthor_age_days: 100,   // HARDCODED FAKE","code")]
+    s += [p("Every Reddit post — bots, pump-and-dump campaigns, spam — is now ingested as valid signal. "
+            "The entire sentiment pipeline is contaminated at the source.")]
+    s += bullets([
+        "<b>Fix:</b> Implement Reddit OAuth2 and use the authenticated API (real karma, real age).",
+        "<b>Fix:</b> Soft-score trust: karma 100–500 maps linearly to 0.3–1.0 weight multiplier.",
+        "<b>Fix:</b> Detect coordinated bursts: >20 similar posts within 1 hour → flag as manipulation.",
+    ])
+
+    s += h2("3.2  3 of 5 Sources Are Unofficial RSS")
+    s += [p("Google News RSS and Yahoo Finance RSS are undocumented endpoints. Google has deprecated RSS "
+            "feeds before without notice. No fallback exists if a source goes down.")]
+    s += bullets([
+        "<b>Fix:</b> Replace Google News RSS with NewsAPI.org (free tier: 100 req/day) or Polygon.io News.",
+        "<b>Fix:</b> Add source-health monitoring: 0 results for 3 consecutive cycles → alert.",
+        "<b>Fix:</b> Tag every sentiment record with its source for credibility-weighted aggregation.",
+    ])
+
+    s += h2("3.3  Gemini Sentiment — No Calibration")
+    s += [p("LLM confidence scores are used directly. There is no test set, no F1 score, no calibration curve. "
+            "An LLM claiming 0.95 confidence does not mean 95% accuracy. You don't know if this is better than random.")]
+    s += bullets([
+        "<b>Fix:</b> Label 500 posts manually. Measure Gemini precision/recall against labels.",
+        "<b>Fix:</b> Apply Platt scaling or isotonic regression to calibrate confidence scores.",
+        "<b>Fix:</b> Consider FinBERT as supplement — domain-specific model with published accuracy benchmarks.",
+        "<b>Fix:</b> Add prompt_version column to Sentiment table. Bump on every prompt change.",
+    ])
+
+    s += h2("3.4  Fallback Model Changes Signal Silently")
+    s += [p("<b>File:</b> apps/worker/src/ai.ts  lines 94–128","muted")]
+    s += [p("On 429 → instantly retry with gemini-1.5-flash → ai_model field updated\n"
+            "// But Bayesian aggregation treats both models as equivalent. They are not.","code")]
+    s += bullets([
+        "<b>Fix:</b> Add exponential backoff with jitter before trying fallback.",
+        "<b>Fix:</b> Apply a calibrated discount factor (e.g. 0.7×) to fallback model scores until equivalence is empirically proven.",
+        "<b>Fix:</b> Track fallback rate as a metric — >20% of batches falling back = primary quota insufficient.",
+    ])
+
+    s += h2("3.5  EDGAR — Metadata Only, No Content")
+    s += bullets([
+        "<b>Fix:</b> Use SEC EDGAR Full-Text Search API to retrieve filing content.",
+        "<b>Fix:</b> Apply LLM sentiment to filing text, weighted at 3× Reddit (higher credibility tier).",
+        "<b>Fix:</b> Flag 8-K filings containing material keywords: restatement, CEO, SEC, investigation, default.",
+    ])
+
+    s += h2("3.6  Critical Missing Data Sources")
+    s += bullets([
+        "<b>Options Flow:</b> Put/call ratio and unusual options volume — leading institutional indicator. Source: CBOE free data or Unusual Whales API.",
+        "<b>Short Interest:</b> Borrow rate spikes predict squeezes. Source: FINRA short interest reports (free, bi-weekly).",
+        "<b>Earnings Transcripts:</b> Q&A tone is highly predictive. Source: SEC EDGAR 8-K full text or Motley Fool API.",
+        "<b>Analyst Revision Momentum:</b> Are targets rising or falling? Capture upgrades_downgrades from yfinance.",
+        "<b>Dark Pool / Block Trades:</b> Institutional positioning. Source: FINRA OTC Transparency data.",
+    ])
+    s += [pb()]
+
+    # SECTION 4 FRONTEND
+    s += h1("4.  FRONTEND & UX")
+
+    s += h2("4.1  Hardcoded Fake Market Data — Remove Immediately")
+    s += [p("<b>File:</b> apps/web/app/DashboardClient.tsx  lines 327–333","muted")]
+    s += [p('<span>NVDA +2.4%</span>  <span>TSLA -1.2%</span>   // fictional, hardcoded, displayed as live','code')]
+    s += [p("This is fictional data displayed as live market movement on a financial application. "
+            "This is the single most damaging credibility issue in the entire codebase.",
+            "muted")]
+    s += bullets(["<b>Fix:</b> Delete immediately. Either fetch real price data (Polygon.io, yfinance JS) or remove the ticker tape."])
+
+    s += h2("4.2  Bootstrap CI Bands — Computed but Never Shown")
+    s += [p("<b>File:</b> apps/web/app/page.tsx  lines 79–80","muted")]
+    s += [p("1,000 bootstrap iterations run on every page request. lowerBound + upperBound computed, passed "
+            "as props, and never rendered. The most statistically honest feature in the app is invisible "
+            "while burning CPU on every load.")]
+    s += bullets([
+        "<b>Fix:</b> Render lowerBound and upperBound as a shaded ReferenceArea on the Gaussian distribution chart.",
+        "<b>Fix:</b> Move bootstrap computation to the worker — pre-compute and store in DB, not on every page render.",
+    ])
+
+    s += h2("4.3  987-Line God Component — all typed 'any'")
+    s += [p("<b>File:</b> apps/web/app/DashboardClient.tsx","muted")]
+    s += [p("export default function DashboardClient({ ...14 props... }: any)  // zero type safety","code")]
+    s += bullets([
+        "<b>Fix:</b> Split into: SentimentPanel, FundamentalsPanel, TechnicalPanel, QuantPanel, InsiderPanel, MacroPanel, RiskPanel, RecommendationPanel.",
+        "<b>Fix:</b> Define TypeScript interfaces for all props. Remove every instance of 'any'.",
+    ])
+
+    s += h2("4.4  force-dynamic + 7 DB Queries on Every Request")
+    s += bullets([
+        "<b>Fix:</b> Change revalidate=0 to revalidate=60 — data only updates every 15 minutes.",
+        "<b>Fix:</b> Cache fundamental data in Redis with 5-minute TTL.",
+        "<b>Fix:</b> Replace 30-second client polling with Server-Sent Events — push updates only when new sentiment arrives.",
+    ])
+
+    s += h2("4.5  Language Inconsistency")
+    s += [p("Section labels are in Swedish (Helhetsanalys, Insynshandel) while navigation and errors are English. "
+            "Pick one language. English is recommended for broader market reach.")]
+
+    s += h2("4.6  Mobile Is Broken")
+    s += bullets([
+        "Search bar is hidden md:block — invisible on phones.",
+        "Sidebar hover-expansion does not work on touch.",
+        "<b>Fix:</b> Add bottom navigation bar for mobile. Test on iPhone SE (375×667).",
+    ])
+
+    s += h2("4.7  Missing Key Visualizations")
+    s += bullets([
+        "<b>Price chart with sentiment overlay</b> — the core product vision; completely absent.",
+        "<b>Prediction audit trail</b> — last 20 predictions vs. actual outcomes with hit rate and Sharpe.",
+        "<b>Volatility regime indicator</b> — animated state machine (Calm / Normal / Stressed / Crisis).",
+        "<b>Insider trade price-impact chart</b> — annotate price chart with insider events; show what happened next.",
+        "<b>Sector/peer percentile ranking</b> — 'This stock is 85th percentile in its sector by momentum.'",
+    ])
+    s += [pb()]
+
+    # SECTION 5 NEXT LEVEL
+    s += h1("5.  WHAT WILL TAKE THIS TO THE NEXT LEVEL")
+    s += [p("Beyond fixing the issues above, these five features separate a prototype from a tool "
+            "people actually rely on.")]
+
+    s += h2("① Price + Sentiment Causality Chart  (Highest Impact)")
+    s += [p("Show stock price over time with the rolling sentiment score overlaid on the same axis. Annotate "
+            "moments where Granger causality was statistically significant. This makes the entire ML pipeline "
+            "visible and verifiable. It is also the most compelling demo possible — users can see whether "
+            "sentiment led price in the past.")]
+
+    s += h2("② Regime-Aware Signal Weighting")
+    s += [p("Change which signals are highlighted based on current market regime. Trending market → emphasise "
+            "momentum and MACD. Ranging market → RSI mean-reversion and Bollinger bands. Crisis (VIX > 30) → "
+            "suppress technical signals, amplify macro and liquidity. This is what separates a system from a dashboard.")]
+
+    s += h2("③ Prediction Audit Trail")
+    s += [p("Show users the last 20 predictions for the current ticker and what actually happened: hit rate, "
+            "average return, maximum loss, Sharpe ratio. If the model is right 55% of the time, show it. "
+            "If 40%, show that too. This is the single most trust-building feature possible.")]
+
+    s += h2("④ The 'Why' Narrative — LLM Synthesis")
+    s += [p("Replace the wall of 50 metrics with 3 sentences generated by the LLM: "
+            "'RSI is oversold at 28. Insiders purchased $2.1M in the last 14 days. Sentiment turned positive "
+            "after the earnings beat. Model confidence: 68%.' "
+            "This is what separates a decision tool from a data museum.")]
+
+    s += h2("⑤ Options Flow Integration")
+    s += [p("Put/call ratio and unusual options activity is the single most powerful leading indicator available "
+            "publicly. Unusual call buying at strikes 10–20% above current price signals institutional bullish "
+            "positioning before it appears in price. Source: CBOE free feed or Unusual Whales API. "
+            "Add this and you have something institutional traders actually pay for.")]
+    s += [pb()]
+
+    # SECTION 6 PRIORITY TABLE
+    s += h1("6.  PRIORITISED ACTION TABLE")
+
+    def ptbl(rows):
+        col_colors = {
+            "P0": C_RED, "P1": C_ORANGE, "P2": C_YELLOW, "P3": C_GREEN
         }
-        r, g, b = colors.get(severity, (100, 100, 100))
-        self.set_font("Helvetica", "B", 8)
-        self.set_fill_color(r, g, b)
-        self.set_text_color(255, 255, 255)
-        w = self.get_string_width(f" {severity} ") + 4
-        self.cell(w, 5, f" {severity} ", fill=True)
-        self.set_text_color(50, 50, 50)
+        hdr = [p("Priority","th"), p("Fix","th"), p("Why","th")]
+        data = [hdr]
+        for (pri, fix, why) in rows:
+            col = col_colors.get(pri, C_TEXT)
+            data.append([
+                Paragraph(f"🔴 {pri}" if pri=="P0" else f"🟠 {pri}" if pri=="P1" else f"🟡 {pri}" if pri=="P2" else f"🟢 {pri}",
+                          ParagraphStyle("pc", fontSize=8, leading=11, textColor=col, fontName="Helvetica-Bold")),
+                p(fix,"tb"),
+                p(why,"tb"),
+            ])
+        return [tbl(data,[22*mm,68*mm,80*mm]), sp(6)]
 
-    def finding_row(self, num, finding, file_ref, severity):
-        self.set_font("Helvetica", "B", 10)
-        self.set_text_color(50, 50, 50)
-        self.cell(8, 6, f"{num}.")
-        self.severity_badge(severity)
-        self.cell(3, 6, "")
-        self.set_font("Helvetica", "", 10)
-        self.set_text_color(50, 50, 50)
-        remaining_w = self.w - self.get_x() - 10
-        self.multi_cell(remaining_w, 5.5, finding)
-        self.set_font("Courier", "", 8)
-        self.set_text_color(100, 100, 100)
-        self.set_x(21)
-        self.cell(0, 5, file_ref, new_x="LMARGIN", new_y="NEXT")
-        self.ln(2)
+    s += h2("P0 — Before Anything Else")
+    s += ptbl([
+        ("P0","Delete hardcoded fake ticker tape","DashboardClient.tsx:327–333 — fictional data on a finance app destroys credibility"),
+        ("P0","Restore Reddit OAuth authentication","scraper.ts:54–55 — trust filter gutted; entire signal is bot-contaminated"),
+        ("P0","Wrap all related DB writes in prisma.$transaction()","index.ts:128–136 — crash leaves permanently incomplete financial history"),
+        ("P0","Replace in-memory jobQueue with BullMQ on Redis","index.ts:17–19 — every pod restart loses all queued work"),
+        ("P0","Replace individual create() loop with createMany(skipDuplicates)","index.ts:285–313 — 500 round-trips + race condition drops records silently"),
+    ])
 
-    def table_header(self, cols, widths):
-        self.set_font("Helvetica", "B", 9)
-        self.set_fill_color(40, 70, 130)
-        self.set_text_color(255, 255, 255)
-        for col, w in zip(cols, widths):
-            self.cell(w, 7, f" {col}", fill=True)
-        self.ln()
-        self.set_text_color(50, 50, 50)
+    s += h2("P1 — First Sprint")
+    s += ptbl([
+        ("P1","Fix HMM: expanding-window (fit T, predict T+1)","advanced_math.py:102–116 — lookahead bias makes it actively misleading"),
+        ("P1","Fix Kelly formula (mean/var is not Kelly)","advanced_math.py:130–137 — wrong math in a financial app"),
+        ("P1","Add prompt_version column to Sentiment table","ai.ts — every prompt change makes historical scores incomparable"),
+        ("P1","Render bootstrap CI as shaded bands on distribution chart","page.tsx:79–80 — computed, burns CPU, never shown"),
+        ("P1","Convert Python subprocesses to persistent FastAPI service","fundamentals.ts, quant.ts, macro.ts — zombie process accumulation"),
+        ("P1","Add structured JSON logging + correlation IDs","All worker files — production outages are currently invisible"),
+        ("P1","Add /health and /ready endpoints to worker","Required for container orchestration and incident response"),
+    ])
 
-    def table_row(self, cells, widths, fill=False):
-        self.set_font("Helvetica", "", 9)
-        if fill:
-            self.set_fill_color(248, 248, 255)
-        else:
-            self.set_fill_color(255, 255, 255)
-        max_h = 7
-        x_start = self.get_x()
-        y_start = self.get_y()
-        # Calculate max height needed
-        for cell, w in zip(cells, widths):
-            lines = self.multi_cell(w, 5, f" {cell}", dry_run=True, output="LINES")
-            h = len(lines) * 5
-            if h > max_h:
-                max_h = h
-        # Draw cells
-        for cell, w in zip(cells, widths):
-            self.set_xy(x_start, y_start)
-            self.cell(w, max_h, f" {cell}", fill=fill)
-            x_start += w
-        self.set_xy(10, y_start + max_h)
+    s += h2("P2 — Second Sprint")
+    s += ptbl([
+        ("P2","Label 500 posts; calibrate Gemini confidence scores","ai.ts — unknown if LLM scores are better than random"),
+        ("P2","Build price + sentiment overlay chart","DashboardClient.tsx — the killer feature; completely absent"),
+        ("P2","Replace Google/Yahoo RSS with NewsAPI or Polygon.io","scraper.ts — unofficial RSS can disappear overnight"),
+        ("P2","Parse EDGAR filing content, not just metadata","scraper.ts:154–189 — material events look identical to routine filings"),
+        ("P2","Fix Hurst exponent: DFA with 50+ lags on detrended series","advanced_math.py:118–128 — current formula is wrong"),
+        ("P2","Monte Carlo: Student-t shocks + GARCH path propagation","advanced_math.py:165–208 — GBM underestimates downside"),
+        ("P2","Commit to English throughout the frontend","Mixed Swedish/English is unprofessional"),
+        ("P2","Fix mobile navigation","App is unusable on phones"),
+    ])
 
+    s += h2("P3 — Strategic")
+    s += ptbl([
+        ("P3","Add options flow data (CBOE or Unusual Whales)","Biggest single signal quality upgrade available"),
+        ("P3","Build walk-forward backtest pipeline (5 years, annual retest)","No evidence any model outperforms buy-and-hold without this"),
+        ("P3","Build prediction audit trail UI","Most trust-building feature; almost no retail tool does this honestly"),
+        ("P3","Optimise recommendation weights via ridge regression on outcomes","recommendation.ts:3–10 — current weights are guesses"),
+        ("P3","Regime-aware signal weighting (high-VIX → amplify macro)","Makes the system adaptive to market conditions"),
+        ("P3","Replace polling with Server-Sent Events","Push updates only when new data arrives; eliminate wasted polling"),
+        ("P3","Add LLM 'Why' narrative synthesis per ticker","Replace 50 metrics with 3 sentences answering: should I buy?"),
+    ])
+    s += [pb()]
 
-def build_report():
-    pdf = AuditReport()
-    pdf.alias_nb_pages()
+    # SECTION 7 FAILURE FORECAST
+    s += h1("7.  PRODUCTION FAILURE FORECAST")
+    s += [p("If P0 and P1 items are not addressed, the following failures are predictable in order of occurrence:")]
 
-    # ---- TITLE PAGE ----
-    pdf.title_page()
-
-    # ---- TABLE OF CONTENTS ----
-    pdf.add_page()
-    pdf.section_title("Table of Contents")
-    toc = [
-        "1. Executive Summary",
-        "2. Methodology",
-        "3. Architecture Overview",
-        "4. Critical Findings (P0)",
-        "5. High Priority Findings (P1)",
-        "6. Statistical Methodology Issues",
-        "7. Data Architecture Issues",
-        "8. ML/AI Pipeline Issues",
-        "9. Numerical Stability Issues",
-        "10. Devil's Advocate: False Positives",
-        "11. Devil's Advocate: Missed Issues (False Negatives)",
-        "12. Recommended Action Plan",
-        "13. Proposed Statistical Methods",
+    failures = [
+        ("Week 1",   C_RED,    "DB connection pool exhaustion",
+         "500 individual inserts per scrape cycle exhaust the default pool. Worker appears alive but writes nothing."),
+        ("Week 1–2", C_RED,    "Python zombie process accumulation",
+         "SIGTERM does not reliably kill Python. After ~10,000 spawns the system runs out of process slots. Worker crashes."),
+        ("Week 2",   C_ORANGE, "Sentiment loss from race conditions",
+         "Parallel workers cause duplicate hash collisions. Records silently dropped. AI spend wasted. Backtest sample biased."),
+        ("Week 2–3", C_ORANGE, "AI rate limit cascade",
+         "Token estimation off by 2–5× for emoji-heavy posts. Primary 429s. Fallback also 429s. Entire batch discarded."),
+        ("Month 1",  C_YELLOW, "Prediction accuracy data corruption",
+         "Prediction updates without transactions. Partial writes on crash corrupt accuracy metrics. False 95% accuracy reported."),
+        ("Month 1+", C_YELLOW, "Bot-contaminated signal degrades recommendations",
+         "Without auth + trust filters, coordinated P&D campaigns flood the DB. App follows manipulation, not fundamentals."),
     ]
-    for item in toc:
-        pdf.bullet(item, indent=5)
+    hdr = [p("When","th"), p("Failure","th"), p("What Happens","th")]
+    frows = [hdr]
+    for (when, col, title, desc) in failures:
+        frows.append([
+            Paragraph(when, ParagraphStyle("fw", fontSize=8, textColor=col, fontName="Helvetica-Bold")),
+            Paragraph(title, ParagraphStyle("ft", fontSize=8.5, textColor=col, fontName="Helvetica-Bold")),
+            p(desc,"tb"),
+        ])
+    s += [tbl(frows,[22*mm,55*mm,93*mm]), sp(8), pb()]
 
-    # ---- 1. EXECUTIVE SUMMARY ----
-    pdf.add_page()
-    pdf.section_title("1. Executive Summary")
-    pdf.body_text(
-        "This report presents findings from a comprehensive multi-agent statistical and mathematical "
-        "audit of the Phaeton Capital / SentimentCrowd codebase. The review was conducted by five "
-        "specialist agents (Statistician, Quantitative Financial Analyst, Data Architect, ML/AI Engineer, "
-        "Systems Programmer) followed by a Devil's Advocate review to identify false positives and missed issues."
-    )
-    pdf.ln(2)
-    pdf.body_text(
-        "The primary goal was to ensure statistical significance across all mathematical computations, "
-        "identify flawed assumptions, and recommend rigorous methods for a production-grade sentiment "
-        "analysis platform."
-    )
-    pdf.ln(2)
-    pdf.section_title("Key Metrics", level=2)
+    # CLOSING
+    s += h1("8.  CLOSING ASSESSMENT")
+    s += [p("Phaeton Capital has the right vision, an exceptional visual design, and an architecturally "
+            "sound foundation. The gap is between the surface appearance and the underlying rigour.")]
+    s += [p("The quant models need correct implementation or removal. The data pipeline needs authentication, "
+            "calibration, and reliability. The backend needs transactions, proper queuing, and observability. "
+            "The frontend needs to remove fictional data and add the features that make the ML pipeline "
+            "visible and trustworthy.")]
+    s += [p("None of these are rewrites. They are targeted, concrete fixes — the P0 and P1 items can be "
+            "completed in a single sprint. Once done, the app crosses from impressive prototype to credible product.")]
+    s += [p("The price + sentiment overlay chart, the prediction audit trail, and the regime-aware signal "
+            "weighting are the three features that will define whether this becomes a tool people rely on "
+            "or a dashboard they visit once.")]
+    s += [sp(20)]
+    s += [HRFlowable(width="40%",thickness=1,color=C_GOLD,hAlign="CENTER",spaceAfter=12)]
+    s += [p("END OF ASSESSMENT","cover_meta")]
+    s += [p("Phaeton Capital Technical Review — 29 March 2026","cover_meta")]
 
-    metrics = [
-        ("Files analyzed", "12"),
-        ("Specialist agents", "5 + 1 Devil's Advocate"),
-        ("Critical findings (P0)", "3"),
-        ("High priority findings (P1)", "5"),
-        ("Medium priority findings (P2)", "6"),
-        ("False positives identified", "4"),
-        ("Missed issues found by Devil's Advocate", "10"),
-    ]
-    widths = [110, 60]
-    pdf.table_header(["Metric", "Value"], widths)
-    for i, (m, v) in enumerate(metrics):
-        pdf.table_row([m, v], widths, fill=(i % 2 == 0))
-    pdf.ln(4)
+    doc.build(s, onFirstPage=on_page, onLaterPages=on_page)
+    print(f"PDF written to: {OUTPUT}")
 
-    pdf.body_text(
-        "VERDICT: The system presents AI-generated sentiment scores as if they were validated market data. "
-        "The trust scoring mechanism operates on fabricated (random) data, the statistical distribution model "
-        "is mathematically inappropriate, and there is no evaluation pipeline to validate AI accuracy. "
-        "A user making investment decisions based on this dashboard has no statistical basis to trust the numbers."
-    )
-
-    # ---- 2. METHODOLOGY ----
-    pdf.add_page()
-    pdf.section_title("2. Methodology")
-    pdf.body_text("The audit was performed by six specialized AI agents working in parallel:")
-    agents = [
-        ("Statistician", "Gaussian distributions, significance testing, Bayesian inference, bootstrap methods"),
-        ("Quantitative Analyst", "Financial calculations, trust scoring, signal pipeline, fat-tail distributions"),
-        ("Data Architect", "Data model, bias analysis, sampling bias, survivorship bias, pipeline architecture"),
-        ("ML/AI Engineer", "AI pipeline, prompt engineering, model evaluation, calibration, drift detection"),
-        ("Systems Programmer", "Numerical stability, floating point issues, edge cases, algorithmic correctness"),
-        ("Devil's Advocate", "False positive screening, false negative identification, practical risk assessment"),
-    ]
-    widths = [45, 140]
-    pdf.table_header(["Agent", "Focus Area"], widths)
-    for i, (a, f) in enumerate(agents):
-        pdf.table_row([a, f], widths, fill=(i % 2 == 0))
-
-    # ---- 3. ARCHITECTURE OVERVIEW ----
-    pdf.add_page()
-    pdf.section_title("3. Architecture Overview")
-    pdf.body_text(
-        "Phaeton Capital / SentimentCrowd is a monorepo sentiment analysis platform consisting of:"
-    )
-    pdf.bullet("Next.js 15 web dashboard (apps/web) - port 3000")
-    pdf.bullet("Bun worker service (apps/worker) - port 8080, scrapes Reddit/Google News/Yahoo Finance")
-    pdf.bullet("PostgreSQL 15 database with Prisma ORM (packages/db)")
-    pdf.bullet("Google Gemini AI (gemini-2.5-flash) for sentiment classification")
-    pdf.bullet("Python subprocess (yfinance) for fundamental financial data")
-    pdf.bullet("Docker Compose for orchestration")
-    pdf.ln(2)
-    pdf.body_text("Data flow: Worker scrapes social media/news every 15 minutes -> AI labels sentiment -> "
-                  "stores in PostgreSQL -> Dashboard reads and visualizes with Gaussian distribution curve.")
-
-    # ---- 4. CRITICAL FINDINGS (P0) ----
-    pdf.add_page()
-    pdf.section_title("4. Critical Findings (P0)")
-
-    pdf.section_title("4.1 Trust Score Based on Math.random()", level=2)
-    pdf.body_text(
-        "SEVERITY: CRITICAL. The entire anti-manipulation pipeline is rendered meaningless because "
-        "author_karma and account_age_days for Reddit posts are generated using Math.random(), not "
-        "fetched from the Reddit API."
-    )
-    pdf.code_block(
-        "// scraper.ts:50-51\n"
-        "const pseudoKarma = Math.floor(Math.random() * 5000);\n"
-        "const pseudoAgeDays = Math.floor(Math.random() * 300);"
-    )
-    pdf.body_text(
-        "computeTrustScore() requires karma > 100 and ageDays > 30. With random values: "
-        "P(karma > 100) = 98%, P(age > 30) = 90%. Combined: ~88% of posts pass the trust filter "
-        "regardless of whether they are bots or legitimate users. The remaining ~12% are randomly "
-        "excluded and their sentiment is set to 0, introducing artificial neutral bias."
-    )
-    pdf.body_text("Confirmed by: Quantitative Analyst, Data Architect, Systems Programmer, Devil's Advocate.")
-
-    pdf.section_title("4.2 Unauthenticated /api/scrape Endpoint", level=2)
-    pdf.body_text(
-        "SEVERITY: CRITICAL (discovered by Devil's Advocate - missed by all 5 specialists). "
-        "The /api/scrape endpoint accepts POST requests without any authentication or rate limiting. "
-        "Each scrape triggers Gemini API calls (which cost money), database writes, and Python subprocesses. "
-        "An attacker can trigger unlimited scrapes, exhausting API credits."
-    )
-
-    pdf.section_title("4.3 Overly Aggressive AI Fallback Condition", level=2)
-    pdf.body_text(
-        "SEVERITY: CRITICAL. The fallback to gemini-1.5-flash triggers on ALL HTTP errors, not just 429 rate limits."
-    )
-    pdf.code_block(
-        "// ai.ts:88 - the !!err?.status catches ALL errors with status\n"
-        "if (err?.message?.includes('429') || err?.status === 429\n"
-        "    || err?.message?.includes('Quota') || !!err?.status) {"
-    )
-    pdf.body_text(
-        "This means authentication errors (401), bad requests (400), and server errors (500) all silently "
-        "fall back to a different model with different calibration. No logging records which model generated "
-        "each result, making the database non-reproducible."
-    )
-
-    # ---- 5. HIGH PRIORITY (P1) ----
-    pdf.add_page()
-    pdf.section_title("5. High Priority Findings (P1)")
-
-    findings_p1 = [
-        ("Missing database index on ticker in Sentiment table",
-         "schema.prisma - Sentiment model",
-         "Case-insensitive findMany queries on ticker without index cause sequential scans. "
-         "Performance degrades exponentially as data grows (hundreds of new posts every 15 minutes)."),
-        ("Untrusted posts set to sentiment=0 instead of excluded",
-         "index.ts:197",
-         "finalSentiment = isTrusted ? aiResult.sentiment : 0. Posts with sentiment=0 are saved to the database "
-         "and included in aggregation, artificially pulling the Gaussian mean toward neutral. They should be "
-         "excluded entirely or flagged with an 'excluded' field."),
-        ("Unhandled Promise in worker HTTP handler",
-         "index.ts:248",
-         "processPosts() is called fire-and-forget without await or .catch(). Unhandled promise rejections "
-         "can crash the Bun worker process."),
-        ("Race condition on concurrent /trigger calls",
-         "index.ts:248",
-         "No mutex or lock prevents concurrent processPosts() executions. Multiple /trigger calls or "
-         "cron overlap results in duplicate API calls to Gemini (wasting credits) and potential data corruption."),
-        ("No AI model version logged in database",
-         "ai.ts, schema.prisma",
-         "The database schema has no field for which AI model produced each sentiment score. When fallback "
-         "is used, data from different models with different calibrations is mixed without traceability."),
-    ]
-
-    for i, (title, ref, desc) in enumerate(findings_p1):
-        pdf.section_title(f"5.{i+1} {title}", level=3)
-        pdf.set_font("Courier", "", 8)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 5, ref, new_x="LMARGIN", new_y="NEXT")
-        pdf.body_text(desc)
-
-    # ---- 6. STATISTICAL METHODOLOGY ----
-    pdf.add_page()
-    pdf.section_title("6. Statistical Methodology Issues")
-
-    pdf.section_title("6.1 Gaussian Distribution on Bounded Data", level=2)
-    pdf.body_text(
-        "The dashboard uses a Gaussian PDF to model sentiment values bounded to [-1, 1]. A normal "
-        "distribution has support on (-inf, +inf) and leaks probability mass outside the valid range. "
-        "While the Devil's Advocate assessed this as ~80% false positive (acceptable for visualization), "
-        "the following sub-issues are real:"
-    )
-    pdf.bullet("No normality test (Shapiro-Wilk, Kolmogorov-Smirnov) is performed")
-    pdf.bullet("Sentiment data is likely bimodal (clusters at bullish/bearish extremes)")
-    pdf.bullet("The truncated PDF is not renormalized - integral over [-1,1] != 1")
-    pdf.bullet("stdDev fallback to 0.2 is arbitrary and undocumented")
-
-    pdf.section_title("6.2 No Statistical Significance Testing", level=2)
-    pdf.body_text(
-        "The dashboard labels sentiment as 'Bullish' (mean > 0.2) or 'Bearish' (mean < -0.2) without "
-        "any significance test. These arbitrary thresholds have no statistical basis. Required:"
-    )
-    pdf.bullet("One-sample t-test: show Bullish/Bearish ONLY when p < 0.05")
-    pdf.bullet("Bootstrap 95% confidence interval around the mean")
-    pdf.bullet("Effect size (Cohen's d) relative to noise level")
-    pdf.bullet("Power analysis: with n~100-250 posts, can we detect meaningful shifts?")
-
-    pdf.section_title("6.3 Independence Assumption Violated", level=2)
-    pdf.body_text(
-        "Standard statistical tests assume independent observations. Reddit posts violate this: "
-        "posts in the same thread are correlated, bandwagon effects exist, same authors post multiple times, "
-        "and different news sources report the same event. No corrections are applied "
-        "(cluster-robust standard errors, HAC estimators)."
-    )
-
-    pdf.section_title("6.4 No Confidence Intervals", level=2)
-    pdf.body_text(
-        "Market Consensus is displayed as a point estimate without uncertainty. A mean of 15% based "
-        "on 10 posts should look completely different from the same mean based on 1000 posts. "
-        "At minimum: display mean +/- 1.96*SE with sample size n."
-    )
-
-    # ---- 7. DATA ARCHITECTURE ----
-    pdf.add_page()
-    pdf.section_title("7. Data Architecture Issues")
-
-    pdf.section_title("7.1 Sampling Bias", level=2)
-    pdf.bullet("Reddit search returns max 100 posts per request with no pagination")
-    pdf.bullet("Only 3 English-language sources out of hundreds of possible platforms")
-    pdf.bullet("Google News URL hardcoded to hl=en-US&gl=US - blind to non-English sentiment")
-    pdf.bullet("15-minute scrape interval can miss intraday sentiment spikes")
-
-    pdf.section_title("7.2 Survivorship Bias", level=2)
-    pdf.bullet("Deleted Reddit posts are never captured")
-    pdf.bullet("Shadowbanned/banned accounts invisible in search results")
-    pdf.bullet("Moderator-removed posts (aggressive in WSB) not captured")
-    pdf.bullet("Sample systematically biased toward posts that 'survived' moderation")
-
-    pdf.section_title("7.3 Volume Bias", level=2)
-    pdf.bullet("No normalization per time window - 200 posts one day vs 10 posts next day weighted equally")
-    pdf.bullet("No normalization per source - Reddit dominates despite potentially lower quality")
-    pdf.bullet("take: 250 represents variable time periods depending on activity level")
-
-    pdf.section_title("7.4 Missing Provenance", level=2)
-    pdf.bullet("No 'source' column - impossible to distinguish Reddit from news data in retrospect")
-    pdf.bullet("No scrape_batch_id - no way to trace data lineage")
-    pdf.bullet("No collection_timestamp separate from post_timestamp")
-    pdf.bullet("Fabricated metadata (random karma/age) stored as if real")
-
-    pdf.section_title("7.5 Destructive Insider Data Handling", level=2)
-    pdf.body_text(
-        "index.ts:82-84 uses deleteMany + createMany without a transaction wrapper. "
-        "If createMany fails after deleteMany, all insider data is permanently lost."
-    )
-
-    # ---- 8. ML/AI PIPELINE ----
-    pdf.add_page()
-    pdf.section_title("8. ML/AI Pipeline Issues")
-
-    pdf.section_title("8.1 No Ground Truth or Evaluation", level=2)
-    pdf.body_text(
-        "The AI model labels sentiment without any validation against actual market outcomes. "
-        "No precision, recall, F1, confusion matrix, or ROC-AUC metrics exist. While the Devil's Advocate "
-        "noted this is acceptable for an MVP, it means the system is an unvalidated hypothesis generator."
-    )
-
-    pdf.section_title("8.2 Non-Deterministic Output", level=2)
-    pdf.body_text(
-        "Temperature is never set in the Gemini API call (ai.ts:47-59). The same post can produce "
-        "different sentiment scores on different runs. Setting temperature=0 would ensure reproducibility."
-    )
-
-    pdf.section_title("8.3 Circular Confidence Score", level=2)
-    pdf.body_text(
-        "The model generates its own confidence (ai.ts:37), which is fundamentally flawed from an ML "
-        "perspective. LLMs are notoriously overconfident and poorly calibrated. Confidence 0.9 from Gemini "
-        "does not mean 90% probability of correctness. No calibration curve has been validated."
-    )
-
-    pdf.section_title("8.4 Batch Context Contamination", level=2)
-    pdf.body_text(
-        "Posts are batched by token count (max 4000 tokens, max 25 posts). Each batch is an isolated API call. "
-        "A bearish post in a predominantly bullish batch may receive anchoring bias from surrounding context."
-    )
-
-    pdf.section_title("8.5 Confidence Not Used in Aggregation", level=2)
-    pdf.body_text(
-        "The confidence field is stored in the database but never used in downstream calculations. "
-        "All posts are weighted equally regardless of confidence level."
-    )
-
-    # ---- 9. NUMERICAL STABILITY ----
-    pdf.add_page()
-    pdf.section_title("9. Numerical Stability Issues")
-
-    pdf.section_title("9.1 Confirmed Issues", level=2)
-    num_issues = [
-        ("Gaussian PDF formula", "CORRECT - matches mathematical definition"),
-        ("Mean calculation", "CORRECT - empty array check present"),
-        ("Variance calculation", "CORRECT - uses Bessel's correction (n-1)"),
-        ("SHA-256 hash", "CORRECT - deterministic for same input"),
-        ("Date/time handling", "CORRECT - proper UTC conversion"),
-        ("safe_float() in Python", "CORRECT - handles None, NaN, Inf"),
-    ]
-    widths_n = [70, 115]
-    pdf.table_header(["Operation", "Status"], widths_n)
-    for i, (op, st) in enumerate(num_issues):
-        pdf.table_row([op, st], widths_n, fill=(i % 2 == 0))
-
-    pdf.ln(4)
-    pdf.section_title("9.2 Issues Found", level=2)
-
-    pdf.section_title("shares_out fallback to 1", level=3)
-    pdf.body_text(
-        "yfinance_fetcher.py:43 - if both sharesOutstanding and impliedSharesOutstanding are missing, "
-        "shares_out defaults to 1. This produces absurd EPS values (e.g., billions per share). "
-        "Should return None instead."
-    )
-
-    pdf.section_title("Token estimation inaccuracy", level=3)
-    pdf.body_text(
-        "index.ts:153 estimates 1 token per 4 characters. Unicode/emoji-heavy text can be "
-        "1 token per 1-2 characters, causing batches to exceed MAX_TOKENS_PER_BATCH."
-    )
-
-    # ---- 10. FALSE POSITIVES ----
-    pdf.add_page()
-    pdf.section_title("10. Devil's Advocate: False Positives")
-    pdf.body_text(
-        "The following findings from the specialist agents were assessed as partially or fully overstated:"
-    )
-
-    fps = [
-        ("Gaussian PDF 'statistically invalid'", "~80%",
-         "Used only for visualization, not inference. KDE/Beta-distribution is academically correct "
-         "but disproportionate for a dashboard. The visual approximation is adequate."),
-        ("'No ground truth' as a blocker", "~60%",
-         "Correct as a future improvement, but unreasonable as a P0 requirement for an MVP prototype. "
-         "The system uses a well-known LLM with a structured prompt."),
-        ("Division by zero at RPM_LIMIT=0", "~90%",
-         "Default is 4, configured in docker-compose.yml and .env.example. No sensible user sets RPM=0. "
-         "JavaScript returns Infinity (hangs, no crash)."),
-        ("NaN propagation corrupts Gaussian", "~50%",
-         "PostgreSQL can store NaN in float columns, but Gemini practically never returns NaN. "
-         "Possible but extremely unlikely in normal operation."),
-    ]
-    widths_fp = [55, 20, 110]
-    pdf.table_header(["Finding", "FP %", "Assessment"], widths_fp)
-    for i, (f, p, a) in enumerate(fps):
-        pdf.table_row([f, p, a], widths_fp, fill=(i % 2 == 0))
-
-    # ---- 11. FALSE NEGATIVES ----
-    pdf.add_page()
-    pdf.section_title("11. Devil's Advocate: Missed Issues")
-    pdf.body_text(
-        "The following problems were missed by all 5 specialist agents and discovered by the Devil's Advocate:"
-    )
-
-    fns = [
-        ("Unauthenticated /api/scrape", "HIGH",
-         "No auth or rate-limiting. Anyone can trigger costly Gemini API calls."),
-        ("Race condition on /trigger", "MEDIUM",
-         "No mutex - concurrent calls waste API credits and may corrupt data."),
-        ("Missing ticker index", "MEDIUM",
-         "Sequential scan on case-insensitive queries. Degrades with data growth."),
-        ("Unhandled Promise", "MEDIUM",
-         "processPosts() fire-and-forget can crash the worker on errors."),
-        ("Cheerio imported but unused", "LOW", "Dead import in fundamentals.ts."),
-        ("Playwright dependency unused", "LOW", "~100MB unused dependency in Docker image."),
-        ("Hardcoded Docker path", "LOW", "/app/apps/worker/... breaks local development."),
-        ("yahoo-finance2 in web pkg", "LOW", "Unused dependency in frontend package.json."),
-        ("BigInt serialization risk", "LOW", "Safe now but design weakness for large values."),
-        ("Prisma connection pool", "LOW-MED", "Default 5 connections, hundreds of queries per run."),
-    ]
-    widths_fn = [55, 20, 110]
-    pdf.table_header(["Issue", "Severity", "Description"], widths_fn)
-    for i, (issue, sev, desc) in enumerate(fns):
-        pdf.table_row([issue, sev, desc], widths_fn, fill=(i % 2 == 0))
-
-    # ---- 12. ACTION PLAN ----
-    pdf.add_page()
-    pdf.section_title("12. Recommended Action Plan")
-
-    pdf.section_title("Phase 1 - Critical (breaks fundamental validity)", level=2)
-    pdf.bullet("Fix Math.random() trust score - implement real Reddit OAuth API or remove trust filter entirely")
-    pdf.bullet("Add authentication + rate-limiting on /api/scrape endpoint")
-    pdf.bullet("Fix AI fallback condition - only trigger on 429, not all HTTP errors")
-    pdf.bullet("Add temperature: 0 to Gemini API calls for reproducibility")
-    pdf.bullet("Add database index on ticker in Sentiment table")
-
-    pdf.section_title("Phase 2 - High (data quality & rigor)", level=2)
-    pdf.bullet("Add source, ai_model, scrape_batch_id columns to Sentiment schema")
-    pdf.bullet("Range-validate AI output: sentiment in [-1,1], confidence in [0,1]")
-    pdf.bullet("Exclude untrusted posts instead of setting sentiment=0")
-    pdf.bullet("Await/catch processPosts() in HTTP handler")
-    pdf.bullet("Add mutex against concurrent scrapes")
-    pdf.bullet("Wrap destructive insider data operations in transactions")
-
-    pdf.section_title("Phase 3 - Statistical rigor", level=2)
-    pdf.bullet("Bootstrap 95% confidence intervals around sentiment mean")
-    pdf.bullet("One-sample t-test: show Bullish/Bearish ONLY at p < 0.05")
-    pdf.bullet("Confidence-weighted sentiment aggregation")
-    pdf.bullet("Exponential decay for temporal weighting (48h half-life)")
-    pdf.bullet("Display sample size (n) alongside all statistics")
-
-    pdf.section_title("Phase 4 - Advanced (quantitative edge)", level=2)
-    pdf.bullet("Bayesian inference with Beta prior for incremental posterior updates")
-    pdf.bullet("Kernel Density Estimation (KDE) instead of parametric Gaussian")
-    pdf.bullet("Granger causality test: does sentiment actually lead price?")
-    pdf.bullet("Hidden Markov Model for regime detection (bull/bear/sideways)")
-    pdf.bullet("Inter-rater reliability: run same posts through 3+ models (Krippendorff's alpha)")
-    pdf.bullet("Kelly Criterion for position sizing based on sentiment edge")
-    pdf.bullet("Hurst exponent for momentum vs mean-reversion classification")
-    pdf.bullet("Monte Carlo stress tests on sentiment signals")
-    pdf.bullet("Sector-adjusted Z-scores for financial metrics")
-
-    pdf.section_title("Phase 5 - Cleanup", level=2)
-    pdf.bullet("Remove unused dependencies: cheerio, playwright, yahoo-finance2")
-    pdf.bullet("Make Python path configurable (not hardcoded Docker path)")
-    pdf.bullet("Add NaN filter before sentiment calculations")
-
-    # ---- 13. PROPOSED METHODS ----
-    pdf.add_page()
-    pdf.section_title("13. Proposed Statistical Methods")
-
-    pdf.section_title("13.1 Beta Distribution (replaces Gaussian)", level=2)
-    pdf.body_text(
-        "Sentiment [-1,1] transformed to [0,1] via (x+1)/2, modeled with Beta(alpha, beta). "
-        "Method of Moments estimation: alpha = mean * C, beta = (1-mean) * C, "
-        "where C = (mean*(1-mean)/variance) - 1."
-    )
-
-    pdf.section_title("13.2 Bootstrap Confidence Intervals", level=2)
-    pdf.body_text(
-        "Resample n observations with replacement 10,000 times. Compute mean for each bootstrap sample. "
-        "Sort means and take 2.5th and 97.5th percentiles as 95% CI bounds. "
-        "Display as: 'Market Consensus: 34% Bullish [95% CI: 21%-47%]'"
-    )
-
-    pdf.section_title("13.3 Kernel Density Estimation (KDE)", level=2)
-    pdf.body_text(
-        "Non-parametric density estimation using Gaussian kernels with Silverman's rule-of-thumb bandwidth: "
-        "h = 1.06 * sigma * n^(-1/5). Makes no assumptions about underlying distribution shape. "
-        "Captures multimodality (bullish/bearish clusters) that Gaussian misses."
-    )
-
-    pdf.section_title("13.4 Logistic Trust Function", level=2)
-    pdf.body_text(
-        "Replace binary trust score with continuous sigmoid: "
-        "trustWeight = sigmoid(karma, 500, 0.01) * sigmoid(ageDays, 60, 0.05). "
-        "Produces values in [0, 1] with gradual transition instead of hard cutoff."
-    )
-
-    pdf.section_title("13.5 Exponential Decay Weighting", level=2)
-    pdf.body_text(
-        "Weight = exp(-ln(2) * hoursAgo / halfLife). With 48h half-life: "
-        "posts from 2 days ago weigh 50%, 4 days = 25%, 1 week = 6.25%. "
-        "Ensures recent sentiment dominates without discarding older data entirely."
-    )
-
-    pdf.section_title("13.6 Signal-to-Noise Ratio (SNR)", level=2)
-    pdf.body_text(
-        "SNR = |mean(sentiment)| / stddev(sentiment). "
-        "SNR < 1 means noise dominates and the signal is unreliable. "
-        "Display SNR alongside sentiment to indicate confidence in the directional signal."
-    )
-
-    pdf.section_title("13.7 Granger Causality", level=2)
-    pdf.body_text(
-        "Test whether lagged sentiment values improve prediction of price changes beyond "
-        "what lagged prices alone provide. Requires time-aligned series at equal frequency. "
-        "F-test comparing restricted (price-only) vs unrestricted (price + sentiment) regression. "
-        "If p < 0.05, sentiment Granger-causes price movement."
-    )
-
-    # ---- FINAL PAGE ----
-    pdf.add_page()
-    pdf.ln(30)
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.set_text_color(30, 60, 120)
-    pdf.cell(0, 10, "End of Report", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(8)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(0, 7, "Prepared by Claude Opus 4.6 Multi-Agent Team", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"Date: {date.today().strftime('%B %d, %Y')}", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, "6 agents | 12 files | 24 findings", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(15)
-    pdf.set_font("Helvetica", "I", 9)
-    pdf.set_text_color(140, 140, 140)
-    pdf.cell(0, 7, "This report was generated automatically. All findings should be verified", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, "against the current state of the codebase before taking action.", align="C", new_x="LMARGIN", new_y="NEXT")
-
-    output_path = "AUDIT_REPORT_Statistical_Review.pdf"
-    pdf.output(output_path)
-    print(f"Report generated: {output_path}")
-    return output_path
-
-
-if __name__ == "__main__":
-    build_report()
+build()

@@ -1,8 +1,9 @@
+import { logWrapper } from './logger';
 import { GoogleGenAI } from '@google/genai';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
-    console.warn('GEMINI_API_KEY is not set. AI labeling will fail.');
+    logWrapper.warn('GEMINI_API_KEY is not set. AI labeling will fail.');
 }
 
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -24,6 +25,8 @@ export interface AiLabelResult {
 
 export async function labelSentimentAndDetectManipulation(posts: AiInput[]): Promise<AiLabelResult[] | null> {
     if (!ai || posts.length === 0) return null;
+
+    const PROMPT_VERSION = 1;
 
     const systemInstruction = `You are a financial sentiment analysis AI.
 Your task is to analyze social media posts to detect market sentiment and potential "Pump & Dump" manipulation.
@@ -50,7 +53,10 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
         };
 
         if (isGemma) {
-            requestArgs.contents = `${systemInstruction}\n\nPOSTS TO ANALYZE:\n${inputContent}`;
+            requestArgs.contents = `${systemInstruction}
+
+POSTS TO ANALYZE:
+${inputContent}`;
             requestArgs.config = {
                 temperature: 0,
             };
@@ -77,7 +83,7 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
 
         const parsed = JSON.parse(output.trim());
         if (!Array.isArray(parsed)) {
-            console.error('AI returned unexpected format (not an array):', parsed);
+            logWrapper.error('AI returned unexpected format (not an array):', parsed);
             return null;
         }
 
@@ -88,11 +94,12 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
             is_manipulation: !!item.is_manipulation,
             confidence: typeof item.confidence === 'number' ? item.confidence : 0,
             ai_model: aiModel,
+            prompt_version: PROMPT_VERSION,
         }));
     } catch (err: any) {
         // Dynamic Fallback Router
         if (err?.message?.includes('429') || err?.status === 429 || err?.message?.includes('Quota')) {
-            console.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-1.5-flash...`);
+            logWrapper.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-1.5-flash...`);
             try {
                 // Instantly re-attempt using the free/fast tier fallback model
                 const response = await ai.models.generateContent({
@@ -121,13 +128,14 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
                     is_manipulation: !!item.is_manipulation,
                     confidence: typeof item.confidence === 'number' ? item.confidence : 0,
                     ai_model: 'gemini-1.5-flash',
+                    prompt_version: PROMPT_VERSION,
                 }));
             } catch (fallbackErr) {
-                console.error('[AI Route] Secondary fallback model also failed:', fallbackErr);
+                logWrapper.error('[AI Route] Secondary fallback model also failed:', fallbackErr);
                 return null;
             }
         } else {
-            console.error('Error calling Gemini:', err);
+            logWrapper.error('Error calling Gemini:', err);
             return null;
         }
     }

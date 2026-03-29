@@ -24,6 +24,9 @@ model Sentiment {
   source           String?
   ai_model         String?
   scrape_batch_id  String?
+  prompt_version   Int      @default(1)
+  admin_sentiment  Float?   // Label applied by human for AI calibration
+  admin_manipulation Boolean?
 
   @@index([ticker])
   @@index([ticker, createdAt(sort: Desc)])

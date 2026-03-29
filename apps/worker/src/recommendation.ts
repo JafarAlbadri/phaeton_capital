@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import prisma from '@sentiment-crowd/db';
 
 const WEIGHTS = {
@@ -248,8 +249,8 @@ export async function computeRecommendation(ticker: string): Promise<void> {
       }
     }
 
-    console.log(`Recommendation for ${ticker}: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%)`);
+    logWrapper.info(`Recommendation for ${ticker}: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%)`);
   } catch (err) {
-    console.error(`Failed to compute recommendation for ${ticker}:`, err);
+    logWrapper.error(`Failed to compute recommendation for ${ticker}:`, err);
   }
 }

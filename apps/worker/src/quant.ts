@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import prisma from '@sentiment-crowd/db';
 
 export interface QuantMetricsData {
@@ -42,7 +43,7 @@ export interface QuantMetricsData {
 
 export async function executeQuantModels(ticker: string): Promise<QuantMetricsData | null> {
     try {
-        console.log(`Executing advanced quantitative mathematical models for ${ticker}...`);
+        logWrapper.info(`Executing advanced quantitative mathematical models for ${ticker}...`);
 
         // Fetch recent sentiment data from database
         const recentData = await prisma.sentiment.findMany({
@@ -64,45 +65,32 @@ export async function executeQuantModels(ticker: string): Promise<QuantMetricsDa
             }))
         });
 
-        const proc = Bun.spawn(["python3", "/app/apps/worker/src/advanced_math.py"], {
-            stdin: "pipe",
-            stdout: "pipe",
-            stderr: "pipe"
+        const pythonWorkerUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+        const response = await fetch(`${pythonWorkerUrl}/quant`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            signal: AbortSignal.timeout(60000)
         });
 
-        proc.stdin.write(payload);
-        proc.stdin.flush();
-        proc.stdin.end();
-
-        // Add timeout
-        const timeoutId = setTimeout(() => {
-            try { proc.kill(); } catch {}
-        }, 30000);
-
-        const textOutput = await new Response(proc.stdout).text();
-        const errorOutput = await new Response(proc.stderr).text();
-        clearTimeout(timeoutId);
-
-        if (errorOutput && errorOutput.trim().length > 0) {
-            console.error(`[Python Quant stderr] ${errorOutput}`);
-        }
-
-        if (!textOutput) {
-            console.error(`No output received from Python math script for ${ticker}`);
+        if (!response.ok) {
+            logWrapper.error(`[Python Quant Error] ${response.status}: ${await response.text()}`);
             return null;
         }
+
+        const textOutput = await response.text();
 
         let data = null;
         try {
             data = JSON.parse(textOutput);
         } catch (e) {
-            console.error(`Failed to parse python math output. Output was: ${textOutput}`);
+            logWrapper.error(`Failed to parse python math output. Output was: ${textOutput}`);
             return null;
         }
 
         if (data.error) {
-            console.error(`Python math script logical error: ${data.error}`);
-            console.error(data.traceback);
+            logWrapper.error(`Python math script logical error: ${data.error}`);
+            logWrapper.error(data.traceback);
             return null;
         }
 
@@ -150,11 +138,11 @@ export async function executeQuantModels(ticker: string): Promise<QuantMetricsDa
             create: { ticker, ...quantData }
         });
 
-        console.log(`Successfully saved QuantMetrics for ${ticker}`);
+        logWrapper.info(`Successfully saved QuantMetrics for ${ticker}`);
         return data as QuantMetricsData;
 
     } catch (error) {
-        console.error(`Error executing advanced python models for ${ticker}:`, error);
+        logWrapper.error(`Error executing advanced python models for ${ticker}:`, error);
         return null;
     }
 }

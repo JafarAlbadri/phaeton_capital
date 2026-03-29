@@ -323,15 +323,7 @@ export default function DashboardClient({
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="hidden lg:flex overflow-hidden w-64 border-x border-[#1a1a3a] px-2 h-full items-center">
-                        <div className="flex gap-6 animate-ticker whitespace-nowrap text-[11px] font-mono whitespace-nowrap">
-                            <span className="text-[#0ecf8a]">NVDA +2.4%</span>
-                            <span className="text-[#f5495a]">TSLA -1.2%</span>
-                            <span className="text-[#0ecf8a]">BTC +5.1%</span>
-                            <span className="text-[#0ecf8a]">AAPL +0.8%</span>
-                            <span className="text-[#8b9cb5]">SPY +0.0%</span>
-                        </div>
-                    </div>
+
                     
                     <button onClick={() => triggerScrape()} disabled={loading}
                         className="flex items-center gap-2 px-4 h-9 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-600 text-white hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50">
@@ -353,6 +345,7 @@ export default function DashboardClient({
                         { icon: Shield, label: 'Risk Analysis', id: '#risk' },
                         { icon: TrendingUp, label: 'Sentiment Flow', id: '#sentiment' },
                         { icon: Briefcase, label: 'Insider Flow', id: '#insider' },
+                        { icon: Award, label: 'Helhetsanalys', id: '#helhetsanalys' },
                     ].map((item, i) => (
                         <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
                             <item.icon className="w-4 h-4 shrink-0" />
@@ -580,7 +573,7 @@ export default function DashboardClient({
                             </div>
                             <div className="px-4 pb-4 pt-6 h-[260px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={recentSentiments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                    <ComposedChart data={recentSentiments} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="0%"   stopColor="#f59e0b" stopOpacity={0.35} />
@@ -590,14 +583,16 @@ export default function DashboardClient({
                                         </defs>
                                         <CartesianGrid strokeDasharray="1 8" stroke="#1e1e42" vertical={false} />
                                         <XAxis dataKey="timeLabel" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} tickMargin={8} />
-                                        <YAxis dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} orientation="right" width={35} domain={[-1,1]} />
+                                        <YAxis yAxisId="left" dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} width={35} domain={[-1,1]} />
+                                        <YAxis yAxisId="right" dataKey="price" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#6366f1', fontSize: 11 }} domain={['auto', 'auto']} tickFormatter={(v) => `$${v.toFixed(0)}`} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1, strokeOpacity: 0.3 }} />
-                                        <ReferenceArea y1={0.6} y2={1.0} fill="#0ecf8a" fillOpacity={0.04} />
-                                        <ReferenceArea y1={-1.0} y2={-0.6} fill="#f5495a" fillOpacity={0.04} />
-                                        <ReferenceLine y={0.6} stroke="#0ecf8a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopRight', style: { fill: '#0ecf8a', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                        <ReferenceLine y={-0.6} stroke="#f5495a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomRight', style: { fill: '#f5495a', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                        <Area type="monotone" dataKey="sentiment" stroke="#f59e0b" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#f59e0b', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
-                                    </AreaChart>
+                                        <ReferenceArea yAxisId="left" y1={0.6} y2={1.0} fill="#0ecf8a" fillOpacity={0.04} />
+                                        <ReferenceArea yAxisId="left" y1={-1.0} y2={-0.6} fill="#f5495a" fillOpacity={0.04} />
+                                        <ReferenceLine yAxisId="left" y={0.6} stroke="#0ecf8a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopLeft', style: { fill: '#0ecf8a', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                        <ReferenceLine yAxisId="left" y={-0.6} stroke="#f5495a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomLeft', style: { fill: '#f5495a', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                        <Area yAxisId="left" type="monotone" dataKey="sentiment" stroke="#f59e0b" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#f59e0b', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
+                                        <Line yAxisId="right" type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#6366f1', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
+                                    </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
@@ -633,7 +628,12 @@ export default function DashboardClient({
                                             <YAxis hide />
                                             <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
                                             <ReferenceLine x={gaussianData.mean} stroke={gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a'} strokeWidth={2} label={{ value: 'μ', position: 'top', style: { fill: gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a', fontSize: 12, fontWeight: 'bold' } }} />
+                                            {/* Standard Deviation Area */}
                                             <ReferenceArea x1={gaussianData.mean - gaussianData.stdDev} x2={gaussianData.mean + gaussianData.stdDev} fill="#f59e0b" fillOpacity={0.06} />
+                                            {/* 95% Confidence Interval Area (Bootstrap or Bayesian) */}
+                                            {gaussianData.lowerBound != null && gaussianData.upperBound != null && (
+                                                <ReferenceArea x1={gaussianData.lowerBound} x2={gaussianData.upperBound} fill="#818cf8" fillOpacity={0.15} />
+                                            )}
                                             <Area type="monotone" dataKey="density" stroke="url(#distrGrad)" strokeWidth={2.5} fill="url(#distrVGrad)" dot={false} isAnimationActive={true} />
                                             {/* KDE if available */}
                                             {quantMetrics?.kde_data && (
@@ -711,7 +711,275 @@ export default function DashboardClient({
                         </div>
                     </section>
                 )}
-                
+
+                {/* ── HELHETSANALYS ──────────────────────────────────────────── */}
+                {(recommendationScore || fundamentalData || technicalIndicators) && (
+                    <section id="helhetsanalys" className="col-span-12 scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
+                                <Award className="w-3.5 h-3.5 text-amber-400" />
+                            </div>
+                            <span className="section-title">Helhetsanalys</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            <span className="badge badge-gold">Samlad Bedömning</span>
+                        </div>
+
+                        {(() => {
+                            const signal = recommendationScore?.signal ?? 'HOLD';
+                            const score  = recommendationScore?.composite_score ?? 50;
+                            const conf   = (recommendationScore?.confidence ?? 0.5) * 100;
+                            const ticker = (targetKeyword || 'aktien').toUpperCase();
+
+                            // ── Fundamental analysis text ──────────────────────────
+                            let fundamentalText = '';
+                            if (fundamentalData) {
+                                const pe    = fundamentalData.pe_ratio;
+                                const price = fundamentalData.current_price;
+                                const cap   = fundamentalData.market_cap;
+                                const cons  = fundamentalData.analyst_consensus;
+                                const low   = fundamentalData.target_price_low;
+                                const high  = fundamentalData.target_price_high;
+                                const mean  = fundamentalData.target_price_mean;
+
+                                const peText = pe
+                                    ? pe > 35  ? `P/E-talet på ${pe.toFixed(1)}x indikerar hög värdering jämfört med historiska snitt, vilket kräver fortsatt stark vinsttillväxt för att motivera priset.`
+                                    : pe < 12  ? `P/E-talet på ${pe.toFixed(1)}x är lågt och kan signalera underprissättning eller osäkerhet kring framtida vinster.`
+                                    : `P/E-talet på ${pe.toFixed(1)}x ligger inom ett rimligt intervall relativt sektorn.`
+                                    : '';
+                                const capText = cap
+                                    ? `Marknadsvärdet uppgår till $${(Number(cap)/1e9).toFixed(1)}B vilket placerar bolaget i kategorin ${Number(cap)>200e9 ? 'megacap' : Number(cap)>10e9 ? 'large-cap' : 'mid-cap'}.`
+                                    : '';
+                                const analystText = cons
+                                    ? `Analytikerkonsensus pekar mot ${cons}${mean ? ` med ett riktkurs-snitt på $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (spann $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
+                                    : '';
+                                fundamentalText = [peText, capText, analystText].filter(Boolean).join(' ');
+                            }
+                            if (!fundamentalText) fundamentalText = 'Fundamentala data saknas för denna analyscykel.';
+
+                            // ── Technical analysis text ────────────────────────────
+                            let technicalText = '';
+                            if (technicalIndicators) {
+                                const rsi  = technicalIndicators.rsi;
+                                const macd = technicalIndicators.macd_signal;
+                                const tech = technicalIndicators.technical_signal;
+
+                                const rsiText = rsi != null
+                                    ? rsi > 70 ? `RSI på ${rsi.toFixed(0)} befinner sig i överköpt territorium, vilket höjer risken för kortsiktig rekyl.`
+                                    : rsi < 30 ? `RSI på ${rsi.toFixed(0)} signalerar översåld marknad och potentiellt köptillfälle.`
+                                    : `RSI på ${rsi.toFixed(0)} är neutral och ger inte tydliga direktionssignaler.`
+                                    : '';
+                                const macdText = macd
+                                    ? macd === 'BULLISH' ? 'MACD-korsning är positiv och bekräftar uppåtmomentum.' : 'MACD-korsning är negativ och antyder avtagande momentum.'
+                                    : '';
+                                const techText = tech
+                                    ? `Sammantagen teknisk signal: ${tech === 'BULLISH' ? 'BULLISH – prisutvecklingen stöder en positiv vy' : tech === 'BEARISH' ? 'BEARISH – tekniska mönster talar för försiktighet' : 'NEUTRAL – ingen tydlig riktning framträder'}.`
+                                    : '';
+                                technicalText = [rsiText, macdText, techText].filter(Boolean).join(' ');
+                            }
+                            if (!technicalText) technicalText = 'Tekniska indikatorer är inte tillgängliga för denna period.';
+
+                            // ── Quant analysis text ────────────────────────────────
+                            let quantText = '';
+                            if (quantMetrics) {
+                                const hurst   = quantMetrics.hurst_exponent;
+                                const kelly   = quantMetrics.kelly_fraction;
+                                const hmm     = quantMetrics.hmm_state;
+                                const corr    = quantMetrics.sentiment_price_corr;
+                                const granger = quantMetrics.granger_p_value;
+                                const adf     = quantMetrics.adf_stationary;
+
+                                const hurstText = hurst != null
+                                    ? hurst > 0.6 ? `Hurst-exponenten (${hurst.toFixed(2)}) indikerar starkt trendande prisdynamik – impulser tenderar att fortsätta.`
+                                    : hurst < 0.45 ? `Hurst-exponenten (${hurst.toFixed(2)}) tyder på mean-reverterande beteende – priset tenderar återvända mot medel.`
+                                    : `Hurst-exponenten (${hurst.toFixed(2)}) är nära 0.5 vilket antyder slumpmässig rörelse utan tydlig trend.`
+                                    : '';
+                                const kellyText = kelly != null
+                                    ? `Kelly-kriteriet föreslår en allokering på ${(kelly*100).toFixed(1)}% av kapitalet givet nuvarande risk/reward-förhållande.`
+                                    : '';
+                                const hmmText  = hmm != null
+                                    ? `HMM-regimdetektering klassificerar aktuellt marknadsläge som ${hmm === 1 ? 'bull-regim' : 'bear-regim'}.`
+                                    : '';
+                                const corrText = corr != null && granger != null
+                                    ? `Sentimentets korrelation med prisutvecklingen är ${corr.toFixed(2)} och Granger-kausalitetstest ${granger < 0.05 ? 'bekräftar statistisk signifikans (p=' + granger.toFixed(3) + ')' : 'visar ingen signifikant kausalitet (p=' + granger.toFixed(3) + ')'}.`
+                                    : '';
+                                const adfText  = adf != null
+                                    ? adf ? 'Prisserien är stationär, vilket stödjer statistiska modeller.' : 'Prisserien är icke-stationär – modeller bör använda differenserade värden.'
+                                    : '';
+                                quantText = [hurstText, kellyText, hmmText, corrText, adfText].filter(Boolean).join(' ');
+                            }
+                            if (!quantText) quantText = 'Kvantitativa modelldata är inte tillgängliga.';
+
+                            // ── Macro analysis text ────────────────────────────────
+                            let macroText = '';
+                            if (macroIndicators) {
+                                const vix    = macroIndicators.vix;
+                                const fg     = macroIndicators.fear_greed_index;
+                                const yield_ = macroIndicators.ten_year_yield;
+                                const etf    = macroIndicators.sector_etf_momentum_1m;
+
+                                const vixText = vix != null
+                                    ? vix > 30 ? `VIX på ${vix.toFixed(1)} signalerar förhöjd marknadsoro och hög volatilitet – riskpremier är eleverade.`
+                                    : vix < 15 ? `VIX på ${vix.toFixed(1)} indikerar lugna marknadsförhållanden med låg implicit volatilitet.`
+                                    : `VIX på ${vix.toFixed(1)} är inom normala nivåer.`
+                                    : '';
+                                const fgText  = fg != null
+                                    ? fg > 70 ? `Fear & Greed-index på ${fg.toFixed(0)} tyder på extrem girighet i marknaden, vilket historiskt korrelerar med ökad korrigeringsrisk.`
+                                    : fg < 30 ? `Fear & Greed-index på ${fg.toFixed(0)} visar extrem rädsla – kontrarian analys tyder på möjliga köplägen.`
+                                    : `Fear & Greed-index på ${fg.toFixed(0)} är neutralt.`
+                                    : '';
+                                const yieldText = yield_ != null
+                                    ? `Den 10-åriga statsräntan på ${yield_.toFixed(2)}% sätter ribban för diskonteringsräntor och ${yield_ > 4.5 ? 'pressar värderingsmodeller negativt' : 'ger relativt stöd åt aktievärderingar'}.`
+                                    : '';
+                                const etfText   = etf != null
+                                    ? `Sektorns ETF-momentum den senaste månaden är ${(etf*100).toFixed(1)}% vilket ${etf >= 0 ? 'stöder en positiv sektorbild' : 'talar för sektorrotation bort från detta segment'}.`
+                                    : '';
+                                macroText = [vixText, fgText, yieldText, etfText].filter(Boolean).join(' ');
+                            }
+                            if (!macroText) macroText = 'Makroekonomiska indikatorer är inte tillgängliga för denna analyscykel.';
+
+                            // ── Sentiment analysis text ────────────────────────────
+                            let sentimentText = '';
+                            if (gaussianData || manipulationStats) {
+                                const mean    = gaussianData?.mean;
+                                const std     = gaussianData?.stdDev;
+                                const organic = manipulationStats?.organicCount;
+                                const blocked = manipulationStats?.manipulatedCount;
+                                const total   = manipulationStats?.totalCount;
+
+                                const meanText = mean != null
+                                    ? mean > 0.5  ? `Sentimentfördelningen är tydligt positiv (μ=${mean.toFixed(2)}) med en bred konsensus bland analytiserade inlägg.`
+                                    : mean < -0.5 ? `Sentimentfördelningen är negativt skev (μ=${mean.toFixed(2)}), vilket speglar utbredd pessimism i sociala medier.`
+                                    : `Sentimentfördelningen är centrerad nära neutral (μ=${mean.toFixed(2)}) med delade åsikter.`
+                                    : '';
+                                const stdText  = std != null
+                                    ? std > 0.4 ? `Spridningen är hög (σ=${std.toFixed(2)}) vilket indikerar divergerande åsikter – marknaden är oenig.`
+                                    : `Spridningen är låg (σ=${std.toFixed(2)}) vilket tyder på samstämmig syn.`
+                                    : '';
+                                const qualText = total != null && organic != null
+                                    ? `Totalt analyserades ${total.toLocaleString()} inlägg, varav ${((organic/total)*100).toFixed(0)}% klassificerades som organiska signaler${blocked ? ` och ${blocked} manipulativa inlägg filtrerades bort` : ''}.`
+                                    : '';
+                                sentimentText = [meanText, stdText, qualText].filter(Boolean).join(' ');
+                            }
+                            if (!sentimentText) sentimentText = 'Sentimentdata är inte tillgänglig för denna analyscykel.';
+
+                            // ── Insider analysis text ──────────────────────────────
+                            let insiderText = '';
+                            if (insiderStats.buyVolume > 0 || insiderStats.sellVolume > 0) {
+                                const net    = insiderStats.netVolume;
+                                const buy    = insiderStats.buyVolume;
+                                const sell   = insiderStats.sellVolume;
+                                const total  = buy + sell;
+                                const ratio  = total > 0 ? (buy / total * 100) : 50;
+                                const count  = insiderTrades?.length ?? 0;
+
+                                insiderText = `${count} insidertransaktioner har registrerats. Köpvolymen uppgår till ${fmt.format(buy)} och säljvolymen till ${fmt.format(sell)}, vilket ger ett nettoinflöde på ${net >= 0 ? '+' : ''}${fmt.format(net)}. `
+                                    + (ratio > 65 ? `Insiders nettokommer in som köpare (${ratio.toFixed(0)}% av transaktionsvolymen), vilket traditionellt tolkas som ett positivt insidersignal.`
+                                    : ratio < 35 ? `Insiders domineras av säljare (${(100-ratio).toFixed(0)}% av transaktionsvolymen). Insynsförsäljning kan ha många skäl men bör noteras.`
+                                    : `Köp- och säljvolymer är relativt balanserade, vilket ger ingen tydlig riktning från insynshandel.`);
+                            }
+                            if (!insiderText) insiderText = 'Inga insidertransaktioner har registrerats för denna period.';
+
+                            // ── Risk analysis text ─────────────────────────────────
+                            let riskText = '';
+                            if (riskProfile) {
+                                const sharpe  = riskProfile.sharpe_ratio;
+                                const var_    = riskProfile.value_at_risk;
+                                const dd      = riskProfile.max_drawdown;
+                                const cvar    = riskProfile.cvar;
+                                const liq     = riskProfile.liquidity_score;
+
+                                const sharpeText = sharpe != null
+                                    ? sharpe > 1.5 ? `Sharpe-kvoten på ${sharpe.toFixed(2)} är utmärkt och tyder på hög riskjusterad avkastning.`
+                                    : sharpe > 0.5 ? `Sharpe-kvoten på ${sharpe.toFixed(2)} är godkänd.`
+                                    : `Sharpe-kvoten på ${sharpe.toFixed(2)} är låg – avkastningen motiverar inte volatiliteten.`
+                                    : '';
+                                const varText   = var_ != null
+                                    ? `Value-at-Risk (95%) uppgår till ${(var_*100).toFixed(1)}% daglig förlustnivå.`
+                                    : '';
+                                const ddText    = dd != null
+                                    ? `Maximalt drawdown är ${(Math.abs(dd)*100).toFixed(1)}% vilket ${Math.abs(dd) > 0.3 ? 'är betydande och bör beaktas i positionssizing' : 'ligger inom acceptabla nivåer'}.`
+                                    : '';
+                                const liqText   = liq != null
+                                    ? `Likviditetspoängen är ${liq.toFixed(2)} – ${liq > 0.7 ? 'hög likviditet underlättar in- och utträde' : liq > 0.4 ? 'likviditeten är tillräcklig' : 'låg likviditet kan ge slippage vid större positioner'}.`
+                                    : '';
+                                riskText = [sharpeText, varText, ddText, liqText].filter(Boolean).join(' ');
+                            }
+                            if (!riskText) riskText = 'Riskprofil saknas för denna analyscykel.';
+
+                            // ── Executive summary ──────────────────────────────────
+                            const isBull = signal === 'STRONG_BUY' || signal === 'BUY';
+                            const isBear = signal === 'STRONG_SELL' || signal === 'SELL';
+                            const signalSv = signal === 'STRONG_BUY' ? 'STARKT KÖP' : signal === 'BUY' ? 'KÖP' : signal === 'HOLD' ? 'HÅLL' : signal === 'SELL' ? 'SÄLJ' : 'STARKT SÄLJ';
+
+                            const execSummary = (recommendationScore
+                                ? `Den sammansatta modellen för ${ticker} genererar signalen ${signalSv} med en komposit-poäng på ${score.toFixed(1)}/100 och en konfidensgrad på ${conf.toFixed(0)}%. `
+                                : `Komposit-poäng är ännu inte klar för ${ticker} — scanningen pågår fortfarande. Nedan visas en preliminär analys baserad på tillgänglig data. `)
+                                + (isBull
+                                    ? `Analysen präglas av ett övervägande positivt underlag där flera dimensioner samverkar i en bullish riktning. Kombinationen av ${technicalIndicators?.technical_signal === 'BULLISH' ? 'positiva tekniska mönster, ' : ''}${gaussianData?.mean > 0.3 ? 'optimistiskt sentiment, ' : ''}${insiderStats.netVolume > 0 ? 'netto-insiderköp ' : ''}och kvantitativa modeller pekar sammantaget mot en gynnsam risk/reward-profil.`
+                                    : isBear
+                                    ? `Analysen identifierar ett övervägande negativt mönster. ${technicalIndicators?.technical_signal === 'BEARISH' ? 'Tekniska indikatorer visar nedåtpress. ' : ''}${gaussianData?.mean < -0.3 ? 'Sentimentet är negativt skevt. ' : ''}Sammantaget talar flertalet dimensioner för försiktighet.`
+                                    : `Analysen visar blandade signaler utan tydlig konsensus. Positiva och negativa faktorer balanserar varandra, och en HÅLL-position är motiverad tills tydligare direktionssignaler uppstår.`);
+
+                            // ── Dimension cards config ─────────────────────────────
+                            const dimensions = [
+                                { icon: DollarSign,  label: 'Fundamentalanalys',      text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(212,160,23,0.06)]',  border: 'border-[rgba(212,160,23,0.12)]' },
+                                { icon: BarChart2,   label: 'Teknisk Analys',          text: technicalText,   color: 'text-indigo-400',     bg: 'bg-indigo-500/5',              border: 'border-indigo-500/15' },
+                                { icon: Bot,         label: 'Kvantitativa Modeller',   text: quantText,       color: 'text-purple-400',     bg: 'bg-purple-500/5',              border: 'border-purple-500/15' },
+                                { icon: Globe,       label: 'Makromiljö',              text: macroText,       color: 'text-cyan-400',       bg: 'bg-cyan-500/5',                border: 'border-cyan-500/15' },
+                                { icon: Activity,    label: 'Sentimentanalys',         text: sentimentText,   color: isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400', bg: isBull ? 'bg-emerald-500/5' : isBear ? 'bg-red-500/5' : 'bg-amber-500/5', border: isBull ? 'border-emerald-500/15' : isBear ? 'border-red-500/15' : 'border-amber-500/15' },
+                                { icon: Briefcase,   label: 'Insynshandel',            text: insiderText,     color: 'text-blue-400',       bg: 'bg-blue-500/5',                border: 'border-blue-500/15' },
+                                { icon: Shield,      label: 'Riskprofil',              text: riskText,        color: 'text-orange-400',     bg: 'bg-orange-500/5',              border: 'border-orange-500/15' },
+                            ];
+
+                            return (
+                                <div className="space-y-6" data-animate-child>
+                                    {/* Executive Summary */}
+                                    <div className={`relative rounded-2xl border p-7 overflow-hidden ${isBull ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : isBear ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-[#1e1e42] bg-[#0d0d24]'}`}>
+                                        <div className={`absolute top-0 left-0 w-1 h-full rounded-l-2xl ${isBull ? 'bg-emerald-500' : isBear ? 'bg-red-500' : 'bg-amber-500'}`} />
+                                        <div className="flex items-start gap-5 pl-4">
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isBull ? 'bg-emerald-500/15 border border-emerald-500/25' : isBear ? 'bg-red-500/15 border border-red-500/25' : 'bg-amber-500/15 border border-amber-500/25'}`}>
+                                                <Zap className={`w-5 h-5 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#5d5d8a]">Övergripande bedömning</span>
+                                                    <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalSv}</span>
+                                                    <span className="font-mono text-[12px] text-[#9898c0]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
+                                                </div>
+                                                <p className="text-[15px] leading-[1.8] text-[#c8c8e0] font-400">{execSummary}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Dimension grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                        {dimensions.map(({ icon: Icon, label, text, color, bg, border }) => (
+                                            <div key={label} className={`rounded-xl border p-5 ${bg} ${border} flex flex-col gap-3`} data-animate-child>
+                                                <div className="flex items-center gap-2.5">
+                                                    <Icon className={`w-4 h-4 shrink-0 ${color}`} />
+                                                    <span className={`text-[11px] font-700 tracking-[0.1em] uppercase ${color}`}>{label}</span>
+                                                </div>
+                                                <p className="text-[13px] leading-[1.75] text-[#9898c0]">{text}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Final verdict */}
+                                    <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                                        <div className={`text-[42px] font-display font-800 leading-none tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent shrink-0`}>
+                                            {signalSv}
+                                        </div>
+                                        <div className="w-px h-10 bg-[#1a1a3a] hidden sm:block shrink-0" />
+                                        <div className="text-[13px] leading-[1.75] text-[#9898c0]">
+                                            Baserat på en samlad viktning av fundamental värdering, tekniska mönster, kvantitativa modeller, makroekonomiska faktorer, sentimentanalys, insynshandel och riskprofil ger Phaeton Capitals system en komposit-rekommendation på <span className={`font-700 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`}>{signalSv}</span> för {ticker}. Denna analys är algoritmiskt genererad och utgör inte finansiell rådgivning.
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </section>
+                )}
+
             </main>
         </div>
     );

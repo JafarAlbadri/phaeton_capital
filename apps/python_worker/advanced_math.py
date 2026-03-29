@@ -126,15 +126,42 @@ def main():
             except Exception:
                 pass
 
-        # --- Hurst Exponent ---
+        # --- Hurst Exponent (DFA) ---
         hurst_exponent = None
-        if len(hist) > 50:
+        if len(hist) > 100:
             try:
                 close_prices = hist['Close'].values
-                lags = range(2, 20)
-                tau = [np.sqrt(np.std(np.subtract(close_prices[lag:], close_prices[:-lag]))) for lag in lags]
-                poly = np.polyfit(np.log(lags), np.log(tau), 1)
-                hurst_exponent = poly[0] * 2.0
+                # 1. Calculate profile
+                y = np.cumsum(close_prices - np.mean(close_prices))
+                # 2. Define scale/lags
+                min_scale = 10
+                max_scale = len(y) // 4
+                if max_scale > 20:
+                    scales = np.floor(np.logspace(np.log10(min_scale), np.log10(max_scale), 20)).astype(int)
+                    scales = np.unique(scales)
+                    
+                    F = []
+                    valid_scales = []
+                    for s in scales:
+                        n_windows = len(y) // s
+                        if n_windows == 0: continue
+                        y_trunc = y[:n_windows * s]
+                        windows = y_trunc.reshape((n_windows, s))
+                        
+                        # Local detrending
+                        x = np.arange(s)
+                        rms = 0
+                        for i in range(n_windows):
+                            p = np.polyfit(x, windows[i], 1)
+                            fit = np.polyval(p, x)
+                            rms += np.sum((windows[i] - fit) ** 2)
+                        
+                        F.append(np.sqrt(rms / (n_windows * s)))
+                        valid_scales.append(s)
+                    
+                    if len(valid_scales) > 5:
+                        p = np.polyfit(np.log(valid_scales), np.log(F), 1)
+                        hurst_exponent = float(p[0])
             except Exception:
                 pass
 
@@ -202,9 +229,14 @@ def main():
                 all_paths_day_by_day[:, 0] = S0
 
                 for sim in range(num_simulations):
+                    # Using Student-t shocks with df=4 (fat tails) scaled to match unit variance
+                    df_t = 4.0
+                    scale_factor = np.sqrt((df_t - 2.0) / df_t)
+                    
                     for day in range(days_forward):
                         drift = mu - (0.5 * sigma ** 2)
-                        shock = sigma * np.random.normal()
+                        standard_t_shock = np.random.standard_t(df_t) * scale_factor
+                        shock = sigma * standard_t_shock
                         all_paths_day_by_day[sim, day + 1] = all_paths_day_by_day[sim, day] * np.exp(drift + shock)
 
                 all_final_prices = all_paths_day_by_day[:, -1]
@@ -470,11 +502,8 @@ def main():
             "transfer_entropy": float(transfer_entropy) if transfer_entropy is not None else None,
         }
 
-        print(json.dumps(output))
+        return output
 
     except Exception as e:
-        print(json.dumps({"error": str(e), "traceback": traceback.format_exc()}))
-
-
-if __name__ == "__main__":
-    main()
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}

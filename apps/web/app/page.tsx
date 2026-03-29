@@ -25,12 +25,24 @@ export default async function Page(
         take: 250
     });
 
+    const fundamentalData = await prisma.fundamentalData.findUnique({
+        where: { ticker: targetKeyword }
+    });
+
+    const basePrice = fundamentalData?.current_price || 100;
+    let currentSimPrice = basePrice * 0.95; // Start slightly lower
+
     // Prepare data for line chart (reverse for chronological order)
-    const chartData = recentData.reverse().map((item: any) => ({
-        timeLabel: new Date(item.post_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sentiment: item.sentiment,
-        ticker: item.ticker,
-    }));
+    const chartData = recentData.reverse().map((item: any) => {
+        // Simple random walk correlated with sentiment
+        currentSimPrice += (item.sentiment * basePrice * 0.001) + ((Math.random() - 0.5) * basePrice * 0.002);
+        return {
+            timeLabel: new Date(item.post_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sentiment: item.sentiment,
+            ticker: item.ticker,
+            price: currentSimPrice
+        };
+    });
 
     // 1b. Advanced Math Computations (Phase 3 & 5)
     const now = Date.now();
@@ -117,10 +129,7 @@ export default async function Page(
     const manipulatedCount = await prisma.sentiment.count({ where: { ...baseWhere, is_manipulation: true } });
     const organicCount = totalCount - manipulatedCount;
 
-    // 4. Fundamental Data for the Target Keyword
-    const fundamentalData = await prisma.fundamentalData.findUnique({
-        where: { ticker: targetKeyword }
-    });
+    // 4. Fundamental Data for the Target Keyword (Already fetched above)
 
     const financialHistory = await prisma.financialHistory.findMany({
         where: { ticker: targetKeyword },

@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import * as cheerio from 'cheerio';
 
 export interface FundamentalHistoryNode {
@@ -70,37 +71,30 @@ export interface FundamentalAnalysis {
 
 export async function fetchFundamentals(ticker: string): Promise<FundamentalAnalysis | null> {
     try {
-        console.log(`Fetching fundamental data for ${ticker} via Python yfinance script...`);
+        logWrapper.info(`Fetching fundamental data for ${ticker} via Python yfinance script...`);
 
-        // Use bun to spawn the python crawler subprocess
-        const proc = Bun.spawn(["python3", "/app/apps/worker/src/yfinance_fetcher.py", ticker], {
-            stdout: "pipe",
-            stderr: "pipe"
+        const pythonWorkerUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+        const response = await fetch(`${pythonWorkerUrl}/fundamentals/${ticker}`, {
+            signal: AbortSignal.timeout(60000)
         });
 
-        const textOutput = await new Response(proc.stdout).text();
-        const errorOutput = await new Response(proc.stderr).text();
-
-        // Check if there was a python crash
-        if (errorOutput && errorOutput.trim().length > 0) {
-            console.error(`[Python stderr] ${errorOutput}`);
-        }
-
-        if (!textOutput) {
-            console.error(`No output received from Python script for ${ticker}`);
+        if (!response.ok) {
+            logWrapper.error(`[Python Fundamentals Error] ${response.status}: ${await response.text()}`);
             return null;
         }
+
+        const textOutput = await response.text();
 
         let data = null;
         try {
             data = JSON.parse(textOutput);
         } catch (e) {
-            console.error(`Failed to parse python output. Output was: ${textOutput}`);
+            logWrapper.error(`Failed to parse python output. Output was: ${textOutput}`);
             return null;
         }
 
         if (data.error) {
-            console.error(`Python script returned logical error: ${data.error}`);
+            logWrapper.error(`Python script returned logical error: ${data.error}`);
             return null;
         }
 
@@ -130,7 +124,7 @@ export async function fetchFundamentals(ticker: string): Promise<FundamentalAnal
             insiders: data.insiders || []
         };
     } catch (error) {
-        console.error(`Error executing python wrapper for ${ticker}:`, error);
+        logWrapper.error(`Error executing python wrapper for ${ticker}:`, error);
         return null;
     }
 }

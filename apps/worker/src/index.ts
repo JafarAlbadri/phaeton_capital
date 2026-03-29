@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
 import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
@@ -14,9 +15,26 @@ const targetKeyword = process.env.TARGET_KEYWORD || 'wallstreetbets';
 
 let isScraping = false;
 
-// Job queue state (module-level so server handler and interval share the same queue)
-let jobQueue: string[] = [];
-let isRunning = false;
+import { Queue, Worker, Job } from 'bullmq';
+import IORedis from 'ioredis';
+
+const redisConnection = new IORedis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    maxRetriesPerRequest: null
+});
+
+const scrapeQueue = new Queue('scrapeQueue', { connection: redisConnection });
+
+const scrapeWorker = new Worker('scrapeQueue', async (job: Job) => {
+    if (job.name === 'process') {
+        await processPosts(job.data.keyword);
+    }
+}, { connection: redisConnection, concurrency: 1 });
+
+scrapeWorker.on('failed', (job: Job | undefined, err: Error) => {
+    logWrapper.error(`Job failed for ${job?.data?.keyword}:`, err);
+});
 
 async function syncFundamentals(currentKeyword: string) {
     const fundamentals = await fetchFundamentals(currentKeyword);
@@ -126,13 +144,14 @@ async function syncFundamentals(currentKeyword: string) {
         }
 
         if (fundamentals.history && fundamentals.history.length > 0) {
-            for (const h of fundamentals.history) {
-                await prisma.financialHistory.upsert({
+            const historyUpserts = fundamentals.history.map(h => 
+                prisma.financialHistory.upsert({
                     where: { ticker_year: { ticker: currentKeyword, year: h.year } },
                     update: { eps: h.eps, revenue_per_share: h.revenue_per_share, roe: h.roe, net_debt_ebitda: h.net_debt_ebitda, pe_ratio: h.pe_ratio, ps_ratio: h.ps_ratio, pb_ratio: h.pb_ratio, ev_ebit: h.ev_ebit },
                     create: { ticker: currentKeyword, year: h.year, eps: h.eps, revenue_per_share: h.revenue_per_share, roe: h.roe, net_debt_ebitda: h.net_debt_ebitda, pe_ratio: h.pe_ratio, ps_ratio: h.ps_ratio, pb_ratio: h.pb_ratio, ev_ebit: h.ev_ebit }
-                });
-            }
+                })
+            );
+            await prisma.$transaction(historyUpserts);
         }
 
         if (fundamentals.insiders && fundamentals.insiders.length > 0) {
@@ -151,15 +170,15 @@ async function syncFundamentals(currentKeyword: string) {
                 })
             ]);
         }
-        console.log(`Saved fundamentals for ${currentKeyword}`);
+        logWrapper.info(`Saved fundamentals for ${currentKeyword}`);
     } catch (e) {
-        console.error('Failed to save fundamentals to DB:', e);
+        logWrapper.error('Failed to save fundamentals to DB:', e);
     }
 }
 
 async function processPosts(keywordOverride?: string) {
     if (isScraping) {
-        console.log('Scrape already in progress.');
+        logWrapper.info('Scrape already in progress.');
         return;
     }
     isScraping = true;
@@ -181,7 +200,7 @@ async function processPosts(keywordOverride?: string) {
         scrapeEDGAR(currentKeyword),
     ]);
     const posts = [...redditPosts, ...newsPosts, ...yahooPosts, ...stockTwitsPosts, ...edgarPosts];
-    console.log(`Scraped ${redditPosts.length} Reddit, ${newsPosts.length} GNews, ${yahooPosts.length} Yahoo, ${stockTwitsPosts.length} StockTwits, ${edgarPosts.length} EDGAR.`);
+    logWrapper.info(`Scraped ${redditPosts.length} Reddit, ${newsPosts.length} GNews, ${yahooPosts.length} Yahoo, ${stockTwitsPosts.length} StockTwits, ${edgarPosts.length} EDGAR.`);
 
     let count = 0;
     const newPosts: ScrapedPost[] = [];
@@ -198,24 +217,24 @@ async function processPosts(keywordOverride?: string) {
             });
 
             if (existing) {
-                console.log(`Duplicate detected for hash ${duplicateHash}. Skipping.`);
+                logWrapper.info(`Duplicate detected for hash ${duplicateHash}. Skipping.`);
                 continue;
             }
             newPosts.push(post);
             postHashes[post.id] = duplicateHash;
         } catch (dbErr) {
-            console.error('Database connection might not be ready.', dbErr);
+            logWrapper.error('Database connection might not be ready.', dbErr);
             return;
         }
     }
 
     if (newPosts.length === 0) {
-        console.log('No new posts to process. Executing Quant models periodically...');
+        logWrapper.info('No new posts to process. Executing Quant models periodically...');
         await executeQuantModels(currentKeyword);
         return;
     }
 
-    console.log(`Found ${newPosts.length} new posts. Batching AI requests...`);
+    logWrapper.info(`Found ${newPosts.length} new posts. Batching AI requests...`);
 
     // 3. Smart Token Batching
     // Build batches based on approximate token count (1 token ~= 4 chars) to prevent API 429 TPM errors
@@ -243,7 +262,7 @@ async function processPosts(keywordOverride?: string) {
         allBatches.push(currentBatch);
     }
 
-    console.log(`Segmented ${newPosts.length} posts into ${allBatches.length} smart token-sized batches.`);
+    logWrapper.info(`Segmented ${newPosts.length} posts into ${allBatches.length} smart token-sized batches.`);
 
     for (let i = 0; i < allBatches.length; i++) {
         const batch = allBatches[i];
@@ -259,61 +278,56 @@ async function processPosts(keywordOverride?: string) {
         await new Promise(r => setTimeout(r, delayMs));
 
         if (!aiResults) {
-            console.log('AI labeling failed or returned null for batch. Skipping.');
+            logWrapper.info('AI labeling failed or returned null for batch. Skipping.');
             continue;
         }
 
         const scrape_batch_id = 'batch_' + Date.now();
 
-        for (const aiResult of aiResults) {
+        const sentimentsData = aiResults.map(aiResult => {
             const post = batch.find(p => p.id === aiResult.id);
-            if (!post) continue;
-
+            if (!post) return null;
+            
             // 1. Filter: Anti-Slop
-            const isTrusted = computeTrustScore(post.author_karma, post.account_age_days);
+            const trustMultiplier = computeTrustScore(post.author_karma, post.account_age_days);
+            if (trustMultiplier === 0) return null;
 
-            if (!isTrusted) {
-                continue; // Phase 2: Exclude untrusted instead of saving sentiment=0
-            }
-
-            // Phase 2: Range Validate AI outputs
             const finalSentiment = Math.max(-1, Math.min(1, aiResult.sentiment));
-            const finalConfidence = Math.max(0, Math.min(1, aiResult.confidence));
+            const finalConfidence = Math.max(0, Math.min(1, aiResult.confidence)) * trustMultiplier;
             const duplicateHash = postHashes[post.id];
 
-            // 4. Save to Database
+            return {
+                ticker: aiResult.ticker,
+                sentiment: finalSentiment,
+                is_manipulation: aiResult.is_manipulation,
+                confidence: finalConfidence,
+                author: post.author,
+                author_karma: post.author_karma,
+                account_age_days: post.account_age_days,
+                post_timestamp: post.post_timestamp,
+                content: post.content,
+                duplicate_hash: duplicateHash,
+                source: post.source,
+                ai_model: aiResult.ai_model,
+                scrape_batch_id: scrape_batch_id
+            };
+        }).filter(Boolean);
+
+        if (sentimentsData.length > 0) {
             try {
-                await prisma.sentiment.create({
-                    data: {
-                        ticker: aiResult.ticker,
-                        sentiment: finalSentiment,
-                        is_manipulation: aiResult.is_manipulation,
-                        confidence: finalConfidence,
-                        author: post.author,
-                        author_karma: post.author_karma,
-                        account_age_days: post.account_age_days,
-                        post_timestamp: post.post_timestamp,
-                        content: post.content,
-                        duplicate_hash: duplicateHash,
-                        source: post.source,
-                        ai_model: aiResult.ai_model,
-                        scrape_batch_id: scrape_batch_id
-                    }
+                await prisma.sentiment.createMany({
+                    data: sentimentsData as any,
+                    skipDuplicates: true
                 });
-                console.log(`Saved sentiment for ${aiResult.ticker} (${finalSentiment}) by ${post.author}`);
-                count++;
-            } catch (e: any) {
-                if (e.code === 'P2002') {
-                    // Unique constraint failed
-                    console.log(`Prisma: Duplicate hash ${duplicateHash}. Skipping.`);
-                } else {
-                    console.error('Failed to save to DB:', e);
-                }
+                logWrapper.info(`Saved ${sentimentsData.length} sentiment records for batch.`);
+                count += sentimentsData.length;
+            } catch (e) {
+                logWrapper.error('Failed to save batch to DB:', e);
             }
         }
     }
 
-    console.log(`Worker iteration completed. Saved ${count} new data points.`);
+    logWrapper.info(`Worker iteration completed. Saved ${count} new data points.`);
 
     // Final Step: Execute advanced Python quantitative models with newly scraped data
     await executeQuantModels(currentKeyword);
@@ -346,6 +360,41 @@ async function start() {
                 return new Response(null, { headers: corsHeaders });
             }
 
+            if (url.pathname === '/health' && req.method === 'GET') {
+                return new Response(JSON.stringify({ status: 'ok', using_redis: true }), {
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            if (url.pathname === '/ready' && req.method === 'GET') {
+                return new Response(JSON.stringify({ status: 'ready', queue_length: await scrapeQueue.count() }), {
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            // AI Calibration Feedback Endpoint
+            if (url.pathname === '/feedback' && req.method === 'POST') {
+                try {
+                    const body = await req.clone().json();
+                    if (!body.id || typeof body.admin_sentiment !== 'number') {
+                        return new Response("Invalid feedback payload", { status: 400 });
+                    }
+                    await prisma.sentiment.update({
+                        where: { id: body.id },
+                        data: {
+                            admin_sentiment: body.admin_sentiment,
+                            admin_manipulation: body.admin_manipulation
+                        }
+                    });
+                    return new Response(JSON.stringify({ success: true }), {
+                        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
+                } catch (e) {
+                    logWrapper.error("Failed to save AI feedback", e);
+                    return new Response("Server error", { status: 500 });
+                }
+            }
+
             if (url.pathname === '/trigger' && req.method === 'POST') {
                 let dynamicKeyword = targetKeyword;
                 try {
@@ -358,9 +407,15 @@ async function start() {
                 if (finalKeyword.length <= 5) finalKeyword = finalKeyword.toUpperCase();
                 await syncFundamentals(finalKeyword);
 
-                // Push to job queue and drain (prevents backlog if a job is already running)
-                jobQueue.push(finalKeyword);
-                drainQueue().catch(e => console.error('Job queue drain error:', e));
+                // Push to job queue (prevents backlog via dedup if same ticker added within 10 min)
+                const jobId = `manual_${finalKeyword}_${Math.floor(Date.now() / 600000)}`;
+                scrapeQueue.add('process', { keyword: finalKeyword }, { 
+                    jobId,
+                    attempts: 5,
+                    backoff: { type: 'exponential', delay: 2000 },
+                    removeOnComplete: true,
+                    removeOnFail: 1000
+                }).catch(e => logWrapper.error('Job queue push error:', e));
 
                 return new Response(JSON.stringify({ status: 'started', keyword: finalKeyword }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -370,26 +425,22 @@ async function start() {
         }
     });
 
-    console.log('Worker Server listening on port 8080');
-
-    async function drainQueue() {
-        if (isRunning) return;
-        if (jobQueue.length === 0) {
-            jobQueue.push(targetKeyword); // default
-        }
-        isRunning = true;
-        const next = jobQueue.shift()!;
-        try {
-            await processPosts(next);
-        } finally {
-            isRunning = false;
-        }
-    }
+    logWrapper.info('Worker Server listening on port 8080');
 
     // Startup run
-    drainQueue().catch(console.error);
+    scrapeQueue.add('process', { keyword: targetKeyword }, { 
+        jobId: `startup_${targetKeyword}`,
+        removeOnComplete: true, 
+        removeOnFail: 1000 
+    }).catch(logWrapper.error);
+    
     // Recurring 15-min interval
-    setInterval(() => drainQueue().catch(console.error), 15 * 60 * 1000);
+    scrapeQueue.add('process', { keyword: targetKeyword }, { 
+        repeat: { pattern: '*/15 * * * *' },
+        jobId: `recurring_${targetKeyword}`,
+        removeOnComplete: true, 
+        removeOnFail: 1000 
+    }).catch(logWrapper.error);
 }
 
-start().catch(console.error);
+start().catch(logWrapper.error);

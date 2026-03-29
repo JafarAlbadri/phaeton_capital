@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import prisma from '@sentiment-crowd/db';
 
 function getRiskRating(maxDrawdown: number | null, var95: number | null, liquidity: number | null, eventRisk: boolean): number {
@@ -71,8 +72,8 @@ export async function computeRiskProfile(ticker: string): Promise<void> {
       }
     });
 
-    console.log(`Risk profile for ${ticker}: Rating=${overallRiskRating}/5, EventRisk=${eventRisk}`);
+    logWrapper.info(`Risk profile for ${ticker}: Rating=${overallRiskRating}/5, EventRisk=${eventRisk}`);
   } catch (err) {
-    console.error(`Failed to compute risk profile for ${ticker}:`, err);
+    logWrapper.error(`Failed to compute risk profile for ${ticker}:`, err);
   }
 }

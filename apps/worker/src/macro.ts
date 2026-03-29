@@ -1,3 +1,4 @@
+import { logWrapper } from './logger';
 import prisma from '@sentiment-crowd/db';
 
 const SECTOR_ETF_MAP: Record<string, string> = {
@@ -16,7 +17,7 @@ const SECTOR_ETF_MAP: Record<string, string> = {
 
 export async function fetchAndSaveMacro(ticker: string): Promise<void> {
   try {
-    console.log(`Fetching macro indicators for ${ticker}...`);
+    logWrapper.info(`Fetching macro indicators for ${ticker}...`);
 
     const fundamental = await prisma.fundamentalData.findUnique({ where: { ticker } });
     const sectorEtf = fundamental?.sector ? SECTOR_ETF_MAP[fundamental.sector] || 'SPY' : 'SPY';
@@ -24,40 +25,31 @@ export async function fetchAndSaveMacro(ticker: string): Promise<void> {
     // We call yfinance_fetcher with a special "macro" mode via a separate Python invocation
     const payload = JSON.stringify({ ticker, sector_etf: sectorEtf });
 
-    const proc = Bun.spawn(["python3", "/app/apps/worker/src/macro_fetcher.py"], {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe"
+    const pythonWorkerUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+    const response = await fetch(`${pythonWorkerUrl}/macro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        signal: AbortSignal.timeout(60000)
     });
 
-    proc.stdin.write(payload);
-    proc.stdin.flush();
-    proc.stdin.end();
-
-    const [textOutput, errorOutput] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-
-    if (errorOutput?.trim()) {
-      console.error(`[Macro Python stderr] ${errorOutput}`);
+    if (!response.ok) {
+        logWrapper.error(`[Macro Python Error] ${response.status}: ${await response.text()}`);
+        return;
     }
 
-    if (!textOutput) {
-      console.error(`No macro output for ${ticker}`);
-      return;
-    }
+    const textOutput = await response.text();
 
     let data: any;
     try {
       data = JSON.parse(textOutput);
     } catch {
-      console.error(`Failed to parse macro output: ${textOutput}`);
+      logWrapper.error(`Failed to parse macro output: ${textOutput}`);
       return;
     }
 
     if (data.error) {
-      console.error(`Macro script error: ${data.error}`);
+      logWrapper.error(`Macro script error: ${data.error}`);
       return;
     }
 
@@ -92,8 +84,8 @@ export async function fetchAndSaveMacro(ticker: string): Promise<void> {
       }
     });
 
-    console.log(`Saved macro indicators for ${ticker}`);
+    logWrapper.info(`Saved macro indicators for ${ticker}`);
   } catch (err) {
-    console.error(`Failed to fetch/save macro for ${ticker}:`, err);
+    logWrapper.error(`Failed to fetch/save macro for ${ticker}:`, err);
   }
 }

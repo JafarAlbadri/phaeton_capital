@@ -61,7 +61,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - AI_MODEL=${AI_MODEL:-gemini-2.5-flash}
       - AI_RPM_LIMIT=${AI_RPM_LIMIT:-4}
-      - TARGET_KEYWORD=${TARGET_KEYWORD:-wallstreetbets}
+      - TARGET_KEYWORD=${TARGET_KEYWORD:-Gold}
       - REDIS_URL=redis://redis:6379
     ports:
       - "8080:8080"
@@ -76,9 +76,17 @@ services:
         condition: service_completed_successfully
     environment:
       - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
-      - TARGET_KEYWORD=${TARGET_KEYWORD:-wallstreetbets}
+      - TARGET_KEYWORD=${TARGET_KEYWORD:-Gold}
     ports:
       - "3000:3000"
+
+  python_worker:
+    build:
+      context: apps/python_worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
 
 volumes:
   postgres_data:
