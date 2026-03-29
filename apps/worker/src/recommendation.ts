@@ -75,7 +75,7 @@ async function computeOptimizedWeights(ticker: string, base: Weights): Promise<W
     }
 }
 
-export async function computeRecommendation(ticker: string): Promise<void> {
+export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 90 = 15): Promise<void> {
     try {
         const [quant, fundamental, tech, macro, insiders, riskProfile] = await Promise.all([
             prisma.quantMetrics.findUnique({ where: { ticker } }),
@@ -104,6 +104,11 @@ export async function computeRecommendation(ticker: string): Promise<void> {
             const pcr = optionsFlow.put_call_ratio;
             if (pcr < 0.7) sentimentScore = clamp(sentimentScore + 5);
             else if (pcr > 1.3) sentimentScore = clamp(sentimentScore - 5);
+        // Google Trends nudge on sentiment
+        const trendsScore = (quant as any)?.trends_score as number | null | undefined;
+        if (trendsScore != null) {
+            if (trendsScore > 70) sentimentScore = clamp(sentimentScore + 5);
+            else if (trendsScore < 30) sentimentScore = clamp(sentimentScore - 5);
         }
 
         // --- Technical Score ---
@@ -220,8 +225,11 @@ export async function computeRecommendation(ticker: string): Promise<void> {
         if (insiders.length > 0) dataSources++;
         const confidence = dataSources / 5;
 
-        await prisma.recommendationScore.upsert({
-            where: { ticker },
+        // Adjust Kelly lookback and prediction resolution based on horizon
+        const resolutionDays = horizon;
+
+        await (prisma.recommendationScore as any).upsert({
+            where: { ticker_horizon: { ticker, horizon } },
             update: {
                 composite_score: composite, signal: finalSignal,
                 sentiment_score: sentimentScore, technical_score: technicalScore,
@@ -230,7 +238,7 @@ export async function computeRecommendation(ticker: string): Promise<void> {
                 confidence, risk_override: riskOverride,
             },
             create: {
-                ticker, composite_score: composite, signal: finalSignal,
+                ticker, horizon, composite_score: composite, signal: finalSignal,
                 sentiment_score: sentimentScore, technical_score: technicalScore,
                 fundamental_score: fundamentalScore, quant_score: quantScore,
                 insider_score: insiderScore, macro_score: macroScore,
@@ -238,16 +246,17 @@ export async function computeRecommendation(ticker: string): Promise<void> {
             }
         });
 
-        if (fundamental?.current_price) {
+        if (fundamental?.current_price && horizon === 15) {
             await prisma.predictionRecord.create({
-                data: { ticker, signal: finalSignal, price_at_signal: fundamental.current_price, composite_score: composite, outcome: 'PENDING' }
+                data: { ticker, signal: finalSignal, price_at_signal: fundamental.current_price, composite_score: composite, outcome: 'PENDING', horizon }
             });
         }
 
         // Resolve pending predictions older than 15 days
-        const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
+        const resolutionMs = resolutionDays * 24 * 60 * 60 * 1000;
+        const resolutionCutoff = new Date(Date.now() - resolutionMs);
         const pending = await prisma.predictionRecord.findMany({
-            where: { ticker, outcome: 'PENDING', createdAt: { lte: fifteenDaysAgo } }
+            where: { ticker, outcome: 'PENDING', horizon, createdAt: { lte: resolutionCutoff } }
         });
         if (pending.length > 0 && fundamental?.current_price) {
             await prisma.$transaction(pending.map(pred => {
@@ -263,26 +272,62 @@ export async function computeRecommendation(ticker: string): Promise<void> {
             }));
         }
 
-        logWrapper.info(`Recommendation for ${ticker}: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%, regime=${macro?.vix != null && macro.vix > 30 ? 'CRISIS' : quant?.hmm_state === 2 ? 'BULL' : quant?.hmm_state === 0 ? 'BEAR' : 'NEUTRAL'})`);
+        logWrapper.info(`Recommendation for ${ticker} [${horizon}d]: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%, regime=${macro?.vix != null && macro.vix > 30 ? 'CRISIS' : quant?.hmm_state === 2 ? 'BULL' : quant?.hmm_state === 0 ? 'BEAR' : 'NEUTRAL'})`);
 
-        // Generate narrative async — non-blocking
-        generateNarrative({
-            ticker, signal: finalSignal, composite_score: composite, confidence,
-            sentiment_score: sentimentScore, technical_score: technicalScore,
-            fundamental_score: fundamentalScore, quant_score: quantScore,
-            macro_score: macroScore, insider_score: insiderScore,
-            rsi: tech?.rsi_14, macd_histogram: tech?.macd_histogram,
-            bayes_posterior: quant?.bayes_posterior, vix: macro?.vix,
-            hurst: quant?.hurst_exponent, pe_ratio: fundamental?.pe_ratio,
-            target_price: fundamental?.target_price, current_price: fundamental?.current_price,
-            hmm_state: quant?.hmm_state, insider_net_buy: insiderNetBuy,
-            risk_rating: riskProfile?.overall_risk_rating,
-            put_call_ratio: optionsFlow?.put_call_ratio ?? null,
-        }).then(narrative => {
-            if (narrative) {
-                prisma.recommendationScore.update({ where: { ticker }, data: { narrative } }).catch(() => {});
+        // Generate narrative async — non-blocking (only for 15d horizon)
+        if (horizon === 15) {
+            generateNarrative({
+                ticker, signal: finalSignal, composite_score: composite, confidence,
+                sentiment_score: sentimentScore, technical_score: technicalScore,
+                fundamental_score: fundamentalScore, quant_score: quantScore,
+                macro_score: macroScore, insider_score: insiderScore,
+                rsi: tech?.rsi_14, macd_histogram: tech?.macd_histogram,
+                bayes_posterior: quant?.bayes_posterior, vix: macro?.vix,
+                hurst: quant?.hurst_exponent, pe_ratio: fundamental?.pe_ratio,
+                target_price: fundamental?.target_price, current_price: fundamental?.current_price,
+                hmm_state: quant?.hmm_state, insider_net_buy: insiderNetBuy,
+                risk_rating: riskProfile?.overall_risk_rating,
+                put_call_ratio: optionsFlow?.put_call_ratio ?? null,
+            }).then(narrative => {
+                if (narrative) {
+                    (prisma as any).recommendationScore.update({
+                        where: { ticker_horizon: { ticker, horizon } },
+                        data: { narrative },
+                    }).catch(() => {});
+                }
+            }).catch(() => {});
+        }
+
+        // Compute regional sentiment divergence
+        try {
+            const regions = ['US', 'AU', 'UK', 'EU'];
+            const regionData = await Promise.all(
+                regions.map(region =>
+                    (prisma.sentiment.aggregate as any)({
+                        where: { ticker, region },
+                        _avg: { sentiment: true },
+                        _count: { id: true },
+                    }).then((r: any) => ({ region, mean: r._avg?.sentiment ?? 0, count: r._count?.id ?? 0 }))
+                )
+            );
+            const validRegions = regionData.filter(r => r.count > 0);
+            if (validRegions.length >= 2) {
+                const means = validRegions.map(r => r.mean);
+                const divergence = Math.max(...means) - Math.min(...means);
+                await prisma.$transaction(
+                    validRegions.map(r =>
+                        (prisma as any).regionalSentiment.upsert({
+                            where: { ticker_region: { ticker, region: r.region } },
+                            update: { mean_sentiment: r.mean, count: r.count },
+                            create: { ticker, region: r.region, mean_sentiment: r.mean, count: r.count },
+                        })
+                    )
+                );
+                if (divergence > 0.3) {
+                    logWrapper.info(`Regional divergence for ${ticker}: ${divergence.toFixed(2)} (${validRegions.map(r => `${r.region}=${r.mean.toFixed(2)}`).join(', ')})`);
+                }
             }
-        }).catch(() => {});
+        } catch (_e) { /* sparse data — silently skip */ }
 
     } catch (err) {
         logWrapper.error(`Failed to compute recommendation for ${ticker}:`, err);

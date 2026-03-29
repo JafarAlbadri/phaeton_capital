@@ -180,3 +180,89 @@ async def backtest_endpoint(ticker: str, years: int = 2):
         }
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/trends/{ticker}")
+async def trends_endpoint(ticker: str):
+    try:
+        import time
+        import numpy as np
+        from pytrends.request import TrendReq
+
+        pytrends = TrendReq(hl='en-US', tz=360)
+        kw = f"{ticker.upper()} stock"
+        pytrends.build_payload([kw], timeframe='today 3-m', geo='US')
+        time.sleep(10)  # mandatory to avoid IP block
+        df = pytrends.interest_over_time()
+
+        if df is None or df.empty or kw not in df.columns:
+            return {"trends_score": 50, "weekly_data": [], "direction": "flat"}
+
+        values = df[kw].tolist()
+        dates = [d.strftime("%Y-%m-%d") for d in df.index]
+        weekly_data = [{"week": dates[i], "interest": values[i]} for i in range(len(values))]
+
+        # 12-week z-score
+        arr = np.array(values, dtype=float)
+        mean_12w = float(np.mean(arr[-12:]) if len(arr) >= 12 else np.mean(arr))
+        std_12w  = float(np.std(arr[-12:])  if len(arr) >= 12 else np.std(arr))
+        last_val = float(arr[-1]) if len(arr) > 0 else mean_12w
+
+        z = (last_val - mean_12w) / max(std_12w, 1.0)
+        trends_score = float(max(0.0, min(100.0, 50 + z * 10)))
+
+        if len(arr) >= 4:
+            direction = "up" if arr[-1] > arr[-4] else ("down" if arr[-1] < arr[-4] else "flat")
+        else:
+            direction = "flat"
+
+        return {
+            "trends_score": round(trends_score, 2),
+            "weekly_data": weekly_data,
+            "direction": direction,
+        }
+    except Exception as e:
+        return {"trends_score": 50, "weekly_data": [], "direction": "flat", "error": str(e)}
+
+@app.get("/crosslist/{ticker}")
+async def crosslist_endpoint(ticker: str):
+    """ADR / cross-listing gap monitor. Returns gap between home listing and US ADR."""
+    try:
+        import yfinance as yf
+        # Map of known US ADR tickers to their home market equivalents
+        ADR_MAP: dict[str, dict] = {
+            "ASML": {"home": "ASML.AS", "exchange": "AEX", "fx_pair": "EURUSD=X"},
+            "TM":   {"home": "7203.T",  "exchange": "TSE", "fx_pair": "JPYUSD=X"},
+            "SAP":  {"home": "SAP.DE",  "exchange": "XETRA", "fx_pair": "EURUSD=X"},
+            "HSBC": {"home": "0005.HK", "exchange": "HKEX", "fx_pair": "HKDUSD=X"},
+            "NVO":  {"home": "NOVO-B.CO","exchange": "OMX", "fx_pair": "DKKUSD=X"},
+            "SONY": {"home": "6758.T",  "exchange": "TSE", "fx_pair": "JPYUSD=X"},
+        }
+        t = ticker.upper()
+        if t not in ADR_MAP:
+            return {"error": "No ADR mapping for this ticker", "ticker": t}
+
+        mapping = ADR_MAP[t]
+        adr_data  = yf.Ticker(t).fast_info
+        home_data = yf.Ticker(mapping["home"]).fast_info
+        fx_data   = yf.Ticker(mapping["fx_pair"]).fast_info
+
+        adr_price  = float(adr_data.last_price or 0)
+        home_price = float(home_data.last_price or 0)
+        fx_rate    = float(fx_data.last_price or 1)
+
+        home_price_usd = home_price * fx_rate
+        gap_pct = ((adr_price - home_price_usd) / home_price_usd * 100) if home_price_usd > 0 else 0.0
+
+        return {
+            "ticker": t,
+            "home_ticker": mapping["home"],
+            "home_exchange": mapping["exchange"],
+            "home_price": round(home_price, 4),
+            "adr_price": round(adr_price, 4),
+            "fx_rate": round(fx_rate, 6),
+            "home_price_usd": round(home_price_usd, 4),
+            "gap_pct": round(gap_pct, 4),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+

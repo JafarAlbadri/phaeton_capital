@@ -2,6 +2,9 @@ import { logWrapper } from './logger';
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
 import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, scrapeOptionsFlow, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
+import { fetchAndSaveTrends } from './trends';
+import { fetchAndSaveCrossListing } from './crosslist';
+import { getCulturalProfile, buildCulturalImplications } from './hofstede';
 
 // SSE client registry
 type SseClient = { write: (data: string) => void; close: () => void };
@@ -226,6 +229,26 @@ async function processPosts(keywordOverride?: string) {
         // Run quant models immediately to populate UI before the slow sentiment scrape
         await executeQuantModels(currentKeyword);
 
+        // Run Google Trends + cross-listing gap in parallel (non-blocking — both can be slow)
+        Promise.allSettled([
+            fetchAndSaveTrends(currentKeyword),
+            fetchAndSaveCrossListing(currentKeyword),
+        ]).catch(() => {});
+
+        // Write Hofstede cultural profile from exchange country
+        try {
+            const macro = await prisma.macroIndicators.findUnique({ where: { ticker: currentKeyword } });
+            const exchange = (macro as any)?.sector_etf as string | undefined;
+            const profile = getCulturalProfile(exchange);
+            if (profile) {
+                const culturalProfile = buildCulturalImplications(profile);
+                await prisma.macroIndicators.update({
+                    where: { ticker: currentKeyword },
+                    data: { country_code: profile.country_code, cultural_profile: culturalProfile } as any,
+                });
+            }
+        } catch (_e) { /* macro data may not exist yet */ }
+
     const [redditPosts, newsPosts, yahooPosts, stockTwitsPosts, edgarPosts] = await Promise.all([
         scrapeReddit(currentKeyword, 100),
         scrapeGoogleNews(currentKeyword),
@@ -371,17 +394,22 @@ async function processPosts(keywordOverride?: string) {
         fetchAndSaveMacro(currentKeyword),
         computeRiskProfile(currentKeyword),
     ]);
-    await computeRecommendation(currentKeyword);
+    // Compute recommendations for all three horizons concurrently
+    await Promise.allSettled([
+        computeRecommendation(currentKeyword, 15),
+        computeRecommendation(currentKeyword, 30),
+        computeRecommendation(currentKeyword, 90),
+    ]);
 
     // Broadcast final recommendation to all SSE clients
     try {
-        const rec = await prisma.recommendationScore.findUnique({ where: { ticker: currentKeyword } });
+        const rec = await (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } } });
         if (rec) broadcastSSE('recommendation', {
             ticker: currentKeyword, signal: rec.signal, score: rec.composite_score,
             confidence: rec.confidence, narrative: (rec as any).narrative ?? null,
             timestamp: new Date().toISOString()
         });
-    } catch { /* non-critical */ }
+    } catch (_e) { /* non-critical */ }
 
     } finally {
         isScraping = false;

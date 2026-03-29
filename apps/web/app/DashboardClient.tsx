@@ -180,8 +180,9 @@ export default function DashboardClient({
     recentSentiments, manipulationStats, targetKeyword,
     fundamentalData, financialHistory, usdSekRate, gaussianData,
     insiderTrades, quantMetrics, technicalIndicators, macroIndicators,
-    riskProfile, recommendationScore, predictionAccuracy, predictionCount,
-    predictionHistory, auditStats,
+    riskProfile, recommendationScore, recommendationScores,
+    predictionAccuracy, predictionCount, predictionHistory, auditStats,
+    trendsHistory, crossListingData, regionalSentiment,
 }: any) {
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
@@ -190,6 +191,7 @@ export default function DashboardClient({
     const [searchLoading, setSearchLoading] = useState(false);
     const [tradeFilter, setTradeFilter] = useState<'all' | 'buy' | 'sell'>('all');
     const [isCommandOpen, setIsCommandOpen] = useState(false);
+    const [selectedHorizon, setSelectedHorizon] = useState<15 | 30 | 90>(15);
     const router = useRouter();
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
     
@@ -468,14 +470,28 @@ export default function DashboardClient({
                                     <span className="badge bg-[#12122e] border border-[#1a1a3a] text-[#9898c0]">EQT</span>
                                 </div>
                                 <div className="text-[15px] text-[#9898c0] font-500 mt-2">Composite Signal Target</div>
+
+                                {/* Horizon tab pills */}
+                                {recommendationScores && (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        {([15, 30, 90] as const).map(h => (
+                                            <button
+                                                key={h}
+                                                onClick={() => setSelectedHorizon(h)}
+                                                className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#5d5d8a] hover:border-white/20 hover:text-[#9898c0]'}`}
+                                            >{h}D</button>
+                                        ))}
+                                    </div>
+                                )}
                                 
                                 <div className={`font-display text-[64px] xl:text-[80px] font-800 leading-[0.9] tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent animate-hero-enter`} 
                                      style={{textShadow: `0 0 40px ${sig.shadow}`}}>
                                     {sig.word}
                                 </div>
+                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#5d5d8a] mt-1">15-Day Outlook</div>
                                 
                                 <div className="flex items-center gap-4 mt-2">
-                                    <span className="badge badge-gold">Score: {recommendationScore.composite_score?.toFixed(1)}/100</span>
+                                    <span className="badge badge-gold">Score: {recommendationScore.composite_score?.toFixed(1)}/100 · 15d</span>
                                     {predictionCount > 0 && predictionAccuracy != null && (
                                         <span className="font-mono text-[12px] text-[#9898c0]">Model Acc: {(predictionAccuracy * 100).toFixed(1)}%</span>
                                     )}
@@ -554,6 +570,22 @@ export default function DashboardClient({
                                 </div>
                             )}
                         </div>
+
+                        {/* V2: ADR Cross-Listing Gap Alert */}
+                        {crossListingData && Math.abs(crossListingData.gap_pct ?? 0) > 0.5 && (
+                            <div className={`mt-4 flex items-start gap-3 p-4 rounded-xl border ${crossListingData.gap_pct > 0 ? 'bg-amber-500/[0.05] border-amber-500/20' : 'bg-blue-500/[0.05] border-blue-500/20'}`}>
+                                <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${crossListingData.gap_pct > 0 ? 'text-amber-400' : 'text-blue-400'}`} />
+                                <div>
+                                    <div className="text-[12px] font-700 text-[#e2e8f0] mb-0.5">
+                                        ADR / Cross-Listing Gap · {crossListingData.gap_pct > 0 ? '▲' : '▼'} {Math.abs(crossListingData.gap_pct).toFixed(2)}%
+                                    </div>
+                                    <div className="text-[11px] text-[#9898c0]">
+                                        US price <span className="font-mono text-white">${crossListingData.adr_price?.toFixed(2)}</span> vs home market ({crossListingData.home_exchange}) <span className="font-mono text-white">${crossListingData.home_price_usd?.toFixed(2)}</span>.
+                                        {crossListingData.gap_pct > 0 ? ' US ADR trading at a premium — possible arbitrage or delayed sentiment.' : ' Home listing at premium — capital may rotate toward US ADR.'}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -612,6 +644,40 @@ export default function DashboardClient({
                                         <div className={`font-mono text-xl font-700 ${quantMetrics.adf_stationary ? 'text-emerald-400' : 'text-red-400'}`}>{quantMetrics.adf_stationary ? 'Stationary' : 'Non-Stationary'}</div>
                                     </div>
                                 </div>
+
+                                {/* V2: Google Trends sparkline */}
+                                {quantMetrics.trends_score != null && (
+                                    <div className="mt-4 pt-4 border-t border-[#1a1a3a]">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="section-title">Google Trends Signal</div>
+                                            <span className={`text-[12px] font-mono font-700 ${quantMetrics.trends_score > 60 ? 'text-emerald-400' : quantMetrics.trends_score < 40 ? 'text-red-400' : 'text-amber-400'}`}>
+                                                {quantMetrics.trends_score.toFixed(0)} / 100
+                                            </span>
+                                        </div>
+                                        {trendsHistory && trendsHistory.length > 1 && (() => {
+                                            const sorted = [...trendsHistory].sort((a: any, b: any) => new Date(a.week_start).getTime() - new Date(b.week_start).getTime());
+                                            const values = sorted.map((w: any) => w.interest);
+                                            const min = Math.min(...values), max = Math.max(...values);
+                                            const range = max - min || 1;
+                                            const W = 240, H = 40;
+                                            const pts = values.map((v: number, i: number) =>
+                                                `${(i / (values.length - 1)) * W},${H - ((v - min) / range) * H}`
+                                            ).join(' ');
+                                            return (
+                                                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10 overflow-visible">
+                                                    <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                    <polyline points={`0,${H} ${pts} ${W},${H}`} fill="url(#trendsGrad)" stroke="none" />
+                                                    <defs>
+                                                        <linearGradient id="trendsGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
+                                                            <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                </svg>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
                             </div>
                         </section>
                     )}
@@ -632,12 +698,83 @@ export default function DashboardClient({
                                 <Tile label="Fear & Greed" value={macroIndicators.fear_greed_index?.toFixed(0) || '—'} variant={macroIndicators.fear_greed_index > 60 ? 'bull' : macroIndicators.fear_greed_index < 40 ? 'bear' : 'gold'} />
                                 <Tile label="1M ETF Return" value={macroIndicators.sector_etf_momentum_1m ? `${(macroIndicators.sector_etf_momentum_1m*100).toFixed(1)}%` : '—'} variant={macroIndicators.sector_etf_momentum_1m >= 0 ? 'bull' : 'bear'} />
                             </div>
+
+                            {/* V2: Cultural Context Card */}
+                            {(() => {
+                                const cp = macroIndicators.cultural_profile ? (() => { try { return JSON.parse(macroIndicators.cultural_profile); } catch { return null; } })() : null;
+                                if (!cp) return null;
+                                const dims = [
+                                    { key: 'uai', label: 'Uncertainty Avoidance', color: '#f59e0b' },
+                                    { key: 'idv', label: 'Individualism', color: '#6366f1' },
+                                    { key: 'lto', label: 'Long-Term Orientation', color: '#0ecf8a' },
+                                    { key: 'pdi', label: 'Power Distance', color: '#f87171' },
+                                ];
+                                const implications = cp.implications ?? [];
+                                return (
+                                    <div className="mt-4 rounded-xl border border-[#1e1e3a] bg-[#09091f] p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Cultural Market Context · {cp.country}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            {dims.map(d => (
+                                                <div key={d.key}>
+                                                    <div className="flex justify-between text-[10px] text-[#5d5d8a] mb-1">
+                                                        <span>{d.label}</span><span className="font-mono">{cp[d.key]}</span>
+                                                    </div>
+                                                    <div className="h-1.5 rounded-full bg-[#12122e] overflow-hidden">
+                                                        <div className="h-full rounded-full transition-all" style={{ width: `${cp[d.key]}%`, background: d.color, opacity: 0.8 }} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {implications.slice(1, 3).map((imp: string, i: number) => (
+                                            <p key={i} className="text-[10px] text-[#5d5d8a] leading-relaxed mb-1">{imp}</p>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </section>
                     )}
                 </div>
 
                 {/* ── CHARTS ──────────────────────────────────────────────────── */}
                 <section id="sentiment" className="col-span-12 scroll-mt-20" data-animate>
+
+                    {/* V2: Regional Sentiment Divergence */}
+                    {regionalSentiment && regionalSentiment.length >= 2 && (() => {
+                        const regionMap: Record<string, string> = { US: '🇺🇸 US', AU: '🇦🇺 AU', UK: '🇬🇧 UK', EU: '🇪🇺 EU' };
+                        const means = regionalSentiment.map((r: any) => r.mean_sentiment);
+                        const divergence = Math.max(...means) - Math.min(...means);
+                        return (
+                            <div className={`mb-6 rounded-xl border p-4 ${divergence > 0.3 ? 'border-amber-500/20 bg-amber-500/[0.04]' : 'border-[#1e1e3a] bg-[#09091f]'}`}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                                        <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Regional Sentiment Divergence</span>
+                                    </div>
+                                    {divergence > 0.3 && (
+                                        <div className="flex items-center gap-1.5 text-amber-400 text-[10px] font-700">
+                                            <AlertTriangle className="w-3 h-3" /> Divergence detected · {divergence.toFixed(2)}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-end gap-4">
+                                    {regionalSentiment.map((r: any) => (
+                                        <div key={r.region} className="flex flex-col items-center gap-1.5 flex-1">
+                                            <div className="w-full rounded-md overflow-hidden bg-[#12122e]" style={{ height: 48 }}>
+                                                <div className="rounded-md transition-all"
+                                                     style={{ height: `${Math.max(4, Math.abs(r.mean_sentiment) * 48)}px`, marginTop: r.mean_sentiment > 0 ? 0 : 'auto', background: r.mean_sentiment > 0.1 ? '#0ecf8a' : r.mean_sentiment < -0.1 ? '#f5495a' : '#f59e0b', opacity: 0.75 }} />
+                                            </div>
+                                            <span className="text-[10px] text-[#5d5d8a]">{regionMap[r.region] ?? r.region}</span>
+                                            <span className={`text-[10px] font-700 font-mono ${r.mean_sentiment > 0.1 ? 'text-emerald-400' : r.mean_sentiment < -0.1 ? 'text-red-400' : 'text-amber-400'}`}>{r.mean_sentiment.toFixed(2)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {/* Sentiment timeline */}
                         <div className="card card-accent relative overflow-hidden p-0 w-full" data-animate-child>
@@ -1115,7 +1252,7 @@ export default function DashboardClient({
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Entry</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Exit (15d)</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Return</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Outcome</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Outcome (15d)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.04]">

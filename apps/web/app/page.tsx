@@ -158,9 +158,28 @@ export default async function Page(
         where: { ticker: targetKeyword }
     });
 
-    const recommendationScore = await prisma.recommendationScore.findUnique({
+    const [h15, h30, h90] = await Promise.all([
+        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 15 } } }),
+        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 30 } } }),
+        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 90 } } }),
+    ]);
+    const recommendationScore = h15 ?? null; // default to 15d for backward compat
+    const recommendationScores = { h15, h30, h90 };
+
+    // V2: Trends history (last 13 weeks)
+    const trendsHistory = await (prisma as any).trendsHistory?.findMany({
+        where: { ticker: targetKeyword }, orderBy: { week_start: 'desc' }, take: 13
+    }).catch(() => []) ?? [];
+
+    // V2: Cross-listing ADR gap
+    const crossListingData = await (prisma as any).crossListingData?.findUnique({
         where: { ticker: targetKeyword }
-    });
+    }).catch(() => null) ?? null;
+
+    // V2: Regional sentiment
+    const regionalSentiment = await (prisma as any).regionalSentiment?.findMany({
+        where: { ticker: targetKeyword }
+    }).catch(() => []) ?? [];
 
     // Prediction accuracy
     const predictionRecords = await prisma.predictionRecord.findMany({
@@ -240,10 +259,14 @@ export default async function Page(
             macroIndicators={macroIndicators}
             riskProfile={riskProfile}
             recommendationScore={recommendationScore}
+            recommendationScores={recommendationScores}
             predictionAccuracy={predictionAccuracy}
             predictionCount={totalPredictions}
             predictionHistory={predictionHistory}
             auditStats={{ hitRate: auditHitRate, avgReturn: auditAvgReturn, maxDrawdown: auditMaxDrawdown, sharpe: auditSharpe }}
+            trendsHistory={trendsHistory}
+            crossListingData={crossListingData}
+            regionalSentiment={regionalSentiment}
         />
     );
 }

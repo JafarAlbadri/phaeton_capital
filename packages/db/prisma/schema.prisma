@@ -27,9 +27,11 @@ model Sentiment {
   prompt_version   Int      @default(1)
   admin_sentiment  Float?   // Label applied by human for AI calibration
   admin_manipulation Boolean?
+  region           String   @default("US") // Regional sentiment divergence
 
   @@index([ticker])
   @@index([ticker, createdAt(sort: Desc)])
+  @@index([ticker, region])
 }
 
 model FundamentalData {
@@ -121,6 +123,7 @@ model QuantMetrics {
   var_95                Float?
   var_99                Float?
   cvar_95               Float?
+  trends_score          Float?
   updatedAt             DateTime @updatedAt
 
   @@index([ticker])
@@ -162,6 +165,8 @@ model MacroIndicators {
   fear_greed_index       Float?
   rate_sensitive         Boolean?
   pe_premium_pct         Float?
+  country_code           String?  // ISO country code for cultural context
+  cultural_profile       String?  // JSON string of Hofstede dimension scores
   updatedAt              DateTime @updatedAt
 }
 
@@ -181,7 +186,9 @@ model RiskProfile {
 }
 
 model RecommendationScore {
-  ticker            String   @id
+  id                String   @id @default(cuid())
+  ticker            String
+  horizon           Int      @default(15) // Holding period in days
   composite_score   Float?
   signal            String?
   sentiment_score   Float?
@@ -195,6 +202,8 @@ model RecommendationScore {
   risk_override     Boolean  @default(false)
   narrative         String?
   updatedAt         DateTime @updatedAt
+
+  @@unique([ticker, horizon])
 }
 
 model OptionsFlow {
@@ -219,7 +228,42 @@ model PredictionRecord {
   price_15d_later Float?
   outcome         String?
   composite_score Float?
+  horizon         Int      @default(15) // Holding period in days
   createdAt       DateTime @default(now())
 
+  @@index([ticker])
+}
+
+model TrendsHistory {
+  id         String   @id @default(cuid())
+  ticker     String
+  week_start DateTime
+  interest   Int
+  createdAt  DateTime @default(now())
+
+  @@unique([ticker, week_start])
+  @@index([ticker])
+}
+
+model CrossListingData {
+  ticker         String   @id
+  home_ticker    String
+  home_exchange  String
+  home_price     Float?
+  adr_price      Float?
+  fx_rate        Float?
+  gap_pct        Float?
+  updatedAt      DateTime @updatedAt
+}
+
+model RegionalSentiment {
+  id             String   @id @default(cuid())
+  ticker         String
+  region         String   // US, AU, UK, EU
+  mean_sentiment Float
+  count          Int
+  updatedAt      DateTime @updatedAt
+
+  @@unique([ticker, region])
   @@index([ticker])
 }
