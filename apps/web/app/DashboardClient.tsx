@@ -186,9 +186,12 @@ export default function DashboardClient({
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState(targetKeyword || '');
+    const [searchResults, setSearchResults] = useState<{symbol: string; shortname: string; exchange: string}[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
     const [tradeFilter, setTradeFilter] = useState<'all' | 'buy' | 'sell'>('all');
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const router = useRouter();
+    const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     useScrollAnimation();
 
@@ -220,12 +223,31 @@ export default function DashboardClient({
             if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 setIsCommandOpen((open) => !open);
+                setSearchResults([]);
             }
-            if (e.key === 'Escape') setIsCommandOpen(false);
+            if (e.key === 'Escape') { setIsCommandOpen(false); setSearchResults([]); }
         };
         document.addEventListener('keydown', down);
         return () => document.removeEventListener('keydown', down);
     }, []);
+
+    // Debounced ticker search
+    useEffect(() => {
+        if (!isCommandOpen) return;
+        if (searchDebounce.current) clearTimeout(searchDebounce.current);
+        const q = searchQuery.trim();
+        if (q.length < 1) { setSearchResults([]); return; }
+        searchDebounce.current = setTimeout(async () => {
+            setSearchLoading(true);
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                setSearchResults(data || []);
+            } catch { setSearchResults([]); }
+            finally { setSearchLoading(false); }
+        }, 300);
+        return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
+    }, [searchQuery, isCommandOpen]);
 
     const sig = getSignal(recommendationScore?.signal);
 
@@ -295,17 +317,40 @@ export default function DashboardClient({
                                 <kbd className="px-2 py-1 bg-[#12122e] rounded text-[10px] text-[#5d5d8a] font-mono border border-[#1a1a3a]">ESC</kbd>
                             </div>
                         </div>
-                        <div className="p-4">
-                            <div className="section-title mb-3">Popular Tickers</div>
-                            <div className="flex flex-wrap gap-2">
-                                {['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GME'].map(t => (
-                                    <button key={t} onClick={() => triggerScrape(t)}
-                                        className="px-3 py-1.5 rounded-lg bg-[#12122e] border border-[#1a1a3a] hover:border-indigo-500/50 hover:bg-indigo-500/10 text-sm font-mono tracking-wider transition-colors">
-                                        {t}
+                        {/* Search results dropdown */}
+                        {searchResults.length > 0 && (
+                            <div className="border-b border-[#1a1a3a]">
+                                {searchResults.map((r) => (
+                                    <button key={r.symbol} onClick={() => triggerScrape(r.symbol)}
+                                        className="w-full flex items-center gap-4 px-5 py-3 hover:bg-[#12122e] transition-colors text-left group">
+                                        <span className="font-mono text-[14px] font-700 text-[#f0efff] w-20 shrink-0">{r.symbol}</span>
+                                        <span className="text-[13px] text-[#9898c0] flex-1 truncate group-hover:text-[#f0efff] transition-colors">{r.shortname}</span>
+                                        <span className="text-[10px] font-mono text-[#5d5d8a] border border-[#1a1a3a] px-2 py-0.5 rounded shrink-0">{r.exchange}</span>
                                     </button>
                                 ))}
                             </div>
-                        </div>
+                        )}
+                        {searchLoading && (
+                            <div className="px-5 py-3 text-[12px] text-[#5d5d8a]">Searching...</div>
+                        )}
+                        {!searchLoading && searchResults.length === 0 && searchQuery.trim().length > 0 && (
+                            <div className="px-5 py-3 text-[12px] text-[#5d5d8a]">No results — try a ticker symbol or full company name</div>
+                        )}
+
+                        {/* Popular fallback when no query */}
+                        {searchQuery.trim().length === 0 && (
+                            <div className="p-4">
+                                <div className="section-title mb-3">Popular Tickers</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GME'].map(t => (
+                                        <button key={t} onClick={() => triggerScrape(t)}
+                                            className="px-3 py-1.5 rounded-lg bg-[#12122e] border border-[#1a1a3a] hover:border-indigo-500/50 hover:bg-indigo-500/10 text-sm font-mono tracking-wider transition-colors">
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
