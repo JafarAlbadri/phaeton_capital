@@ -345,7 +345,7 @@ export default function DashboardClient({
                         { icon: Shield, label: 'Risk Analysis', id: '#risk' },
                         { icon: TrendingUp, label: 'Sentiment Flow', id: '#sentiment' },
                         { icon: Briefcase, label: 'Insider Flow', id: '#insider' },
-                        { icon: Award, label: 'Helhetsanalys', id: '#helhetsanalys' },
+                        { icon: Award, label: 'Full Analysis', id: '#helhetsanalys' },
                     ].map((item, i) => (
                         <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
                             <item.icon className="w-4 h-4 shrink-0" />
@@ -354,6 +354,22 @@ export default function DashboardClient({
                     ))}
                 </nav>
             </div>
+
+            {/* ── MOBILE BOTTOM NAV ────────────────────────────────── */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#080818]/90 backdrop-blur-xl border-t border-[#1a1a3a] flex items-center justify-around px-2 py-2">
+                {[
+                    { icon: Radio, label: 'Signals', id: '#hero' },
+                    { icon: DollarSign, label: 'Fundamentals', id: '#fundamentals' },
+                    { icon: BarChart2, label: 'Technicals', id: '#technical' },
+                    { icon: Bot, label: 'Quant', id: '#quant' },
+                    { icon: TrendingUp, label: 'Sentiment', id: '#sentiment' },
+                ].map((item, i) => (
+                    <a key={i} href={item.id} className="flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors">
+                        <item.icon className="w-4 h-4" />
+                        <span className="text-[9px] font-500 tracking-wide">{item.label}</span>
+                    </a>
+                ))}
+            </nav>
 
             {/* ── MAIN CONTENT ────────────────────────────────────────────── */}
             <main className="ml-16 xl:ml-64 pt-14 max-w-[1600px] mx-auto p-4 xl:p-8 space-y-8">
@@ -719,9 +735,9 @@ export default function DashboardClient({
                             <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
                                 <Award className="w-3.5 h-3.5 text-amber-400" />
                             </div>
-                            <span className="section-title">Helhetsanalys</span>
+                            <span className="section-title">Comprehensive Analysis</span>
                             <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className="badge badge-gold">Samlad Bedömning</span>
+                            <span className="badge badge-gold">Composite Assessment</span>
                         </div>
 
                         {(() => {
@@ -742,19 +758,19 @@ export default function DashboardClient({
                                 const mean  = fundamentalData.target_price_mean;
 
                                 const peText = pe
-                                    ? pe > 35  ? `P/E-talet på ${pe.toFixed(1)}x indikerar hög värdering jämfört med historiska snitt, vilket kräver fortsatt stark vinsttillväxt för att motivera priset.`
-                                    : pe < 12  ? `P/E-talet på ${pe.toFixed(1)}x är lågt och kan signalera underprissättning eller osäkerhet kring framtida vinster.`
-                                    : `P/E-talet på ${pe.toFixed(1)}x ligger inom ett rimligt intervall relativt sektorn.`
+                                    ? pe > 35  ? `P/E of ${pe.toFixed(1)}x indicates a high valuation vs. historical averages, requiring sustained earnings growth to justify the price.`
+                                    : pe < 12  ? `P/E of ${pe.toFixed(1)}x is low and may signal undervaluation or uncertainty around future earnings.`
+                                    : `P/E of ${pe.toFixed(1)}x falls within a reasonable range relative to the sector.`
                                     : '';
                                 const capText = cap
-                                    ? `Marknadsvärdet uppgår till $${(Number(cap)/1e9).toFixed(1)}B vilket placerar bolaget i kategorin ${Number(cap)>200e9 ? 'megacap' : Number(cap)>10e9 ? 'large-cap' : 'mid-cap'}.`
+                                    ? `Market cap is $${(Number(cap)/1e9).toFixed(1)}B, placing the company in the ${Number(cap)>200e9 ? 'megacap' : Number(cap)>10e9 ? 'large-cap' : 'mid-cap'} category.`
                                     : '';
                                 const analystText = cons
-                                    ? `Analytikerkonsensus pekar mot ${cons}${mean ? ` med ett riktkurs-snitt på $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (spann $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
+                                    ? `Analyst consensus points to ${cons}${mean ? ` with a mean price target of $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (range $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
                                     : '';
                                 fundamentalText = [peText, capText, analystText].filter(Boolean).join(' ');
                             }
-                            if (!fundamentalText) fundamentalText = 'Fundamentala data saknas för denna analyscykel.';
+                            if (!fundamentalText) fundamentalText = 'No fundamental data available for this analysis cycle.';
 
                             // ── Technical analysis text ────────────────────────────
                             let technicalText = '';
@@ -764,19 +780,19 @@ export default function DashboardClient({
                                 const tech = technicalIndicators.technical_signal;
 
                                 const rsiText = rsi != null
-                                    ? rsi > 70 ? `RSI på ${rsi.toFixed(0)} befinner sig i överköpt territorium, vilket höjer risken för kortsiktig rekyl.`
-                                    : rsi < 30 ? `RSI på ${rsi.toFixed(0)} signalerar översåld marknad och potentiellt köptillfälle.`
-                                    : `RSI på ${rsi.toFixed(0)} är neutral och ger inte tydliga direktionssignaler.`
+                                    ? rsi > 70 ? `RSI of ${rsi.toFixed(0)} is in overbought territory, increasing short-term reversal risk.`
+                                    : rsi < 30 ? `RSI of ${rsi.toFixed(0)} signals an oversold market and a potential buying opportunity.`
+                                    : `RSI of ${rsi.toFixed(0)} is neutral and provides no clear directional signal.`
                                     : '';
                                 const macdText = macd
-                                    ? macd === 'BULLISH' ? 'MACD-korsning är positiv och bekräftar uppåtmomentum.' : 'MACD-korsning är negativ och antyder avtagande momentum.'
+                                    ? macd === 'BULLISH' ? 'MACD crossover is positive, confirming upward momentum.' : 'MACD crossover is negative, suggesting fading momentum.'
                                     : '';
                                 const techText = tech
-                                    ? `Sammantagen teknisk signal: ${tech === 'BULLISH' ? 'BULLISH – prisutvecklingen stöder en positiv vy' : tech === 'BEARISH' ? 'BEARISH – tekniska mönster talar för försiktighet' : 'NEUTRAL – ingen tydlig riktning framträder'}.`
+                                    ? `Overall technical signal: ${tech === 'BULLISH' ? 'BULLISH – price action supports a positive view' : tech === 'BEARISH' ? 'BEARISH – technical patterns argue for caution' : 'NEUTRAL – no clear direction emerges'}.`
                                     : '';
                                 technicalText = [rsiText, macdText, techText].filter(Boolean).join(' ');
                             }
-                            if (!technicalText) technicalText = 'Tekniska indikatorer är inte tillgängliga för denna period.';
+                            if (!technicalText) technicalText = 'Technical indicators are not available for this period.';
 
                             // ── Quant analysis text ────────────────────────────────
                             let quantText = '';
@@ -789,25 +805,25 @@ export default function DashboardClient({
                                 const adf     = quantMetrics.adf_stationary;
 
                                 const hurstText = hurst != null
-                                    ? hurst > 0.6 ? `Hurst-exponenten (${hurst.toFixed(2)}) indikerar starkt trendande prisdynamik – impulser tenderar att fortsätta.`
-                                    : hurst < 0.45 ? `Hurst-exponenten (${hurst.toFixed(2)}) tyder på mean-reverterande beteende – priset tenderar återvända mot medel.`
-                                    : `Hurst-exponenten (${hurst.toFixed(2)}) är nära 0.5 vilket antyder slumpmässig rörelse utan tydlig trend.`
+                                    ? hurst > 0.6 ? `Hurst exponent (${hurst.toFixed(2)}) indicates strong trending price dynamics — impulses tend to persist.`
+                                    : hurst < 0.45 ? `Hurst exponent (${hurst.toFixed(2)}) suggests mean-reverting behavior — price tends to return to the mean.`
+                                    : `Hurst exponent (${hurst.toFixed(2)}) is near 0.5, suggesting a random walk with no clear trend.`
                                     : '';
                                 const kellyText = kelly != null
-                                    ? `Kelly-kriteriet föreslår en allokering på ${(kelly*100).toFixed(1)}% av kapitalet givet nuvarande risk/reward-förhållande.`
+                                    ? `Kelly criterion suggests an allocation of ${(kelly*100).toFixed(1)}% of capital given the current risk/reward ratio.`
                                     : '';
                                 const hmmText  = hmm != null
-                                    ? `HMM-regimdetektering klassificerar aktuellt marknadsläge som ${hmm === 1 ? 'bull-regim' : 'bear-regim'}.`
+                                    ? `HMM regime detection classifies the current market as a ${hmm === 1 ? 'bull regime' : 'bear regime'}.`
                                     : '';
                                 const corrText = corr != null && granger != null
-                                    ? `Sentimentets korrelation med prisutvecklingen är ${corr.toFixed(2)} och Granger-kausalitetstest ${granger < 0.05 ? 'bekräftar statistisk signifikans (p=' + granger.toFixed(3) + ')' : 'visar ingen signifikant kausalitet (p=' + granger.toFixed(3) + ')'}.`
+                                    ? `Sentiment-price correlation is ${corr.toFixed(2)} and the Granger causality test ${granger < 0.05 ? 'confirms statistical significance (p=' + granger.toFixed(3) + ')' : 'shows no significant causality (p=' + granger.toFixed(3) + ')'}.`
                                     : '';
                                 const adfText  = adf != null
-                                    ? adf ? 'Prisserien är stationär, vilket stödjer statistiska modeller.' : 'Prisserien är icke-stationär – modeller bör använda differenserade värden.'
+                                    ? adf ? 'Price series is stationary, supporting statistical models.' : 'Price series is non-stationary — models should use differenced values.'
                                     : '';
                                 quantText = [hurstText, kellyText, hmmText, corrText, adfText].filter(Boolean).join(' ');
                             }
-                            if (!quantText) quantText = 'Kvantitativa modelldata är inte tillgängliga.';
+                            if (!quantText) quantText = 'Quantitative model data is not available.';
 
                             // ── Macro analysis text ────────────────────────────────
                             let macroText = '';
@@ -818,24 +834,24 @@ export default function DashboardClient({
                                 const etf    = macroIndicators.sector_etf_momentum_1m;
 
                                 const vixText = vix != null
-                                    ? vix > 30 ? `VIX på ${vix.toFixed(1)} signalerar förhöjd marknadsoro och hög volatilitet – riskpremier är eleverade.`
-                                    : vix < 15 ? `VIX på ${vix.toFixed(1)} indikerar lugna marknadsförhållanden med låg implicit volatilitet.`
-                                    : `VIX på ${vix.toFixed(1)} är inom normala nivåer.`
+                                    ? vix > 30 ? `VIX of ${vix.toFixed(1)} signals elevated market fear and high volatility — risk premiums are elevated.`
+                                    : vix < 15 ? `VIX of ${vix.toFixed(1)} indicates calm market conditions with low implied volatility.`
+                                    : `VIX of ${vix.toFixed(1)} is within normal levels.`
                                     : '';
                                 const fgText  = fg != null
-                                    ? fg > 70 ? `Fear & Greed-index på ${fg.toFixed(0)} tyder på extrem girighet i marknaden, vilket historiskt korrelerar med ökad korrigeringsrisk.`
-                                    : fg < 30 ? `Fear & Greed-index på ${fg.toFixed(0)} visar extrem rädsla – kontrarian analys tyder på möjliga köplägen.`
-                                    : `Fear & Greed-index på ${fg.toFixed(0)} är neutralt.`
+                                    ? fg > 70 ? `Fear & Greed Index at ${fg.toFixed(0)} indicates extreme greed in the market, which historically correlates with elevated correction risk.`
+                                    : fg < 30 ? `Fear & Greed Index at ${fg.toFixed(0)} shows extreme fear — contrarian analysis suggests potential buying opportunities.`
+                                    : `Fear & Greed Index at ${fg.toFixed(0)} is neutral.`
                                     : '';
                                 const yieldText = yield_ != null
-                                    ? `Den 10-åriga statsräntan på ${yield_.toFixed(2)}% sätter ribban för diskonteringsräntor och ${yield_ > 4.5 ? 'pressar värderingsmodeller negativt' : 'ger relativt stöd åt aktievärderingar'}.`
+                                    ? `The 10-year Treasury yield at ${yield_.toFixed(2)}% sets the bar for discount rates and ${yield_ > 4.5 ? 'pressures valuation models negatively' : 'offers relative support for equity valuations'}.`
                                     : '';
                                 const etfText   = etf != null
-                                    ? `Sektorns ETF-momentum den senaste månaden är ${(etf*100).toFixed(1)}% vilket ${etf >= 0 ? 'stöder en positiv sektorbild' : 'talar för sektorrotation bort från detta segment'}.`
+                                    ? `Sector ETF momentum over the past month is ${(etf*100).toFixed(1)}%, which ${etf >= 0 ? 'supports a positive sector view' : 'suggests sector rotation away from this segment'}.`
                                     : '';
                                 macroText = [vixText, fgText, yieldText, etfText].filter(Boolean).join(' ');
                             }
-                            if (!macroText) macroText = 'Makroekonomiska indikatorer är inte tillgängliga för denna analyscykel.';
+                            if (!macroText) macroText = 'Macroeconomic indicators are not available for this analysis cycle.';
 
                             // ── Sentiment analysis text ────────────────────────────
                             let sentimentText = '';
@@ -847,20 +863,20 @@ export default function DashboardClient({
                                 const total   = manipulationStats?.totalCount;
 
                                 const meanText = mean != null
-                                    ? mean > 0.5  ? `Sentimentfördelningen är tydligt positiv (μ=${mean.toFixed(2)}) med en bred konsensus bland analytiserade inlägg.`
-                                    : mean < -0.5 ? `Sentimentfördelningen är negativt skev (μ=${mean.toFixed(2)}), vilket speglar utbredd pessimism i sociala medier.`
-                                    : `Sentimentfördelningen är centrerad nära neutral (μ=${mean.toFixed(2)}) med delade åsikter.`
+                                    ? mean > 0.5  ? `Sentiment distribution is clearly positive (μ=${mean.toFixed(2)}) with broad consensus among analyzed posts.`
+                                    : mean < -0.5 ? `Sentiment distribution is negatively skewed (μ=${mean.toFixed(2)}), reflecting widespread pessimism on social media.`
+                                    : `Sentiment distribution is centered near neutral (μ=${mean.toFixed(2)}) with divided opinions.`
                                     : '';
                                 const stdText  = std != null
-                                    ? std > 0.4 ? `Spridningen är hög (σ=${std.toFixed(2)}) vilket indikerar divergerande åsikter – marknaden är oenig.`
-                                    : `Spridningen är låg (σ=${std.toFixed(2)}) vilket tyder på samstämmig syn.`
+                                    ? std > 0.4 ? `Dispersion is high (σ=${std.toFixed(2)}), indicating diverging opinions — the market is undecided.`
+                                    : `Dispersion is low (σ=${std.toFixed(2)}), suggesting a consensus view.`
                                     : '';
                                 const qualText = total != null && organic != null
-                                    ? `Totalt analyserades ${total.toLocaleString()} inlägg, varav ${((organic/total)*100).toFixed(0)}% klassificerades som organiska signaler${blocked ? ` och ${blocked} manipulativa inlägg filtrerades bort` : ''}.`
+                                    ? `A total of ${total.toLocaleString()} posts were analyzed, of which ${((organic/total)*100).toFixed(0)}% were classified as organic signals${blocked ? ` and ${blocked} manipulative posts were filtered out` : ''}.`
                                     : '';
                                 sentimentText = [meanText, stdText, qualText].filter(Boolean).join(' ');
                             }
-                            if (!sentimentText) sentimentText = 'Sentimentdata är inte tillgänglig för denna analyscykel.';
+                            if (!sentimentText) sentimentText = 'Sentiment data is not available for this analysis cycle.';
 
                             // ── Insider analysis text ──────────────────────────────
                             let insiderText = '';
@@ -872,12 +888,12 @@ export default function DashboardClient({
                                 const ratio  = total > 0 ? (buy / total * 100) : 50;
                                 const count  = insiderTrades?.length ?? 0;
 
-                                insiderText = `${count} insidertransaktioner har registrerats. Köpvolymen uppgår till ${fmt.format(buy)} och säljvolymen till ${fmt.format(sell)}, vilket ger ett nettoinflöde på ${net >= 0 ? '+' : ''}${fmt.format(net)}. `
-                                    + (ratio > 65 ? `Insiders nettokommer in som köpare (${ratio.toFixed(0)}% av transaktionsvolymen), vilket traditionellt tolkas som ett positivt insidersignal.`
-                                    : ratio < 35 ? `Insiders domineras av säljare (${(100-ratio).toFixed(0)}% av transaktionsvolymen). Insynsförsäljning kan ha många skäl men bör noteras.`
-                                    : `Köp- och säljvolymer är relativt balanserade, vilket ger ingen tydlig riktning från insynshandel.`);
+                                insiderText = `${count} insider transactions recorded. Buy volume is ${fmt.format(buy)} and sell volume is ${fmt.format(sell)}, giving a net flow of ${net >= 0 ? '+' : ''}${fmt.format(net)}. `
+                                    + (ratio > 65 ? `Insiders are net buyers (${ratio.toFixed(0)}% of transaction volume), which is traditionally interpreted as a positive insider signal.`
+                                    : ratio < 35 ? `Insiders are dominated by sellers (${(100-ratio).toFixed(0)}% of transaction volume). Insider selling can have many reasons but should be noted.`
+                                    : `Buy and sell volumes are relatively balanced, providing no clear direction from insider trading.`);
                             }
-                            if (!insiderText) insiderText = 'Inga insidertransaktioner har registrerats för denna period.';
+                            if (!insiderText) insiderText = 'No insider transactions have been recorded for this period.';
 
                             // ── Risk analysis text ─────────────────────────────────
                             let riskText = '';
@@ -889,46 +905,46 @@ export default function DashboardClient({
                                 const liq     = riskProfile.liquidity_score;
 
                                 const sharpeText = sharpe != null
-                                    ? sharpe > 1.5 ? `Sharpe-kvoten på ${sharpe.toFixed(2)} är utmärkt och tyder på hög riskjusterad avkastning.`
-                                    : sharpe > 0.5 ? `Sharpe-kvoten på ${sharpe.toFixed(2)} är godkänd.`
-                                    : `Sharpe-kvoten på ${sharpe.toFixed(2)} är låg – avkastningen motiverar inte volatiliteten.`
+                                    ? sharpe > 1.5 ? `Sharpe ratio of ${sharpe.toFixed(2)} is excellent, indicating high risk-adjusted returns.`
+                                    : sharpe > 0.5 ? `Sharpe ratio of ${sharpe.toFixed(2)} is acceptable.`
+                                    : `Sharpe ratio of ${sharpe.toFixed(2)} is low — returns do not justify the volatility.`
                                     : '';
                                 const varText   = var_ != null
-                                    ? `Value-at-Risk (95%) uppgår till ${(var_*100).toFixed(1)}% daglig förlustnivå.`
+                                    ? `Value-at-Risk (95%) is ${(var_*100).toFixed(1)}% daily loss level.`
                                     : '';
                                 const ddText    = dd != null
-                                    ? `Maximalt drawdown är ${(Math.abs(dd)*100).toFixed(1)}% vilket ${Math.abs(dd) > 0.3 ? 'är betydande och bör beaktas i positionssizing' : 'ligger inom acceptabla nivåer'}.`
+                                    ? `Maximum drawdown is ${(Math.abs(dd)*100).toFixed(1)}%, which ${Math.abs(dd) > 0.3 ? 'is significant and should be considered in position sizing' : 'is within acceptable levels'}.`
                                     : '';
                                 const liqText   = liq != null
-                                    ? `Likviditetspoängen är ${liq.toFixed(2)} – ${liq > 0.7 ? 'hög likviditet underlättar in- och utträde' : liq > 0.4 ? 'likviditeten är tillräcklig' : 'låg likviditet kan ge slippage vid större positioner'}.`
+                                    ? `Liquidity score is ${liq.toFixed(2)} — ${liq > 0.7 ? 'high liquidity facilitates easy entry and exit' : liq > 0.4 ? 'liquidity is sufficient' : 'low liquidity may result in slippage on larger positions'}.`
                                     : '';
                                 riskText = [sharpeText, varText, ddText, liqText].filter(Boolean).join(' ');
                             }
-                            if (!riskText) riskText = 'Riskprofil saknas för denna analyscykel.';
+                            if (!riskText) riskText = 'Risk profile is not available for this analysis cycle.';
 
                             // ── Executive summary ──────────────────────────────────
                             const isBull = signal === 'STRONG_BUY' || signal === 'BUY';
                             const isBear = signal === 'STRONG_SELL' || signal === 'SELL';
-                            const signalSv = signal === 'STRONG_BUY' ? 'STARKT KÖP' : signal === 'BUY' ? 'KÖP' : signal === 'HOLD' ? 'HÅLL' : signal === 'SELL' ? 'SÄLJ' : 'STARKT SÄLJ';
+                            const signalWord = signal === 'STRONG_BUY' ? 'STRONG BUY' : signal === 'BUY' ? 'BUY' : signal === 'HOLD' ? 'HOLD' : signal === 'SELL' ? 'SELL' : 'STRONG SELL';
 
                             const execSummary = (recommendationScore
-                                ? `Den sammansatta modellen för ${ticker} genererar signalen ${signalSv} med en komposit-poäng på ${score.toFixed(1)}/100 och en konfidensgrad på ${conf.toFixed(0)}%. `
-                                : `Komposit-poäng är ännu inte klar för ${ticker} — scanningen pågår fortfarande. Nedan visas en preliminär analys baserad på tillgänglig data. `)
+                                ? `The composite model for ${ticker} generates a ${signalWord} signal with a composite score of ${score.toFixed(1)}/100 and a confidence of ${conf.toFixed(0)}%. `
+                                : `Composite score is not yet available for ${ticker} — scanning is still in progress. Below is a preliminary analysis based on available data. `)
                                 + (isBull
-                                    ? `Analysen präglas av ett övervägande positivt underlag där flera dimensioner samverkar i en bullish riktning. Kombinationen av ${technicalIndicators?.technical_signal === 'BULLISH' ? 'positiva tekniska mönster, ' : ''}${gaussianData?.mean > 0.3 ? 'optimistiskt sentiment, ' : ''}${insiderStats.netVolume > 0 ? 'netto-insiderköp ' : ''}och kvantitativa modeller pekar sammantaget mot en gynnsam risk/reward-profil.`
+                                    ? `The analysis shows a predominantly positive backdrop where multiple dimensions converge in a bullish direction. The combination of ${technicalIndicators?.technical_signal === 'BULLISH' ? 'positive technical patterns, ' : ''}${gaussianData?.mean > 0.3 ? 'optimistic sentiment, ' : ''}${insiderStats.netVolume > 0 ? 'net insider buying, ' : ''}and quantitative models collectively points to a favorable risk/reward profile.`
                                     : isBear
-                                    ? `Analysen identifierar ett övervägande negativt mönster. ${technicalIndicators?.technical_signal === 'BEARISH' ? 'Tekniska indikatorer visar nedåtpress. ' : ''}${gaussianData?.mean < -0.3 ? 'Sentimentet är negativt skevt. ' : ''}Sammantaget talar flertalet dimensioner för försiktighet.`
-                                    : `Analysen visar blandade signaler utan tydlig konsensus. Positiva och negativa faktorer balanserar varandra, och en HÅLL-position är motiverad tills tydligare direktionssignaler uppstår.`);
+                                    ? `The analysis identifies a predominantly negative pattern. ${technicalIndicators?.technical_signal === 'BEARISH' ? 'Technical indicators show downward pressure. ' : ''}${gaussianData?.mean < -0.3 ? 'Sentiment is negatively skewed. ' : ''}Overall, the majority of dimensions argue for caution.`
+                                    : `The analysis shows mixed signals without a clear consensus. Positive and negative factors are balanced, and a HOLD position is justified until clearer directional signals emerge.`);
 
                             // ── Dimension cards config ─────────────────────────────
                             const dimensions = [
-                                { icon: DollarSign,  label: 'Fundamentalanalys',      text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(212,160,23,0.06)]',  border: 'border-[rgba(212,160,23,0.12)]' },
-                                { icon: BarChart2,   label: 'Teknisk Analys',          text: technicalText,   color: 'text-indigo-400',     bg: 'bg-indigo-500/5',              border: 'border-indigo-500/15' },
-                                { icon: Bot,         label: 'Kvantitativa Modeller',   text: quantText,       color: 'text-purple-400',     bg: 'bg-purple-500/5',              border: 'border-purple-500/15' },
-                                { icon: Globe,       label: 'Makromiljö',              text: macroText,       color: 'text-cyan-400',       bg: 'bg-cyan-500/5',                border: 'border-cyan-500/15' },
-                                { icon: Activity,    label: 'Sentimentanalys',         text: sentimentText,   color: isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400', bg: isBull ? 'bg-emerald-500/5' : isBear ? 'bg-red-500/5' : 'bg-amber-500/5', border: isBull ? 'border-emerald-500/15' : isBear ? 'border-red-500/15' : 'border-amber-500/15' },
-                                { icon: Briefcase,   label: 'Insynshandel',            text: insiderText,     color: 'text-blue-400',       bg: 'bg-blue-500/5',                border: 'border-blue-500/15' },
-                                { icon: Shield,      label: 'Riskprofil',              text: riskText,        color: 'text-orange-400',     bg: 'bg-orange-500/5',              border: 'border-orange-500/15' },
+                                { icon: DollarSign,  label: 'Fundamental Analysis',  text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(212,160,23,0.06)]',  border: 'border-[rgba(212,160,23,0.12)]' },
+                                { icon: BarChart2,   label: 'Technical Analysis',     text: technicalText,   color: 'text-indigo-400',     bg: 'bg-indigo-500/5',              border: 'border-indigo-500/15' },
+                                { icon: Bot,         label: 'Quantitative Models',    text: quantText,       color: 'text-purple-400',     bg: 'bg-purple-500/5',              border: 'border-purple-500/15' },
+                                { icon: Globe,       label: 'Macro Environment',      text: macroText,       color: 'text-cyan-400',       bg: 'bg-cyan-500/5',                border: 'border-cyan-500/15' },
+                                { icon: Activity,    label: 'Sentiment Analysis',     text: sentimentText,   color: isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400', bg: isBull ? 'bg-emerald-500/5' : isBear ? 'bg-red-500/5' : 'bg-amber-500/5', border: isBull ? 'border-emerald-500/15' : isBear ? 'border-red-500/15' : 'border-amber-500/15' },
+                                { icon: Briefcase,   label: 'Insider Flow',           text: insiderText,     color: 'text-blue-400',       bg: 'bg-blue-500/5',                border: 'border-blue-500/15' },
+                                { icon: Shield,      label: 'Risk Profile',           text: riskText,        color: 'text-orange-400',     bg: 'bg-orange-500/5',              border: 'border-orange-500/15' },
                             ];
 
                             return (
@@ -942,8 +958,8 @@ export default function DashboardClient({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-3">
-                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#5d5d8a]">Övergripande bedömning</span>
-                                                    <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalSv}</span>
+                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#5d5d8a]">Overall Assessment</span>
+                                                    <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalWord}</span>
                                                     <span className="font-mono text-[12px] text-[#9898c0]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
                                                 </div>
                                                 <p className="text-[15px] leading-[1.8] text-[#c8c8e0] font-400">{execSummary}</p>
@@ -967,11 +983,11 @@ export default function DashboardClient({
                                     {/* Final verdict */}
                                     <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
                                         <div className={`text-[42px] font-display font-800 leading-none tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent shrink-0`}>
-                                            {signalSv}
+                                            {signalWord}
                                         </div>
                                         <div className="w-px h-10 bg-[#1a1a3a] hidden sm:block shrink-0" />
                                         <div className="text-[13px] leading-[1.75] text-[#9898c0]">
-                                            Baserat på en samlad viktning av fundamental värdering, tekniska mönster, kvantitativa modeller, makroekonomiska faktorer, sentimentanalys, insynshandel och riskprofil ger Phaeton Capitals system en komposit-rekommendation på <span className={`font-700 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`}>{signalSv}</span> för {ticker}. Denna analys är algoritmiskt genererad och utgör inte finansiell rådgivning.
+                                            Based on a composite weighting of fundamental valuation, technical patterns, quantitative models, macro factors, sentiment analysis, insider flow, and risk profile — Phaeton Capital rates <span className={`font-700 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`}>{signalWord}</span> for {ticker}. This analysis is algorithmically generated and does not constitute financial advice.
                                         </div>
                                     </div>
                                 </div>
