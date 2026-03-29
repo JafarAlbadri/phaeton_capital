@@ -1,7 +1,17 @@
 import { logWrapper } from './logger';
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
-import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
+import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, scrapeOptionsFlow, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
+
+// SSE client registry
+type SseClient = { write: (data: string) => void; close: () => void };
+const sseClients = new Set<SseClient>();
+function broadcastSSE(event: string, data: object) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const client of sseClients) {
+        try { client.write(payload); } catch { sseClients.delete(client); }
+    }
+}
 import { executeQuantModels } from './quant';
 import { fetchAndSaveMacro } from './macro';
 import { computeRiskProfile } from './risk';
@@ -188,8 +198,32 @@ async function processPosts(keywordOverride?: string) {
 
         await syncFundamentals(currentKeyword);
 
-        // --- PHASE 4 FIX: Instantly generate institutional price models (HMM, Hurst, MC) 
-        // to populate the UI dashboard immediately, before the 60+ second LLM sentiment scrape begins.
+        // Fetch options flow (non-blocking, best-effort)
+        scrapeOptionsFlow(currentKeyword).then(async optionsData => {
+            if (!optionsData) return;
+            try {
+                await (prisma as any).optionsFlow.upsert({
+                    where: { ticker: currentKeyword },
+                    update: {
+                        put_call_ratio: optionsData.put_call_ratio, call_volume: optionsData.call_volume,
+                        put_volume: optionsData.put_volume, total_open_interest: optionsData.total_open_interest,
+                        iv_percentile: optionsData.iv_percentile, unusual_call_volume: optionsData.unusual_call_volume,
+                        unusual_put_volume: optionsData.unusual_put_volume, max_pain_price: optionsData.max_pain_price,
+                        nearest_expiry: optionsData.nearest_expiry,
+                    },
+                    create: {
+                        ticker: currentKeyword, put_call_ratio: optionsData.put_call_ratio, call_volume: optionsData.call_volume,
+                        put_volume: optionsData.put_volume, total_open_interest: optionsData.total_open_interest,
+                        iv_percentile: optionsData.iv_percentile, unusual_call_volume: optionsData.unusual_call_volume,
+                        unusual_put_volume: optionsData.unusual_put_volume, max_pain_price: optionsData.max_pain_price,
+                        nearest_expiry: optionsData.nearest_expiry,
+                    },
+                });
+                logWrapper.info(`Saved options flow for ${currentKeyword}`);
+            } catch { /* model may not exist yet */ }
+        }).catch(() => {});
+
+        // Run quant models immediately to populate UI before the slow sentiment scrape
         await executeQuantModels(currentKeyword);
 
     const [redditPosts, newsPosts, yahooPosts, stockTwitsPosts, edgarPosts] = await Promise.all([
@@ -328,16 +362,26 @@ async function processPosts(keywordOverride?: string) {
     }
 
     logWrapper.info(`Worker iteration completed. Saved ${count} new data points.`);
+    broadcastSSE('sentiment_update', { ticker: currentKeyword, count, timestamp: new Date().toISOString() });
 
-    // Final Step: Execute advanced Python quantitative models with newly scraped data
     await executeQuantModels(currentKeyword);
+    broadcastSSE('quant_updated', { ticker: currentKeyword, timestamp: new Date().toISOString() });
 
-    // Run macro, risk, and recommendation in parallel
     await Promise.all([
         fetchAndSaveMacro(currentKeyword),
         computeRiskProfile(currentKeyword),
     ]);
     await computeRecommendation(currentKeyword);
+
+    // Broadcast final recommendation to all SSE clients
+    try {
+        const rec = await prisma.recommendationScore.findUnique({ where: { ticker: currentKeyword } });
+        if (rec) broadcastSSE('recommendation', {
+            ticker: currentKeyword, signal: rec.signal, score: rec.composite_score,
+            confidence: rec.confidence, narrative: (rec as any).narrative ?? null,
+            timestamp: new Date().toISOString()
+        });
+    } catch { /* non-critical */ }
 
     } finally {
         isScraping = false;
@@ -393,6 +437,28 @@ async function start() {
                     logWrapper.error("Failed to save AI feedback", e);
                     return new Response("Server error", { status: 500 });
                 }
+            }
+
+            if (url.pathname === '/events' && req.method === 'GET') {
+                let streamController: ReadableStreamDefaultController<Uint8Array>;
+                const encoder = new TextEncoder();
+                let client: SseClient;
+                const stream = new ReadableStream<Uint8Array>({
+                    start(controller) { streamController = controller; },
+                    cancel() { sseClients.delete(client); }
+                });
+                client = {
+                    write: (data: string) => { try { streamController.enqueue(encoder.encode(data)); } catch {} },
+                    close: () => { try { streamController.close(); } catch {} sseClients.delete(client); }
+                };
+                sseClients.add(client);
+                client.write(`: heartbeat\n\n`);
+                const heartbeat = setInterval(() => client.write(`: heartbeat\n\n`), 25000);
+                // Clean up heartbeat when stream closes
+                stream.pipeTo(new WritableStream({ close() { clearInterval(heartbeat); } })).catch(() => clearInterval(heartbeat));
+                return new Response(stream, {
+                    headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }
+                });
             }
 
             if (url.pathname === '/trigger' && req.method === 'POST') {

@@ -172,6 +172,38 @@ export default async function Page(
     const correctPredictions = predictionRecords.filter(p => p.outcome === 'CORRECT').length;
     const predictionAccuracy = totalPredictions > 0 ? correctPredictions / totalPredictions : null;
 
+    // Prediction audit trail (last 25 resolved predictions with returns)
+    const predictionHistory = await prisma.predictionRecord.findMany({
+        where: { ticker: targetKeyword, outcome: { in: ['CORRECT', 'INCORRECT'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+        select: {
+            id: true, signal: true, price_at_signal: true, price_15d_later: true,
+            outcome: true, composite_score: true, createdAt: true,
+        },
+    });
+
+    // Compute audit stats
+    let auditHitRate: number | null = null;
+    let auditAvgReturn: number | null = null;
+    let auditMaxDrawdown: number | null = null;
+    let auditSharpe: number | null = null;
+    if (predictionHistory.length > 0) {
+        const returns = predictionHistory
+            .filter(p => p.price_at_signal && p.price_15d_later)
+            .map(p => (p.price_15d_later! - p.price_at_signal) / p.price_at_signal);
+        const correct = predictionHistory.filter(p => p.outcome === 'CORRECT').length;
+        auditHitRate = correct / predictionHistory.length;
+        if (returns.length > 0) {
+            auditAvgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+            auditMaxDrawdown = Math.min(...returns);
+            const mean_ = auditAvgReturn;
+            const variance_ = returns.reduce((a, r) => a + Math.pow(r - mean_, 2), 0) / returns.length;
+            const std_ = Math.sqrt(variance_);
+            auditSharpe = std_ > 0 ? mean_ / std_ : null;
+        }
+    }
+
     // 5. Fetch USD to SEK Exchange Rate
     let usdSekRate = null;
     try {
@@ -210,6 +242,8 @@ export default async function Page(
             recommendationScore={recommendationScore}
             predictionAccuracy={predictionAccuracy}
             predictionCount={totalPredictions}
+            predictionHistory={predictionHistory}
+            auditStats={{ hitRate: auditHitRate, avgReturn: auditAvgReturn, maxDrawdown: auditMaxDrawdown, sharpe: auditSharpe }}
         />
     );
 }

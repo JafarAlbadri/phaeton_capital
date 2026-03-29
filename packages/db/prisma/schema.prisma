@@ -193,7 +193,22 @@ model RecommendationScore {
   risk_score        Float?
   confidence        Float?
   risk_override     Boolean  @default(false)
+  narrative         String?
   updatedAt         DateTime @updatedAt
+}
+
+model OptionsFlow {
+  ticker              String   @id
+  put_call_ratio      Float?
+  call_volume         BigInt?
+  put_volume          BigInt?
+  total_open_interest BigInt?
+  iv_percentile       Float?
+  unusual_call_volume Boolean  @default(false)
+  unusual_put_volume  Boolean  @default(false)
+  max_pain_price      Float?
+  nearest_expiry      String?
+  updatedAt           DateTime @updatedAt
 }
 
 model PredictionRecord {

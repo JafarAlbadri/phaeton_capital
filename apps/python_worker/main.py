@@ -25,3 +25,158 @@ async def macro_endpoint(request: Request):
 @app.get("/health")
 def health_endpoint():
     return {"status": "ok"}
+
+@app.get("/options/{ticker}")
+async def options_endpoint(ticker: str):
+    try:
+        import yfinance as yf
+        import numpy as np
+
+        stock = yf.Ticker(ticker.upper())
+        expirations = stock.options
+        if not expirations:
+            return {"error": "No options data"}
+
+        nearest_expiry = expirations[0]
+        chain = stock.option_chain(nearest_expiry)
+        calls = chain.calls
+        puts = chain.puts
+
+        call_vol = int(calls['volume'].fillna(0).sum())
+        put_vol = int(puts['volume'].fillna(0).sum())
+        total_oi = int(calls['openInterest'].fillna(0).sum() + puts['openInterest'].fillna(0).sum())
+        put_call_ratio = round(put_vol / call_vol, 4) if call_vol > 0 else None
+
+        current_iv = float(calls['impliedVolatility'].mean()) if not calls.empty else None
+        iv_percentile = None
+        try:
+            hist = stock.history(period="1y")
+            if hist is not None and len(hist) > 20:
+                hv = float(hist['Close'].pct_change().dropna().std() * np.sqrt(252))
+                if hv > 0 and current_iv is not None:
+                    iv_percentile = min(100.0, round((current_iv / hv) * 50, 1))
+        except Exception:
+            pass
+
+        avg_call_vol = call_vol / max(len(expirations), 1)
+        avg_put_vol = put_vol / max(len(expirations), 1)
+
+        max_pain_price = None
+        try:
+            import pandas as pd
+            all_strikes = sorted(set(calls['strike'].tolist() + puts['strike'].tolist()))
+            if all_strikes:
+                pain = []
+                for s in all_strikes:
+                    cp = float(((s - calls['strike']) * calls['openInterest'].fillna(0)).clip(lower=0).sum())
+                    pp = float(((puts['strike'] - s) * puts['openInterest'].fillna(0)).clip(lower=0).sum())
+                    pain.append(cp + pp)
+                max_pain_price = round(all_strikes[pain.index(min(pain))], 2)
+        except Exception:
+            pass
+
+        return {
+            "ticker": ticker.upper(),
+            "put_call_ratio": put_call_ratio,
+            "call_volume": call_vol,
+            "put_volume": put_vol,
+            "total_open_interest": total_oi,
+            "iv_percentile": iv_percentile,
+            "unusual_call_volume": call_vol > avg_call_vol * 2,
+            "unusual_put_volume": put_vol > avg_put_vol * 2,
+            "max_pain_price": max_pain_price,
+            "nearest_expiry": nearest_expiry,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/backtest/{ticker}")
+async def backtest_endpoint(ticker: str, years: int = 2):
+    try:
+        import yfinance as yf
+        import numpy as np
+
+        stock = yf.Ticker(ticker.upper())
+        hist = stock.history(period=f"{years}y")
+        if hist is None or len(hist) < 60:
+            return {"error": "Insufficient historical data"}
+
+        close = hist['Close']
+        delta = close.diff()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        rs = gain / loss.replace(0, np.nan)
+        rsi = 100 - (100 / (1 + rs))
+        ema12 = close.ewm(span=12, adjust=False).mean()
+        ema26 = close.ewm(span=26, adjust=False).mean()
+        macd_hist = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
+        sma50 = close.rolling(50).mean()
+        sma200 = close.rolling(200).mean()
+
+        holding = 15
+        trades = []
+        equity = [1.0]
+        eq = 1.0
+        start_idx = 200
+
+        for i in range(start_idx, len(close) - holding, holding):
+            ep = float(close.iloc[i])
+            xp = float(close.iloc[i + holding])
+            r = float(rsi.iloc[i]) if not np.isnan(rsi.iloc[i]) else 50.0
+            m = float(macd_hist.iloc[i]) if not np.isnan(macd_hist.iloc[i]) else 0.0
+            s50 = float(sma50.iloc[i]) if not np.isnan(sma50.iloc[i]) else ep
+            s200 = float(sma200.iloc[i]) if not np.isnan(sma200.iloc[i]) else ep
+
+            score = 50.0
+            if r < 30: score += 15
+            elif r > 70: score -= 15
+            else: score += (50 - r) * 0.3
+            score += 15 if m > 0 else -15
+            score += 10 if s50 > s200 else -10
+
+            if score > 60:
+                direction = 'BUY'
+                ret = (xp - ep) / ep
+            elif score < 40:
+                direction = 'SELL'
+                ret = (ep - xp) / ep
+            else:
+                continue
+
+            eq *= (1 + ret)
+            equity.append(round(eq, 6))
+            trades.append({
+                "date": close.index[i].strftime("%Y-%m-%d"),
+                "direction": direction,
+                "score": round(score, 1),
+                "entry": round(ep, 4),
+                "exit": round(xp, 4),
+                "return_pct": round(ret * 100, 3),
+                "outcome": "CORRECT" if ret > 0 else "INCORRECT",
+            })
+
+        if not trades:
+            return {"error": "No trades generated"}
+
+        rets = [t["return_pct"] / 100 for t in trades]
+        hit_rate = sum(1 for r in rets if r > 0) / len(rets)
+        avg_ret = float(np.mean(rets))
+        std_ret = float(np.std(rets))
+        sharpe = (avg_ret / std_ret * np.sqrt(252 / 15)) if std_ret > 0 else 0.0
+        eq_arr = np.array(equity)
+        peak = np.maximum.accumulate(eq_arr)
+        max_dd = float(((eq_arr - peak) / peak).min())
+        bh = float((close.iloc[-1] - close.iloc[start_idx]) / close.iloc[start_idx])
+
+        step = max(1, len(equity) // 60)
+        curve = [{"date": trades[min(i, len(trades)-1)]["date"], "equity": round(equity[i], 4), "bh": round(1 + bh * (i / len(equity)), 4)} for i in range(0, len(equity), step)]
+
+        return {
+            "ticker": ticker.upper(), "years_tested": years, "total_trades": len(trades),
+            "hit_rate": round(hit_rate, 4), "avg_return_pct": round(avg_ret * 100, 4),
+            "sharpe_ratio": round(sharpe, 4), "max_drawdown_pct": round(max_dd * 100, 4),
+            "final_equity": round(eq, 4), "benchmark_return_pct": round(bh * 100, 4),
+            "equity_curve": curve, "recent_trades": trades[-10:],
+        }
+    except Exception as e:
+        return {"error": str(e)}

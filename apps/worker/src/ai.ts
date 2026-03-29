@@ -14,6 +14,62 @@ export interface AiInput {
     text: string;
 }
 
+export interface NarrativeInput {
+    ticker: string;
+    signal: string;
+    composite_score: number;
+    confidence: number;
+    sentiment_score: number;
+    technical_score: number;
+    fundamental_score: number;
+    quant_score: number;
+    macro_score: number;
+    insider_score: number;
+    rsi?: number | null;
+    macd_histogram?: number | null;
+    bayes_posterior?: number | null;
+    vix?: number | null;
+    hurst?: number | null;
+    pe_ratio?: number | null;
+    target_price?: number | null;
+    current_price?: number | null;
+    hmm_state?: number | null;
+    insider_net_buy?: boolean | null;
+    risk_rating?: number | null;
+    put_call_ratio?: number | null;
+}
+
+export async function generateNarrative(input: NarrativeInput): Promise<string | null> {
+    if (!ai) return null;
+    try {
+        const upside = input.current_price && input.target_price
+            ? (((input.target_price - input.current_price) / input.current_price) * 100).toFixed(1)
+            : null;
+        const prompt = `You are a concise financial analyst. Write 3-4 sentences in plain English summarising this quantitative analysis for ${input.ticker}. Be specific about the strongest signals. No markdown, no asterisks.
+
+Signal: ${input.signal} (score: ${input.composite_score.toFixed(1)}/100, confidence: ${(input.confidence * 100).toFixed(0)}%)
+Scores — Sentiment:${input.sentiment_score.toFixed(0)} Technical:${input.technical_score.toFixed(0)} Fundamental:${input.fundamental_score.toFixed(0)} Quant:${input.quant_score.toFixed(0)} Macro:${input.macro_score.toFixed(0)} Insider:${input.insider_score.toFixed(0)}
+${input.rsi != null ? `RSI(14): ${input.rsi.toFixed(1)} (${input.rsi < 30 ? 'oversold' : input.rsi > 70 ? 'overbought' : 'neutral'})` : ''}
+${input.macd_histogram != null ? `MACD: ${input.macd_histogram > 0 ? 'positive momentum' : 'negative momentum'}` : ''}
+${input.hmm_state != null ? `Market regime: ${input.hmm_state === 2 ? 'Bull' : input.hmm_state === 0 ? 'Bear' : 'Neutral'}` : ''}
+${input.vix != null ? `VIX: ${input.vix.toFixed(1)} (${input.vix > 30 ? 'high fear' : input.vix < 15 ? 'complacency' : 'normal'})` : ''}
+${upside != null ? `Analyst target implies ${upside}% upside` : ''}
+${input.hurst != null ? `Hurst: ${input.hurst.toFixed(2)} (${input.hurst > 0.6 ? 'trending' : input.hurst < 0.4 ? 'mean-reverting' : 'random'})` : ''}
+${input.insider_net_buy != null ? `Insiders are net ${input.insider_net_buy ? 'buying' : 'selling'}` : ''}
+${input.put_call_ratio != null ? `Options P/C ratio: ${input.put_call_ratio.toFixed(2)} (${input.put_call_ratio > 1.2 ? 'bearish hedging' : input.put_call_ratio < 0.7 ? 'bullish call buying' : 'neutral'})` : ''}
+${input.risk_rating != null ? `Risk: ${input.risk_rating}/5` : ''}`;
+
+        const response = await ai.models.generateContent({
+            model: aiModel,
+            contents: prompt,
+            config: { temperature: 0.3, maxOutputTokens: 200 },
+        });
+        return response.text?.trim() || null;
+    } catch {
+        return null;
+    }
+}
+
 export interface AiLabelResult {
     id: string;
     ticker: string;

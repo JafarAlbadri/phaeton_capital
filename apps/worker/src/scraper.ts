@@ -222,6 +222,45 @@ export async function scrapeStockTwits(ticker: string): Promise<ScrapedPost[]> {
     }
 }
 
+export interface OptionsFlowData {
+    ticker: string;
+    put_call_ratio: number | null;
+    call_volume: bigint | null;
+    put_volume: bigint | null;
+    total_open_interest: bigint | null;
+    iv_percentile: number | null;
+    unusual_call_volume: boolean;
+    unusual_put_volume: boolean;
+    max_pain_price: number | null;
+    nearest_expiry: string | null;
+}
+
+export async function scrapeOptionsFlow(ticker: string): Promise<OptionsFlowData | null> {
+    try {
+        const pythonUrl = process.env.PYTHON_WORKER_URL || 'http://python_worker:8000';
+        const resp = await fetch(`${pythonUrl}/options/${encodeURIComponent(ticker)}`, {
+            signal: AbortSignal.timeout(15000)
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        if (data.error) return null;
+        return {
+            ticker,
+            put_call_ratio: data.put_call_ratio ?? null,
+            call_volume: data.call_volume != null ? BigInt(data.call_volume) : null,
+            put_volume: data.put_volume != null ? BigInt(data.put_volume) : null,
+            total_open_interest: data.total_open_interest != null ? BigInt(data.total_open_interest) : null,
+            iv_percentile: data.iv_percentile ?? null,
+            unusual_call_volume: !!data.unusual_call_volume,
+            unusual_put_volume: !!data.unusual_put_volume,
+            max_pain_price: data.max_pain_price ?? null,
+            nearest_expiry: data.nearest_expiry ?? null,
+        };
+    } catch {
+        return null;
+    }
+}
+
 export async function scrapeEDGAR(ticker: string): Promise<ScrapedPost[]> {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const url = `https://efts.sec.gov/LATEST/search-index?q="${ticker}"&dateRange=custom&startdt=${thirtyDaysAgo}&forms=8-K,10-Q`;
