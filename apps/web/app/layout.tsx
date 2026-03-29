@@ -1,9 +1,12 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Inter, JetBrains_Mono, Syne } from 'next/font/google';
+
+const syne = Syne({ subsets: ['latin'], weight: ['700', '800'], variable: '--font-syne' });
 
 export const metadata: Metadata = {
-    title: "SentimentCrowd | Intelligence Dashboard",
-    description: "Premium Bun-Native Trading Intelligence",
+    title: "Phaeton Capital | Terminal",
+    description: "Premium Trading Intelligence",
 };
 
 export default function RootLayout({
@@ -12,11 +15,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en">
-            <body className="antialiased min-h-screen bg-black text-terminal-amber selection:bg-terminal-green selection:text-black">
-                <main className="relative flex min-h-screen flex-col">
-                    {children}
-                </main>
+        <html lang="en" className={syne.variable}>
+            <body className="antialiased min-h-screen">
+                <div className="bg-orb-indigo" />
+                <div className="bg-orb-gold" />
+                {children}
             </body>
         </html>
     );

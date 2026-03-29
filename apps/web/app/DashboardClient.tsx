@@ -1,122 +1,181 @@
 "use client";
 
-import { useTransition, useState, useMemo, useEffect } from "react";
+import { useTransition, useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine, Cell
+    Tooltip, ResponsiveContainer, ReferenceLine, Cell, ReferenceArea,
+    ComposedChart, Line
 } from 'recharts';
 import {
     Activity, AlertTriangle, RefreshCw, BarChart2, TrendingUp, TrendingDown,
     Bot, DollarSign, Target, Briefcase, Info, Search, ListPlus,
     Shield, Globe, Award, Zap, ChevronUp, ChevronDown, Minus,
-    Calendar, TrendingUp as TUp, ArrowUpRight, ArrowDownRight
+    Calendar, ArrowUpRight, ArrowDownRight, Command, LayoutGrid, Radio, Hexagon
 } from 'lucide-react';
 
-// ─── Sparkline Bar Chart ─────────────────────────────────────────────────────
+// ─── Animations Hook ──────────────────────────────────────────────────────────
+function useScrollAnimation() {
+    useEffect(() => {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-in');
+                    // Find children and animate
+                    const children = entry.target.querySelectorAll('[data-animate-child]');
+                    children.forEach(c => c.classList.add('animate-in'));
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
-const SparkBarChart = ({ data, dataKey }: { data: any[]; dataKey: string }) => {
-    if (!data || data.length === 0 || data.every(d => d[dataKey] == null)) {
-        return (
-            <div className="h-14 w-full mt-2 flex items-center justify-center text-xs text-zinc-700">
-                No data
-            </div>
-        );
-    }
-    return (
-        <div className="h-14 w-full mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                    <Tooltip
-                        contentStyle={{ background: '#0e0e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '11px' }}
-                        itemStyle={{ color: '#f59e0b' }}
-                        labelFormatter={(l) => `Year: ${l}`}
-                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                        formatter={(v: number) => [v.toFixed(2), dataKey]}
-                    />
-                    <XAxis dataKey="year" hide />
-                    <Bar dataKey={dataKey} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                        {data.map((entry, i) => (
-                            <Cell key={i} fill={entry[dataKey] != null && entry[dataKey] < 0 ? '#ef4444' : '#f59e0b'} />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-    );
-};
-
-// ─── Signal helpers ───────────────────────────────────────────────────────────
-
-const SIGNAL_STYLES: Record<string, { text: string; bg: string; border: string; glow: string; label: string }> = {
-    STRONG_BUY:  { text: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/40', glow: 'glow-bull', label: 'Strong Buy' },
-    BUY:         { text: 'text-green-400',   bg: 'bg-green-400/10',   border: 'border-green-400/40',   glow: 'glow-bull', label: 'Buy' },
-    HOLD:        { text: 'text-amber-400',   bg: 'bg-amber-400/10',   border: 'border-amber-400/40',   glow: '',          label: 'Hold' },
-    SELL:        { text: 'text-orange-400',  bg: 'bg-orange-400/10',  border: 'border-orange-400/40',  glow: 'glow-bear', label: 'Sell' },
-    STRONG_SELL: { text: 'text-red-400',     bg: 'bg-red-400/10',     border: 'border-red-400/40',     glow: 'glow-bear', label: 'Strong Sell' },
-};
-
-function getSignal(s?: string | null) {
-    return SIGNAL_STYLES[s ?? ''] ?? { text: 'text-zinc-500', bg: 'bg-zinc-800/50', border: 'border-zinc-700', glow: '', label: '—' };
+        document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+        return () => observer.disconnect();
+    }, []);
 }
 
-function riskLabel(r?: number | null) {
-    if (r == null) return { label: 'Unknown', color: 'text-zinc-500' };
-    if (r >= 5) return { label: 'Extreme', color: 'text-red-400' };
-    if (r >= 4) return { label: 'Very High', color: 'text-orange-400' };
-    if (r >= 3) return { label: 'High', color: 'text-amber-400' };
-    if (r >= 2) return { label: 'Moderate', color: 'text-green-400' };
-    return { label: 'Low', color: 'text-emerald-400' };
+// ─── Number Counter Hook ──────────────────────────────────────────────────────
+function AnimatedNumber({ value, formatter, className }: { value: number, formatter?: (v: number) => string, className?: string }) {
+    const [displayVal, setDisplayVal] = useState(0);
+    useEffect(() => {
+        let startTime: number;
+        const duration = 1000;
+        const animate = (time: number) => {
+            if (!startTime) startTime = time;
+            const progress = (time - startTime) / duration;
+            if (progress < 1) {
+                // easeOutExpo
+                const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+                setDisplayVal(value * ease);
+                requestAnimationFrame(animate);
+            } else {
+                setDisplayVal(value);
+            }
+        };
+        requestAnimationFrame(animate);
+    }, [value]);
+    return <span className={className}>{formatter ? formatter(displayVal) : displayVal.toFixed(0)}</span>;
+}
+
+// ─── Signal helpers ───────────────────────────────────────────────────────────
+const SIGNAL_STYLES: Record<string, any> = {
+    STRONG_BUY:  { word: 'STRONG BUY',  from: 'from-emerald-300', to: 'to-emerald-500', shadow: 'rgba(14,207,138,0.5)', bgHero: 'from-emerald-950 via-[#050508] to-[#050508]', gauge: ['#064d33', '#0ecf8a'] },
+    BUY:         { word: 'BUY',         from: 'from-emerald-300', to: 'to-emerald-500', shadow: 'rgba(14,207,138,0.5)', bgHero: 'from-emerald-950/60 via-[#050508] to-[#050508]', gauge: ['#064d33', '#0ecf8a'] },
+    HOLD:        { word: 'HOLD',        from: 'from-amber-300',   to: 'to-amber-500',   shadow: 'rgba(245,158,11,0.5)', bgHero: 'from-amber-950/60 via-[#050508] to-[#050508]', gauge: ['#92620a', '#fcd97a'] },
+    SELL:        { word: 'SELL',        from: 'from-orange-300',  to: 'to-orange-500',  shadow: 'rgba(249,115,22,0.5)', bgHero: 'from-orange-950/60 via-[#050508] to-[#050508]', gauge: ['#4d0a10', '#f5495a'] },
+    STRONG_SELL: { word: 'STRONG SELL', from: 'from-red-300',     to: 'to-rose-500',    shadow: 'rgba(239,68,68,0.6)', bgHero: 'from-red-950 via-[#050508] to-[#050508]', gauge: ['#4d0a10', '#f5495a'] },
+};
+function getSignal(s?: string | null) {
+    return SIGNAL_STYLES[s ?? ''] ?? SIGNAL_STYLES['HOLD'];
 }
 
 // ─── Stat Tile ────────────────────────────────────────────────────────────────
+function Tile({ label, value, sub, variant = 'gold', icon: Icon }: any) {
+    const vClass = variant === 'bull' ? 'text-emerald-400 border-emerald-500/15 bg-emerald-500/10' :
+                   variant === 'bear' ? 'text-red-400 border-red-500/15 bg-red-500/10' :
+                   'text-gold-base border-[#d4a017]/15 bg-[rgba(212,160,23,0.08)]';
+                   
+    const valClass = variant === 'bull' ? 'text-emerald-400' : variant === 'bear' ? 'text-red-400' : 'text-[#fcd97a]';
 
-function Tile({ label, value, sub, color = 'text-foreground', icon }: {
-    label: string; value: React.ReactNode; sub?: string; color?: string; icon?: React.ReactNode;
-}) {
     return (
-        <div className="stat-tile group">
-            <div className="flex items-center gap-1.5 mb-2">
-                {icon && <span className="text-zinc-600 group-hover:text-gold transition-colors">{icon}</span>}
-                <span className="section-title">{label}</span>
+        <div className="card rounded-[14px] p-5 relative overflow-hidden group" data-animate-child>
+            <div className={`absolute bottom-[-20px] right-[-20px] w-20 h-20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl ${variant === 'bull' ? 'bg-emerald-500/20' : variant === 'bear' ? 'bg-red-500/20' : 'bg-gold-base/20'}`} />
+            <div className="flex items-start gap-4 z-10 relative">
+                <div className={`w-9 h-9 rounded-[10px] border flex items-center justify-center shrink-0 transition-colors ${vClass}`}>
+                    {Icon && <Icon size={18} strokeWidth={1.5} />}
+                </div>
+                <div className="flex-1">
+                    <div className="section-title mb-1.5">{label}</div>
+                    <div className={`font-mono text-[32px] xl:text-[36px] font-700 leading-none tracking-[-0.02em] transition-transform duration-200 group-hover:scale-[1.02] origin-left ${valClass}`}>
+                        {value}
+                    </div>
+                    {sub && <div className="text-[11px] text-[#5d5d8a] mt-1.5">{sub}</div>}
+                </div>
             </div>
-            <div className={`num text-xl font-semibold ${color}`}>{value}</div>
-            {sub && <div className="text-xs text-zinc-600 mt-1">{sub}</div>}
         </div>
     );
 }
 
 // ─── Score Bar ────────────────────────────────────────────────────────────────
-
-function ScoreBar({ label, value, color = '#f59e0b' }: { label: string; value: number | null; color?: string }) {
+function ScoreBar({ label, value, variant = 'gold', thick = false }: { label: string; value: number | null; variant?: 'bull'|'bear'|'gold'; thick?: boolean }) {
     const pct = value ?? 0;
+    const barClass = `score-bar-${variant} ${thick ? 'score-bar-thick' : ''}`;
+    const txtClass = variant === 'bull' ? '#0ecf8a' : variant === 'bear' ? '#f5495a' : '#f0b429';
     return (
-        <div className="flex flex-col gap-0.5">
-            <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</span>
-                <span className="num text-xs font-semibold" style={{ color }}>{value != null ? value.toFixed(0) : '–'}</span>
-            </div>
-            <div className="score-bar-track">
-                <div className="score-bar-fill" style={{ width: `${pct}%`, background: color }} />
+        <div className="flex items-center gap-3 py-2 border-b border-[#1a1a3a] last:border-0" data-animate-child>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#5d5d8a] flex-shrink-0" />
+            <span className="text-[12px] font-500 text-[#9898c0] whitespace-nowrap">{label}</span>
+            <div className="flex-1 h-px" style={{background: 'repeating-linear-gradient(90deg,#1e1e42 0px,#1e1e42 2px,transparent 2px,transparent 8px)'}} />
+            <span className="font-mono text-[13px] font-600 min-w-[32px] text-right" style={{color: txtClass}}>{value != null ? value.toFixed(1) : '–'}</span>
+            <div className={`w-28 score-bar-track ${thick ? 'h-[10px]' : ''}`}>
+                <div className={`score-bar-fill ${barClass}`} style={{ width: `${pct}%` }} />
             </div>
         </div>
     );
 }
 
-// ─── Section Header ───────────────────────────────────────────────────────────
-
-function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: string; badge?: React.ReactNode }) {
+// ─── Confidence Arc Gauge ─────────────────────────────────────────────────────
+function ConfidenceGauge({ value, colors }: { value: number; colors: string[] }) {
+    const pct = Math.max(0, Math.min(100, value));
+    const dashoffset = 283 - (283 * pct) / 100; // 180 deg arc is ~283 length
+    const rotate = -90 + (180 * pct) / 100;
+    
     return (
-        <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-white/[0.06]">
-            <span className="text-gold">{icon}</span>
-            <h2 className="section-title text-zinc-300">{title}</h2>
-            {badge}
+        <div className="relative w-full max-w-[200px] flex flex-col items-center">
+            <svg viewBox="0 0 200 110" className="w-full overflow-visible">
+                <defs>
+                    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={colors[0]} />
+                        <stop offset="100%" stopColor={colors[1]} />
+                    </linearGradient>
+                </defs>
+                {/* Background arc */}
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1a1a3a" strokeWidth="10" strokeLinecap="round" />
+                {/* Value arc */}
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" strokeWidth="10" strokeLinecap="round" 
+                      strokeDasharray="283" strokeDashoffset={283} 
+                      className="animate-[barFillIn_1.2s_cubic-bezier(0.34,1.56,0.64,1)_forwards]"
+                      style={{ animationName: 'dash', '--dash-to': dashoffset } as any} />
+                {/* Needle */}
+                <line x1="100" y1="100" x2="100" y2="30" stroke="#f0efff" strokeWidth="2" strokeLinecap="round"
+                      className="origin-[100px_100px] transition-transform duration-1000 ease-out"
+                      style={{ transform: `rotate(${rotate}deg)` }} />
+                <circle cx="100" cy="100" r="4" fill="#f0efff" />
+                
+                <text x="100" y="85" textAnchor="middle" className="font-mono font-700 text-[28px]" fill="#fcd97a">{pct.toFixed(0)}%</text>
+                <text x="100" y="105" textAnchor="middle" className="font-sans font-600 text-[9px] tracking-[0.15em] uppercase" fill="#5d5d8a">CONFIDENCE</text>
+            </svg>
+            <style jsx>{`
+                @keyframes dash {
+                    to { stroke-dashoffset: var(--dash-to); }
+                }
+            `}</style>
         </div>
     );
 }
+
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="rounded-[10px] p-3 min-w-[160px] bg-[#08081a]/85 backdrop-blur-md border border-[#f59e0b]/35 shadow-[0_8px_32px_rgba(0,0,0,0.6)] z-50">
+            <p className="text-[11px] text-[#94a3b8] mb-2 pb-2 border-b border-white/[0.06] uppercase tracking-wider">{label}</p>
+            {payload.map((item: any) => (
+                <div key={item.dataKey} className="flex items-center gap-2 justify-between mb-1 last:mb-0">
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />
+                        <span className="text-[12px] text-[#94a3b8]">{item.name || item.dataKey}</span>
+                    </div>
+                    <span className="font-mono text-[13px] font-600 text-[#f1f5f9] tabular-nums ml-4">
+                        {typeof item.value === 'number' ? item.value.toFixed(2) : item.value}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function DashboardClient({
     recentSentiments, manipulationStats, targetKeyword,
     fundamentalData, financialHistory, usdSekRate, gaussianData,
@@ -127,7 +186,10 @@ export default function DashboardClient({
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState(targetKeyword || '');
     const [tradeFilter, setTradeFilter] = useState<'all' | 'buy' | 'sell'>('all');
+    const [isCommandOpen, setIsCommandOpen] = useState(false);
     const router = useRouter();
+    
+    useScrollAnimation();
 
     useEffect(() => {
         const interval = setInterval(async () => {
@@ -142,8 +204,20 @@ export default function DashboardClient({
         return () => clearInterval(interval);
     }, [targetKeyword, recommendationScore?.signal]);
 
+    // Command palette listener
+    useEffect(() => {
+        const down = (e: KeyboardEvent) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                setIsCommandOpen((open) => !open);
+            }
+            if (e.key === 'Escape') setIsCommandOpen(false);
+        };
+        document.addEventListener('keydown', down);
+        return () => document.removeEventListener('keydown', down);
+    }, []);
+
     const sig = getSignal(recommendationScore?.signal);
-    const risk = riskLabel(riskProfile?.overall_risk_rating);
 
     const insiderStats = useMemo(() => {
         if (!insiderTrades?.length) return { buyVolume: 0, sellVolume: 0, netVolume: 0, chartData: [], filteredTrades: [] };
@@ -176,29 +250,17 @@ export default function DashboardClient({
         };
     }, [insiderTrades, tradeFilter]);
 
-    const mergedDistributionData = useMemo(() => {
-        if (!gaussianData?.curve) return [];
-        const base = [...gaussianData.curve];
-        if (quantMetrics?.kde_data && Array.isArray(quantMetrics.kde_data)) {
-            base.forEach(b => {
-                const nearestKde = quantMetrics.kde_data.reduce((prev: any, curr: any) =>
-                    Math.abs(curr.x - b.sentiment) < Math.abs(prev.x - b.sentiment) ? curr : prev
-                );
-                b.kde_density = nearestKde?.density ?? 0;
-            });
-        }
-        return base;
-    }, [gaussianData, quantMetrics]);
-
-    const triggerScrape = () => {
-        if (!searchQuery.trim()) return;
+    const triggerScrape = (kwOverride?: string) => {
+        const kw = (kwOverride || searchQuery).trim();
+        if (!kw) return;
+        setIsCommandOpen(false);
         setLoading(true);
-        const kw = searchQuery.trim();
         fetch('/api/scrape', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: kw }),
         })
             .then(() => {
+                setSearchQuery(kw);
                 startTransition(() => { router.push(`/?q=${encodeURIComponent(kw)}`); router.refresh(); });
                 setLoading(false);
             })
@@ -206,651 +268,451 @@ export default function DashboardClient({
     };
 
     const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-    const pct = (v: number) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
 
     return (
-        <div className="min-h-screen p-4 md:p-6 max-w-[1400px] mx-auto space-y-4">
-
-            {/* ── HEADER ──────────────────────────────────────────────────── */}
-            <header className="card p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-gold-dim flex items-center justify-center">
-                        <Activity size={18} className="text-gold" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold text-white tracking-tight">Phaeton Capital</h1>
-                        <p className="text-xs text-zinc-600 mt-0.5">AI-Powered Trading Intelligence</p>
+        <div className="min-h-screen relative text-[#f0efff]">
+            {/* ── COMMAND PALETTE ─────────────────────────────────────────── */}
+            {isCommandOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20" onClick={() => setIsCommandOpen(false)}>
+                    <div className="w-full max-w-2xl bg-[#0d0d24] rounded-2xl border border-[#2d3050] shadow-[0_25px_80px_rgba(0,0,0,0.6)] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center px-4 border-b border-[#1a1a3a]">
+                            <Search className="w-5 h-5 text-[#5d5d8a]" />
+                            <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') triggerScrape(); }}
+                                placeholder="Search ticker or company name..."
+                                className="w-full h-14 bg-transparent border-none outline-none px-4 text-lg text-[#f0efff] placeholder:text-[#5d5d8a] uppercase" />
+                            <div className="flex items-center gap-1">
+                                <kbd className="px-2 py-1 bg-[#12122e] rounded text-[10px] text-[#5d5d8a] font-mono border border-[#1a1a3a]">ESC</kbd>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            <div className="section-title mb-3">Popular Tickers</div>
+                            <div className="flex flex-wrap gap-2">
+                                {['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GME'].map(t => (
+                                    <button key={t} onClick={() => triggerScrape(t)}
+                                        className="px-3 py-1.5 rounded-lg bg-[#12122e] border border-[#1a1a3a] hover:border-indigo-500/50 hover:bg-indigo-500/10 text-sm font-mono tracking-wider transition-colors">
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
+            )}
 
-                <div className="flex items-center gap-3">
-                    {usdSekRate && (
-                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-2 rounded-lg border border-white/[0.06]">
-                            <span className="text-[10px] text-zinc-600 uppercase tracking-wider font-medium">USD/SEK</span>
-                            <span className="num text-sm font-bold text-gold">{usdSekRate.toFixed(4)}</span>
+            {/* ── TOP BAR ─────────────────────────────────────────────────── */}
+            <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-[#080818]/80 backdrop-blur-xl border-b border-[#1a1a3a] flex items-center justify-between px-4 xl:px-6">
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col">
+                        <span className="font-display font-800 tracking-[0.15em] text-gradient-gold text-lg leading-none">PHAETON</span>
+                        <span className="text-[10px] tracking-[0.3em] text-[#5d5d8a] font-600">CAPITAL</span>
+                    </div>
+                </div>
+                
+                <div className="flex-1 max-w-lg mx-8 hidden md:block">
+                    <button onClick={() => setIsCommandOpen(true)} className="w-full flex items-center gap-3 px-4 h-9 rounded-xl bg-white/[0.03] border border-[#1e1e42] hover:bg-white/[0.05] transition-colors group">
+                        <Search className="w-4 h-4 text-[#5d5d8a] group-hover:text-[#9898c0]" />
+                        <span className="text-sm text-[#5d5d8a] flex-1 text-left uppercase tracking-widest font-mono">
+                            {targetKeyword || 'Search...'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <Command className="w-3 h-3 text-[#5d5d8a]" />
+                            <span className="text-[10px] font-mono text-[#5d5d8a]">K</span>
                         </div>
-                    )}
-
-                    <form onSubmit={(e) => { e.preventDefault(); triggerScrape(); }} className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search ticker…"
-                            className="w-44 md:w-56 pl-9 pr-4 py-2 bg-surface-2 border border-white/[0.08] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold/40 transition-all uppercase tracking-widest font-mono font-bold"
-                        />
-                        {isPending && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-gold border-t-transparent rounded-full animate-spin" />
-                        )}
-                    </form>
-
-                    <button
-                        onClick={triggerScrape}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-amber-400 disabled:opacity-50 transition-colors"
-                    >
-                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        {loading ? 'Scanning…' : 'Scan'}
                     </button>
                 </div>
-            </header>
 
-            {/* ── RECOMMENDATION HERO ─────────────────────────────────────── */}
-            {recommendationScore && (
-                <div className={`card p-5 border-2 ${sig.border} ${sig.glow}`}>
-                    <div className="flex flex-col lg:flex-row gap-6">
-                        {/* Signal block */}
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Award size={14} className="text-zinc-500" />
-                                <span className="section-title">AI Composite Recommendation</span>
-                                {recommendationScore.risk_override && (
-                                    <span className="badge bg-red-400/10 text-red-400 border border-red-400/30">Risk Override</span>
-                                )}
-                            </div>
-                            <div className={`text-5xl font-extrabold tracking-tight mb-3 ${sig.text}`}>
-                                {sig.label}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 text-sm">
-                                <div>
-                                    <span className="text-zinc-600">Score </span>
-                                    <span className="num font-bold text-white">{recommendationScore.composite_score?.toFixed(1)}</span>
-                                    <span className="text-zinc-600">/100</span>
-                                </div>
-                                <div>
-                                    <span className="text-zinc-600">Confidence </span>
-                                    <span className="num font-bold text-white">{recommendationScore.confidence != null ? `${(recommendationScore.confidence * 100).toFixed(0)}%` : '—'}</span>
-                                </div>
-                                {predictionCount > 0 && predictionAccuracy != null && (
-                                    <div>
-                                        <span className="text-zinc-600">Accuracy </span>
-                                        <span className="num font-bold text-emerald-400">{(predictionAccuracy * 100).toFixed(0)}%</span>
-                                        <span className="text-zinc-600"> ({predictionCount} calls)</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Score breakdown */}
-                        <div className="lg:w-72 space-y-2.5">
-                            {[
-                                { label: 'Sentiment',   val: recommendationScore.sentiment_score,    color: '#6366f1' },
-                                { label: 'Technical',   val: recommendationScore.technical_score,    color: '#06b6d4' },
-                                { label: 'Fundamental', val: recommendationScore.fundamental_score,  color: '#f59e0b' },
-                                { label: 'Quant',       val: recommendationScore.quant_score,        color: '#8b5cf6' },
-                                { label: 'Insider',     val: recommendationScore.insider_score,      color: '#10b981' },
-                                { label: 'Macro',       val: recommendationScore.macro_score,        color: '#f97316' },
-                            ].map((s) => (
-                                <ScoreBar key={s.label} label={s.label} value={s.val} color={s.color} />
-                            ))}
+                <div className="flex items-center gap-4">
+                    <div className="hidden lg:flex overflow-hidden w-64 border-x border-[#1a1a3a] px-2 h-full items-center">
+                        <div className="flex gap-6 animate-ticker whitespace-nowrap text-[11px] font-mono whitespace-nowrap">
+                            <span className="text-[#0ecf8a]">NVDA +2.4%</span>
+                            <span className="text-[#f5495a]">TSLA -1.2%</span>
+                            <span className="text-[#0ecf8a]">BTC +5.1%</span>
+                            <span className="text-[#0ecf8a]">AAPL +0.8%</span>
+                            <span className="text-[#8b9cb5]">SPY +0.0%</span>
                         </div>
                     </div>
+                    
+                    <button onClick={() => triggerScrape()} disabled={loading}
+                        className="flex items-center gap-2 px-4 h-9 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-600 text-white hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50">
+                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                        {loading ? 'SCANNING' : 'SCAN'}
+                    </button>
                 </div>
-            )}
-
-            {/* ── FUNDAMENTALS ────────────────────────────────────────────── */}
-            <div className="card p-5">
-                <SectionHeader
-                    icon={<DollarSign size={15} />}
-                    title="Fundamentals"
-                    badge={
-                        <span className="badge bg-gold/10 text-gold border border-gold/20">
-                            {targetKeyword.toUpperCase()}
-                        </span>
-                    }
-                />
-
-                {fundamentalData ? (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                            {[
-                                { label: 'Last Price',    val: fundamentalData.current_price    != null ? `$${fundamentalData.current_price.toFixed(2)}`    : '—', icon: <DollarSign size={12} /> },
-                                { label: 'Price Target',  val: fundamentalData.target_price     != null ? `$${fundamentalData.target_price.toFixed(2)}`     : '—', icon: <Target size={12} /> },
-                                { label: 'P/E Ratio',     val: fundamentalData.pe_ratio         != null ? fundamentalData.pe_ratio.toFixed(1)                : '—', icon: <Activity size={12} /> },
-                                { label: '52-Week High',  val: fundamentalData.high_52_week     != null ? `$${fundamentalData.high_52_week.toFixed(2)}`     : '—', icon: <TrendingUp size={12} /> },
-                                { label: '52-Week Low',   val: fundamentalData.low_52_week      != null ? `$${fundamentalData.low_52_week.toFixed(2)}`      : '—', icon: <TrendingDown size={12} /> },
-                                { label: 'Market Cap',    val: fundamentalData.market_cap       != null ? `$${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—', icon: <Briefcase size={12} /> },
-                                { label: 'Analyst View',  val: fundamentalData.recommendation   ?? '—',  icon: <Award size={12} />, color: 'text-emerald-400 capitalize' },
-                            ].map((s, i) => (
-                                <Tile key={i} label={s.label} value={s.val} color={s.color || 'text-gold'} icon={s.icon} />
-                            ))}
-
-                            {/* Risk/Reward */}
-                            {fundamentalData.current_price && fundamentalData.target_price && fundamentalData.low_52_week && (() => {
-                                const up   = fundamentalData.target_price - fundamentalData.current_price;
-                                const down = fundamentalData.current_price - fundamentalData.low_52_week;
-                                const rr   = down > 0 ? up / down : null;
-                                return (
-                                    <Tile
-                                        label="Risk / Reward"
-                                        value={rr != null ? `${rr.toFixed(2)}×` : '—'}
-                                        color={rr != null && rr > 1 ? 'text-emerald-400' : 'text-red-400'}
-                                        icon={<Zap size={12} />}
-                                    />
-                                );
-                            })()}
-                        </div>
-
-                        {/* Target range + earnings */}
-                        {(fundamentalData.target_low_price || fundamentalData.next_earnings_date) && (
-                            <div className="flex flex-wrap gap-3">
-                                {fundamentalData.target_low_price && fundamentalData.target_high_price && (
-                                    <div className="stat-tile flex items-center gap-3">
-                                        <div>
-                                            <div className="section-title mb-1">Analyst Target Range</div>
-                                            <div className="num text-sm font-semibold text-white">
-                                                ${fundamentalData.target_low_price.toFixed(2)}
-                                                <span className="text-zinc-600 mx-2">—</span>
-                                                ${fundamentalData.target_high_price.toFixed(2)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                {fundamentalData.next_earnings_date && (
-                                    <div className="stat-tile flex items-center gap-3">
-                                        <Calendar size={14} className="text-zinc-600" />
-                                        <div>
-                                            <div className="section-title mb-1">Next Earnings</div>
-                                            <div className="num text-sm font-semibold text-white">
-                                                {new Date(fundamentalData.next_earnings_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                {fundamentalData.sector && (
-                                    <div className="stat-tile">
-                                        <div className="section-title mb-1">Sector</div>
-                                        <div className="text-sm font-semibold text-white">{fundamentalData.sector}</div>
-                                        {fundamentalData.industry && <div className="text-xs text-zinc-600 mt-0.5">{fundamentalData.industry}</div>}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Analyst consensus bar */}
-                        {(fundamentalData.analyst_strong_buy || fundamentalData.analyst_buy) && (() => {
-                            const counts = [
-                                { label: 'Strong Buy', val: fundamentalData.analyst_strong_buy || 0, color: '#10b981' },
-                                { label: 'Buy',        val: fundamentalData.analyst_buy        || 0, color: '#34d399' },
-                                { label: 'Hold',       val: fundamentalData.analyst_hold       || 0, color: '#f59e0b' },
-                                { label: 'Sell',       val: fundamentalData.analyst_sell       || 0, color: '#f97316' },
-                                { label: 'Strong Sell',val: fundamentalData.analyst_strong_sell|| 0, color: '#ef4444' },
-                            ];
-                            const total = counts.reduce((s, c) => s + c.val, 0);
-                            return (
-                                <div className="stat-tile">
-                                    <div className="section-title mb-3">Analyst Consensus</div>
-                                    <div className="flex h-6 rounded-md overflow-hidden gap-px">
-                                        {counts.map((c) => (
-                                            total > 0 && c.val > 0 ? (
-                                                <div
-                                                    key={c.label}
-                                                    style={{ width: `${(c.val / total) * 100}%`, background: c.color }}
-                                                    className="relative group/bar"
-                                                    title={`${c.label}: ${c.val}`}
-                                                />
-                                            ) : null
-                                        ))}
-                                    </div>
-                                    <div className="flex flex-wrap gap-3 mt-2">
-                                        {counts.map((c) => (
-                                            <div key={c.label} className="flex items-center gap-1.5">
-                                                <div className="w-2 h-2 rounded-sm" style={{ background: c.color }} />
-                                                <span className="text-xs text-zinc-500">{c.label}</span>
-                                                <span className="num text-xs font-semibold text-white">{c.val}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <AlertTriangle size={32} className="text-red-400/50 mb-3" />
-                        <p className="text-sm font-medium text-red-400">No data found for "{targetKeyword}"</p>
-                        <p className="text-xs text-zinc-600 mt-1">Make sure this is a valid ticker symbol, then click Scan.</p>
-                    </div>
-                )}
             </div>
 
-            {/* ── TECHNICAL ANALYSIS ──────────────────────────────────────── */}
-            {technicalIndicators && (
-                <div className="card p-5">
-                    <SectionHeader
-                        icon={<BarChart2 size={15} />}
-                        title="Technical Analysis"
-                        badge={technicalIndicators.technical_signal && (
-                            <span className={`badge border ${
-                                technicalIndicators.technical_signal === 'BULLISH'
-                                    ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/30'
-                                    : technicalIndicators.technical_signal === 'BEARISH'
-                                    ? 'bg-red-400/10 text-red-400 border-red-400/30'
-                                    : 'bg-amber-400/10 text-amber-400 border-amber-400/30'
-                            }`}>{technicalIndicators.technical_signal}</span>
-                        )}
-                    />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-4">
-                        {[
-                            { label: 'RSI (14)',         val: technicalIndicators.rsi_14?.toFixed(1),       color: technicalIndicators.rsi_14 < 30 ? 'text-emerald-400' : technicalIndicators.rsi_14 > 70 ? 'text-red-400' : 'text-gold' },
-                            { label: 'MACD',             val: technicalIndicators.macd?.toFixed(3),         color: (technicalIndicators.macd ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
-                            { label: 'MACD Histogram',   val: technicalIndicators.macd_histogram?.toFixed(3),color: (technicalIndicators.macd_histogram ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
-                            { label: 'Bollinger Pos.',   val: technicalIndicators.price_vs_bb?.toFixed(2),  color: (technicalIndicators.price_vs_bb ?? 0) < -0.5 ? 'text-emerald-400' : (technicalIndicators.price_vs_bb ?? 0) > 0.5 ? 'text-red-400' : 'text-gold' },
-                            { label: 'SMA 50',           val: technicalIndicators.sma_50       != null ? `$${technicalIndicators.sma_50.toFixed(2)}`   : null, color: 'text-zinc-300' },
-                            { label: 'SMA 200',          val: technicalIndicators.sma_200      != null ? `$${technicalIndicators.sma_200.toFixed(2)}`  : null, color: 'text-zinc-300' },
-                            { label: 'ATR (14)',         val: technicalIndicators.atr_14       != null ? `$${technicalIndicators.atr_14.toFixed(2)}`   : null, color: 'text-zinc-400' },
-                            { label: 'EMA 12',           val: technicalIndicators.ema_12       != null ? `$${technicalIndicators.ema_12.toFixed(2)}`   : null, color: 'text-zinc-300' },
-                        ].map((s, i) => (
-                            <div key={i} className="stat-tile">
-                                <div className="section-title mb-2">{s.label}</div>
-                                <div className={`num text-lg font-semibold ${s.color}`}>{s.val ?? '—'}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Pattern badges */}
-                    <div className="flex flex-wrap gap-2">
-                        {technicalIndicators.golden_cross && (
-                            <span className="badge bg-emerald-400/10 text-emerald-400 border border-emerald-400/30">
-                                Golden Cross
-                            </span>
-                        )}
-                        {technicalIndicators.death_cross && (
-                            <span className="badge bg-red-400/10 text-red-400 border border-red-400/30">
-                                Death Cross
-                            </span>
-                        )}
-                        {technicalIndicators.rsi_14 != null && technicalIndicators.rsi_14 < 30 && (
-                            <span className="badge bg-emerald-400/10 text-emerald-400 border border-emerald-400/30">
-                                RSI Oversold
-                            </span>
-                        )}
-                        {technicalIndicators.rsi_14 != null && technicalIndicators.rsi_14 > 70 && (
-                            <span className="badge bg-red-400/10 text-red-400 border border-red-400/30">
-                                RSI Overbought
-                            </span>
-                        )}
-                        {(technicalIndicators.macd_histogram ?? 0) > 0 && (
-                            <span className="badge bg-emerald-400/10 text-emerald-400 border border-emerald-400/30">
-                                MACD Bullish
-                            </span>
-                        )}
-                        {(technicalIndicators.macd_histogram ?? 0) < 0 && (
-                            <span className="badge bg-red-400/10 text-red-400 border border-red-400/30">
-                                MACD Bearish
-                            </span>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* ── MACRO CONTEXT ───────────────────────────────────────────── */}
-            {macroIndicators && (
-                <div className="card p-5">
-                    <SectionHeader icon={<Globe size={15} />} title="Macro Environment" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
-                        {[
-                            { label: 'VIX',             val: macroIndicators.vix?.toFixed(2),   color: macroIndicators.vix > 30 ? 'text-red-400' : macroIndicators.vix < 15 ? 'text-emerald-400' : 'text-gold' },
-                            { label: '10-Year Yield',   val: macroIndicators.ten_year_yield != null ? `${macroIndicators.ten_year_yield.toFixed(2)}%` : null, color: 'text-zinc-300' },
-                            { label: 'Fed Rate Proxy',  val: macroIndicators.fed_funds_rate != null ? `${macroIndicators.fed_funds_rate.toFixed(2)}%` : null, color: 'text-zinc-300' },
-                            { label: 'Fear & Greed',    val: macroIndicators.fear_greed_index?.toFixed(0), color: macroIndicators.fear_greed_index > 60 ? 'text-emerald-400' : macroIndicators.fear_greed_index < 40 ? 'text-red-400' : 'text-gold' },
-                            { label: 'Sector ETF',      val: macroIndicators.sector_etf,       color: 'text-zinc-400' },
-                            { label: '1-Month Return',  val: macroIndicators.sector_etf_momentum_1m != null ? pct(macroIndicators.sector_etf_momentum_1m) : null, color: (macroIndicators.sector_etf_momentum_1m ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400' },
-                            { label: '3-Month Return',  val: macroIndicators.sector_etf_momentum_3m != null ? pct(macroIndicators.sector_etf_momentum_3m) : null, color: (macroIndicators.sector_etf_momentum_3m ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400' },
-                            { label: 'P/E vs Market',   val: macroIndicators.pe_premium_pct != null ? `${macroIndicators.pe_premium_pct > 0 ? '+' : ''}${macroIndicators.pe_premium_pct.toFixed(1)}%` : null, color: (macroIndicators.pe_premium_pct ?? 0) < 0 ? 'text-emerald-400' : 'text-red-400' },
-                        ].map((s, i) => (
-                            <div key={i} className="stat-tile">
-                                <div className="section-title mb-2">{s.label}</div>
-                                <div className={`num text-lg font-semibold ${s.color}`}>{s.val ?? '—'}</div>
-                            </div>
-                        ))}
-                    </div>
-                    {macroIndicators.rate_sensitive && (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-400/10 border border-orange-400/20 text-sm text-orange-400">
-                            <AlertTriangle size={14} />
-                            <span>Rate-sensitive stock — high P/E makes it vulnerable to rising interest rates.</span>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ── SCAN OVERVIEW ───────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                    { label: 'Total Scanned',        val: manipulationStats.totalCount,        color: 'text-gold',         sub: 'Posts & articles' },
-                    { label: 'Organic Signals',      val: gaussianData.n || manipulationStats.organicCount, color: 'text-emerald-400', sub: 'Passed trust filter' },
-                    { label: 'Blocked (Manipulation)', val: manipulationStats.manipulatedCount, color: 'text-red-400',      sub: 'Flagged by AI' },
-                ].map((s, i) => (
-                    <div key={i} className="card p-4">
-                        <div className="section-title mb-2">{s.label}</div>
-                        <div className={`num text-4xl font-bold ${s.color}`}>{s.val}</div>
-                        <div className="text-xs text-zinc-600 mt-1">{s.sub}</div>
-                    </div>
-                ))}
+            {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
+            <div className="fixed left-0 top-14 bottom-0 w-16 xl:w-64 border-r border-[#1a1a3a] bg-[#05050f]/50 backdrop-blur-md z-40 flex flex-col py-6 overflow-hidden hover:w-64 transition-all duration-300 group">
+                <nav className="flex flex-col gap-2 px-3">
+                    {[
+                        { icon: Radio, label: 'Signals', id: '#hero' },
+                        { icon: DollarSign, label: 'Fundamentals', id: '#fundamentals' },
+                        { icon: BarChart2, label: 'Technicals', id: '#technical' },
+                        { icon: Globe, label: 'Macro Environment', id: '#macro' },
+                        { icon: LayoutGrid, label: 'Quant Models', id: '#quant' },
+                        { icon: Shield, label: 'Risk Analysis', id: '#risk' },
+                        { icon: TrendingUp, label: 'Sentiment Flow', id: '#sentiment' },
+                        { icon: Briefcase, label: 'Insider Flow', id: '#insider' },
+                    ].map((item, i) => (
+                        <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
+                            <item.icon className="w-4 h-4 shrink-0" />
+                            <span className="text-[13px] font-500 opacity-0 xl:opacity-100 group-hover:opacity-100 transition-opacity">{item.label}</span>
+                        </a>
+                    ))}
+                </nav>
             </div>
 
-            {/* ── ADVANCED QUANT MODELS ───────────────────────────────────── */}
-            {quantMetrics && (
-                <div className="card p-5">
-                    <SectionHeader icon={<Bot size={15} />} title="Advanced Quantitative Models" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10 gap-3">
-                        {[
-                            { label: 'HMM Regime',         val: quantMetrics.hmm_state === 1 ? 'Bull' : quantMetrics.hmm_state === 0 ? 'Bear' : '—', color: quantMetrics.hmm_state === 1 ? 'text-emerald-400' : quantMetrics.hmm_state === 0 ? 'text-red-400' : 'text-zinc-500' },
-                            { label: 'Kelly Allocation',   val: quantMetrics.kelly_fraction != null ? `${(quantMetrics.kelly_fraction * 100).toFixed(1)}%` : '—', color: 'text-gold' },
-                            { label: 'Hurst Exponent',     val: quantMetrics.hurst_exponent?.toFixed(3) ?? '—', color: 'text-gold', sub: (quantMetrics.hurst_exponent ?? 0) > 0.5 ? 'Trending' : 'Mean-rev.' },
-                            { label: 'Granger p-value',    val: quantMetrics.granger_p_value?.toFixed(3) ?? '—', color: quantMetrics.granger_p_value < 0.05 ? 'text-emerald-400' : 'text-zinc-500', sub: quantMetrics.granger_p_value < 0.05 ? 'Significant' : '' },
-                            { label: 'MC 15d Expected',    val: quantMetrics.monte_carlo_mean != null ? `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(quantMetrics.monte_carlo_mean)}` : '—', color: 'text-gold' },
-                            { label: 'Bayes Posterior',    val: quantMetrics.bayes_posterior != null ? `${(quantMetrics.bayes_posterior * 100).toFixed(1)}%` : '—', color: (quantMetrics.bayes_posterior ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
-                            { label: 'Sent ↔ Price ρ',    val: quantMetrics.sentiment_price_corr?.toFixed(3) ?? '—', color: Math.abs(quantMetrics.sentiment_price_corr ?? 0) > 0.3 ? 'text-emerald-400' : 'text-zinc-500' },
-                            { label: 'Dominant Cycle',     val: quantMetrics.dominant_cycle_days != null ? `${quantMetrics.dominant_cycle_days.toFixed(1)}d` : '—', color: 'text-info' },
-                            { label: 'OU Mean Reversion',  val: quantMetrics.ou_theta?.toFixed(3) ?? '—', color: 'text-zinc-300' },
-                            { label: 'Stationarity',       val: quantMetrics.adf_stationary === true ? 'Stationary' : quantMetrics.adf_stationary === false ? 'Non-stat.' : '—', color: quantMetrics.adf_stationary === true ? 'text-emerald-400' : 'text-red-400' },
-                        ].map((s, i) => (
-                            <div key={i} className="stat-tile">
-                                <div className="section-title mb-2">{s.label}</div>
-                                <div className={`num text-base font-semibold ${s.color}`}>{s.val}</div>
-                                {(s as any).sub && <div className="text-[10px] text-zinc-600 mt-0.5">{(s as any).sub}</div>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* ── RISK ASSESSMENT ─────────────────────────────────────────── */}
-            {(riskProfile || quantMetrics) && (
-                <div className="card p-5">
-                    <SectionHeader
-                        icon={<Shield size={15} />}
-                        title="Risk Assessment"
-                        badge={riskProfile?.overall_risk_rating && (
-                            <span className={`badge border ${
-                                riskProfile.overall_risk_rating >= 5 ? 'bg-red-400/10 text-red-400 border-red-400/30' :
-                                riskProfile.overall_risk_rating >= 4 ? 'bg-orange-400/10 text-orange-400 border-orange-400/30' :
-                                riskProfile.overall_risk_rating >= 3 ? 'bg-amber-400/10 text-amber-400 border-amber-400/30' :
-                                'bg-emerald-400/10 text-emerald-400 border-emerald-400/30'
-                            }`}>
-                                Risk Level: {risk.label}
-                            </span>
-                        )}
-                    />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-                        {[
-                            { label: 'Max Drawdown',    val: riskProfile?.max_drawdown != null ? `${(riskProfile.max_drawdown * 100).toFixed(1)}%` : '—', color: (riskProfile?.max_drawdown ?? 0) < -0.2 ? 'text-red-400' : 'text-gold' },
-                            { label: 'VaR (95%)',       val: quantMetrics?.var_95 != null ? `${(quantMetrics.var_95 * 100).toFixed(1)}%` : '—', color: 'text-red-400' },
-                            { label: 'CVaR (95%)',      val: quantMetrics?.cvar_95 != null ? `${(quantMetrics.cvar_95 * 100).toFixed(1)}%` : '—', color: 'text-red-400' },
-                            { label: 'Sharpe Ratio',    val: quantMetrics?.sharpe_ratio?.toFixed(2) ?? '—', color: (quantMetrics?.sharpe_ratio ?? 0) > 1 ? 'text-emerald-400' : 'text-gold' },
-                            { label: 'Sortino Ratio',   val: quantMetrics?.sortino_ratio?.toFixed(2) ?? '—', color: (quantMetrics?.sortino_ratio ?? 0) > 1 ? 'text-emerald-400' : 'text-gold' },
-                            { label: 'GARCH Volatility',val: quantMetrics?.garch_volatility != null ? `${(quantMetrics.garch_volatility * 100).toFixed(1)}%` : '—', color: 'text-zinc-300' },
-                            { label: 'Rolling Beta',    val: quantMetrics?.rolling_beta?.toFixed(2) ?? '—', color: 'text-zinc-300' },
-                            { label: 'Liquidity Score', val: riskProfile?.liquidity_score?.toFixed(5) ?? '—', color: 'text-zinc-300' },
-                        ].map((s, i) => (
-                            <div key={i} className="stat-tile">
-                                <div className="section-title mb-2">{s.label}</div>
-                                <div className={`num text-lg font-semibold ${s.color}`}>{s.val}</div>
-                            </div>
-                        ))}
-                    </div>
-                    {riskProfile?.event_risk_flag && (
-                        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-400/10 border border-red-400/20 text-sm text-red-400">
-                            <AlertTriangle size={14} />
-                            <span className="font-medium">Earnings within 7 days</span>
-                            <span className="text-red-400/70">— expect elevated volatility and wider spreads.</span>
+            {/* ── MAIN CONTENT ────────────────────────────────────────────── */}
+            <main className="ml-16 xl:ml-64 pt-14 max-w-[1600px] mx-auto p-4 xl:p-8 space-y-8">
+                
+                {/* ── HERO SECTION ────────────────────────────────────────────── */}
+                {!recommendationScore && !loading && (
+                    <div className="col-span-12 h-[60vh] flex flex-col items-center justify-center relative overflown-hidden">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] blur-[100px] pointer-events-none">
+                            <div className="w-[600px] h-[600px] bg-indigo-500 rounded-full animate-orbit" />
                         </div>
-                    )}
-                    {riskProfile?.stress_test_p5 != null && fundamentalData?.current_price && (
-                        <div className="mt-2 text-xs text-zinc-600">
-                            Stress test (worst 5%): <span className="num text-zinc-400 font-medium">${riskProfile.stress_test_p5.toFixed(2)}</span>
-                            <span className="ml-2">(
-                                {(((riskProfile.stress_test_p5 - fundamentalData.current_price) / fundamentalData.current_price) * 100).toFixed(1)}% from current
-                            )</span>
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(99,102,241,0.5)]">
+                            <Hexagon className="w-10 h-10 text-white" />
                         </div>
-                    )}
-                </div>
-            )}
-
-            {/* ── HISTORICAL FINANCIAL RATIOS ─────────────────────────────── */}
-            {financialHistory?.length > 0 && (
-                <div className="card p-5">
-                    <SectionHeader icon={<ListPlus size={15} />} title="Historical Financials" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {[
-                            { key: 'eps',              label: 'Earnings Per Share', format: (v: number) => v.toFixed(2) },
-                            { key: 'revenue_per_share',label: 'Revenue / Share',    format: (v: number) => v.toFixed(2) },
-                            { key: 'roe',              label: 'Return on Equity',   format: (v: number) => `${(v * 100).toFixed(1)}%` },
-                            { key: 'net_debt_ebitda',  label: 'Net Debt / EBITDA',  format: (v: number) => v.toFixed(2) },
-                            { key: 'pe_ratio',         label: 'P/E Ratio',          format: (v: number) => v.toFixed(1) },
-                            { key: 'ps_ratio',         label: 'P/S Ratio',          format: (v: number) => v.toFixed(2) },
-                            { key: 'pb_ratio',         label: 'P/B Ratio',          format: (v: number) => v.toFixed(2) },
-                            { key: 'ev_ebit',          label: 'EV / EBIT',          format: (v: number) => v.toFixed(1) },
-                        ].map((metric, i) => {
-                            const latest = [...financialHistory].reverse().find((h: any) => h[metric.key] != null)?.[metric.key] as number | undefined;
-                            return (
-                                <div key={i} className="stat-tile">
-                                    <div className="section-title mb-1">{metric.label}</div>
-                                    <div className="num text-xl font-bold text-gold">
-                                        {latest != null ? metric.format(latest) : '—'}
-                                    </div>
-                                    <SparkBarChart data={financialHistory} dataKey={metric.key} />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* ── CHARTS ──────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-
-                {/* Sentiment timeline */}
-                <div className="card p-5">
-                    <SectionHeader icon={<TrendingUp size={15} />} title="Sentiment Timeline" />
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={recentSentiments} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="sentFill" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.2} />
-                                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                <XAxis dataKey="timeLabel" stroke="transparent" tick={{ fill: '#4b5563', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} dy={8} />
-                                <YAxis stroke="transparent" tick={{ fill: '#4b5563', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} domain={[-1, 1]} dx={-4} />
-                                <Tooltip
-                                    contentStyle={{ background: '#0e0e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
-                                    itemStyle={{ color: '#f59e0b', fontWeight: 600 }}
-                                    labelStyle={{ color: '#6b7280', marginBottom: '4px' }}
-                                />
-                                <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-                                <Area type="monotone" dataKey="sentiment" stroke="#f59e0b" strokeWidth={1.5} fill="url(#sentFill)" isAnimationActive={false} dot={false} />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Opinion distribution */}
-                {gaussianData && (
-                    <div className="card p-5">
-                        <div className="flex items-start justify-between mb-5 pb-3 border-b border-white/[0.06]">
-                            <div className="flex items-center gap-2.5">
-                                <Activity size={15} className="text-gold" />
-                                <h2 className="section-title text-zinc-300">Market Opinion Distribution</h2>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs text-zinc-600 mb-1">Consensus (n={gaussianData.n})</div>
-                                <div className={`num text-2xl font-bold ${gaussianData.mean > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {(gaussianData.mean * 100).toFixed(0)}%
-                                    <span className="text-sm ml-2 font-medium">
-                                        {gaussianData.isSignificant ? (gaussianData.mean > 0 ? 'Bullish' : 'Bearish') : 'Neutral'}
-                                    </span>
-                                </div>
-                                <div className="text-xs text-zinc-600 mt-1 num">
-                                    95% CI: [{Math.round(gaussianData.lowerBound * 100)}%, {Math.round(gaussianData.upperBound * 100)}%] · p = {gaussianData.pValue?.toFixed(3)}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="h-56">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={mergedDistributionData} margin={{ top: 8, right: 8, left: -20, bottom: 20 }}>
-                                    <defs>
-                                        <linearGradient id="gaussFill" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
-                                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="kdeFill" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.2} />
-                                            <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis dataKey="sentiment" stroke="transparent" tick={{ fill: '#4b5563', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} domain={[-1, 1]} type="number" dy={8}
-                                        label={{ value: '← Bearish  ·  Bullish →', position: 'bottom', fill: '#374151', fontSize: 10, dy: 14 }} />
-                                    <YAxis hide />
-                                    <Tooltip
-                                        cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
-                                        contentStyle={{ background: '#0e0e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
-                                        labelFormatter={(v) => `Score: ${v}`}
-                                        itemStyle={{ color: '#f59e0b', fontWeight: 600 }}
-                                        labelStyle={{ color: '#6b7280', marginBottom: '4px' }}
-                                    />
-                                    <ReferenceLine x={gaussianData.mean} stroke="#10b981" strokeWidth={1} strokeDasharray="4 4"
-                                        label={{ position: 'top', value: 'Mean', fill: '#10b981', fontSize: 10 }} />
-                                    <Area type="monotone" dataKey="density" stroke="#f59e0b" strokeWidth={1.5} fill="url(#gaussFill)" isAnimationActive={false} />
-                                    <Area type="monotone" dataKey="kde_density" stroke="#6366f1" strokeWidth={1.5} fill="url(#kdeFill)" isAnimationActive={false} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* ── INSIDER TRANSACTIONS ────────────────────────────────────── */}
-            <div className="card p-5">
-                <SectionHeader icon={<Briefcase size={15} />} title="Insider Transactions" />
-
-                {insiderTrades?.length > 0 ? (
-                    <>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                            <div className="stat-tile">
-                                <div className="section-title mb-2 text-emerald-400/70">Insider Buys</div>
-                                <div className="num text-xl font-bold text-emerald-400">{fmt.format(insiderStats.buyVolume)}</div>
-                            </div>
-                            <div className="stat-tile">
-                                <div className="section-title mb-2 text-red-400/70">Insider Sells</div>
-                                <div className="num text-xl font-bold text-red-400">{fmt.format(insiderStats.sellVolume)}</div>
-                            </div>
-                            <div className="stat-tile">
-                                <div className={`section-title mb-2 ${insiderStats.netVolume >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>Net Flow</div>
-                                <div className={`num text-xl font-bold ${insiderStats.netVolume >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {insiderStats.netVolume > 0 ? '+' : ''}{fmt.format(insiderStats.netVolume)}
-                                </div>
-                            </div>
-                        </div>
-
-                        {insiderStats.chartData.length > 0 && (
-                            <div className="h-44 mb-5">
-                                <p className="section-title mb-2">Monthly Volume Trend</p>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={insiderStats.chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                        <XAxis dataKey="month" stroke="transparent" tick={{ fill: '#4b5563', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} dy={8} />
-                                        <YAxis stroke="transparent" tick={{ fill: '#4b5563', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1e6).toFixed(1)}M`} dx={-4} />
-                                        <Tooltip
-                                            cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                                            contentStyle={{ background: '#0e0e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                                            formatter={(v: number, name: string) => [fmt.format(v), name === 'buy' ? 'Buys' : 'Sells']}
-                                            labelStyle={{ color: '#6b7280', fontSize: '11px', marginBottom: '4px' }}
-                                            itemStyle={{ fontSize: '11px', fontWeight: 600 }}
-                                        />
-                                        <Bar dataKey="buy"  name="buy"  fill="#10b981" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                                        <Bar dataKey="sell" name="sell" fill="#ef4444" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        )}
-
-                        <div className="flex gap-2 mb-4">
-                            {(['all', 'buy', 'sell'] as const).map((f) => (
-                                <button
-                                    key={f}
-                                    onClick={() => setTradeFilter(f)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all capitalize ${
-                                        tradeFilter === f
-                                            ? 'bg-gold text-black'
-                                            : 'bg-surface-2 text-zinc-400 hover:text-white border border-white/[0.08]'
-                                    }`}
-                                >
-                                    {f === 'all' ? 'All' : f === 'buy' ? 'Buys' : 'Sells'}
+                        <h1 className="font-display text-[42px] font-800 tracking-tight text-white mb-2">Intelligence Awaits.</h1>
+                        <p className="text-[#9898c0] text-[15px] mb-8 max-w-md text-center">Press <kbd className="px-2 py-1 mx-1 rounded bg-[#12122e] border border-[#1a1a3a] text-xs font-mono">⌘K</kbd> or use the search bar to scan a ticker and generate a precision audit.</p>
+                        <div className="flex gap-3">
+                            {['AAPL', 'NVDA', 'TSLA'].map(t => (
+                                <button key={t} onClick={() => triggerScrape(t)} className="px-5 py-2.5 rounded-xl border border-[#1e1e42] bg-[#0d0d24] hover:border-indigo-500/50 hover:bg-slate-800 transition-all font-mono font-600 text-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] text-white">
+                                    {t}
                                 </button>
                             ))}
                         </div>
-
-                        <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-white/[0.06] bg-surface-2">
-                                        {['Insider', 'Position', 'Type', 'Shares', 'Value', 'Date'].map((h) => (
-                                            <th key={h} className="px-4 py-2.5 text-left section-title font-medium">{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {insiderStats.filteredTrades.map((trade: any) => {
-                                        const isBuy  = trade.transaction?.toLowerCase().includes('buy') || trade.transaction?.toLowerCase().includes('purchase');
-                                        const isSell = trade.transaction?.toLowerCase().includes('sell') || trade.transaction?.toLowerCase().includes('sale');
-                                        return (
-                                            <tr key={trade.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                                                <td className="px-4 py-2.5 font-medium text-white truncate max-w-[180px]">{trade.insider_name}</td>
-                                                <td className="px-4 py-2.5 text-zinc-500 truncate max-w-[140px]">{trade.position || '—'}</td>
-                                                <td className="px-4 py-2.5">
-                                                    <span className={`badge border ${
-                                                        isBuy  ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/30' :
-                                                        isSell ? 'bg-red-400/10 text-red-400 border-red-400/30' :
-                                                                 'bg-zinc-700/30 text-zinc-400 border-zinc-700'
-                                                    }`}>{trade.transaction}</span>
-                                                </td>
-                                                <td className="px-4 py-2.5 num text-zinc-300 text-right">{trade.shares?.toLocaleString() ?? '—'}</td>
-                                                <td className="px-4 py-2.5 num text-right font-medium text-white">{trade.value ? fmt.format(trade.value) : '—'}</td>
-                                                <td className="px-4 py-2.5 num text-zinc-500 text-right">
-                                                    {new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </>
-                ) : (
-                    <p className="text-sm text-zinc-600 py-6 text-center">No insider trades on record.</p>
+                    </div>
                 )}
-            </div>
 
-            {/* Footer */}
-            <div className="text-center text-xs text-zinc-700 pb-6">
-                Phaeton Capital Intelligence Platform · Data refreshes every 15 minutes · Not financial advice
-            </div>
+                {recommendationScore && (
+                    <section id="hero" className={`col-span-12 rounded-[20px] overflow-hidden relative min-h-[280px] xl:min-h-[320px] bg-gradient-to-br border border-[#1e1e42] shadow-[0_20px_60px_rgba(0,0,0,0.6)] animate-in ${sig.bgHero}`} 
+                             style={{backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`}}>
+                        
+                        <div className="absolute top-0 left-0 w-full h-full bg-[url('/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 h-full">
+                            {/* Left Col */}
+                            <div className="p-8 xl:p-10 flex flex-col justify-center gap-4 relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] font-mono text-[13px] font-700 tracking-[0.15em] text-white backdrop-blur-md shadow-lg">
+                                        <div className="status-live" />
+                                        {targetKeyword.toUpperCase()}
+                                    </div>
+                                    <span className="badge bg-[#12122e] border border-[#1a1a3a] text-[#9898c0]">EQT</span>
+                                </div>
+                                <div className="text-[15px] text-[#9898c0] font-500 mt-2">Composite Signal Target</div>
+                                
+                                <div className={`font-display text-[64px] xl:text-[80px] font-800 leading-[0.9] tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent animate-hero-enter`} 
+                                     style={{textShadow: `0 0 40px ${sig.shadow}`}}>
+                                    {sig.word}
+                                </div>
+                                
+                                <div className="flex items-center gap-4 mt-2">
+                                    <span className="badge badge-gold">Score: {recommendationScore.composite_score?.toFixed(1)}/100</span>
+                                    {predictionCount > 0 && predictionAccuracy != null && (
+                                        <span className="font-mono text-[12px] text-[#9898c0]">Model Acc: {(predictionAccuracy * 100).toFixed(1)}%</span>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Right Col */}
+                            <div className="p-8 xl:p-10 border-t md:border-t-0 md:border-l border-white/[0.06] flex flex-col gap-6 relative z-10 bg-black/10 backdrop-blur-sm">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">Price</div>
+                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">${fundamentalData?.current_price?.toFixed(2) || '—'}</div>
+                                    </div>
+                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">P/E Ratio</div>
+                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">{fundamentalData?.pe_ratio?.toFixed(1) || '—'}</div>
+                                    </div>
+                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">Mkt Cap</div>
+                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">{fundamentalData?.market_cap ? `${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—'}</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-1 flex items-center justify-center">
+                                    {recommendationScore.confidence != null && (
+                                        <ConfidenceGauge value={recommendationScore.confidence * 100} colors={sig.gauge} />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* ── FUNDAMENTALS ────────────────────────────────────────────── */}
+                {fundamentalData && (
+                    <section id="fundamentals" className="col-span-12 scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                <DollarSign className="w-3.5 h-3.5 text-indigo-400" />
+                            </div>
+                            <span className="section-title">Fundamental Data</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5 mb-5">
+                            <Tile label="Price Target" value={fundamentalData.target_price ? `$${fundamentalData.target_price.toFixed(2)}` : '—'} variant="gold" icon={Target} />
+                            <Tile label="52W High" value={fundamentalData.high_52_week ? `$${fundamentalData.high_52_week.toFixed(2)}` : '—'} variant="bull" icon={ChevronUp} />
+                            <Tile label="52W Low" value={fundamentalData.low_52_week ? `$${fundamentalData.low_52_week.toFixed(2)}` : '—'} variant="bear" icon={ChevronDown} />
+                            <Tile label="Analyst View" value={fundamentalData.recommendation || '—'} variant={fundamentalData.recommendation?.includes('buy') ? 'bull' : 'gold'} icon={Award} />
+                            
+                            {fundamentalData.target_low_price && fundamentalData.target_high_price && (
+                                <div className="col-span-2 card p-5 flex flex-col justify-center relative overflow-hidden group" data-animate-child>
+                                    <div className="section-title mb-4">Analyst Target Range</div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="font-mono text-[13px] text-[#9898c0]">${fundamentalData.target_low_price.toFixed(2)}</span>
+                                        <div className="flex-1 h-2 rounded-full bg-[#12122e] relative border border-[#1a1a3a]">
+                                            <div className="absolute top-0 bottom-0 left-1/4 right-1/4 bg-indigo-500/20 rounded-full" />
+                                            {fundamentalData.target_price && fundamentalData.current_price && (
+                                                <>
+                                                    {/* Mean line */}
+                                                    <div className="absolute top-[-4px] bottom-[-4px] w-0.5 bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)] z-10" 
+                                                         style={{left: `${(fundamentalData.target_price - fundamentalData.target_low_price) / (fundamentalData.target_high_price - fundamentalData.target_low_price) * 100}%`}} />
+                                                    {/* Current Price Dot */}
+                                                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.15)] z-20"
+                                                         style={{left: `${Math.max(0, Math.min(100, (fundamentalData.current_price - fundamentalData.target_low_price) / (fundamentalData.target_high_price - fundamentalData.target_low_price) * 100))}%`}} />
+                                                </>
+                                            )}
+                                        </div>
+                                        <span className="font-mono text-[13px] text-[#fcd97a]">${fundamentalData.target_high_price.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                )}
+
+                {/* ── TECHNICAL ANALYSIS ──────────────────────────────────────── */}
+                {technicalIndicators && (
+                    <section id="technical" className="col-span-12 scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
+                            </div>
+                            <span className="section-title">Technical Analysis</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            {technicalIndicators.technical_signal && (
+                                <span className={`badge ${technicalIndicators.technical_signal==='BULLISH' ? 'badge-bull' : 'badge-bear'}`}>
+                                    {technicalIndicators.technical_signal}
+                                </span>
+                            )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5 mb-5">
+                            <Tile label="RSI (14)" value={technicalIndicators.rsi_14?.toFixed(1) || '—'} variant={technicalIndicators.rsi_14 < 30 ? 'bull' : technicalIndicators.rsi_14 > 70 ? 'bear' : 'gold'} icon={Activity} />
+                            <Tile label="MACD" value={technicalIndicators.macd?.toFixed(3) || '—'} variant={(technicalIndicators.macd || 0) > 0 ? 'bull' : 'bear'} icon={TrendingUp} />
+                            <Tile label="SMA 50" value={technicalIndicators.sma_50 ? `$${technicalIndicators.sma_50.toFixed(2)}` : '—'} variant="gold" icon={ArrowUpRight} />
+                            <Tile label="SMA 200" value={technicalIndicators.sma_200 ? `$${technicalIndicators.sma_200.toFixed(2)}` : '—'} variant="gold" icon={ArrowUpRight} />
+                            <Tile label="EMA 12" value={technicalIndicators.ema_12 ? `$${technicalIndicators.ema_12.toFixed(2)}` : '—'} variant="gold" />
+                            <Tile label="ATR (14)" value={technicalIndicators.atr_14 ? `$${technicalIndicators.atr_14.toFixed(2)}` : '—'} variant="gold" />
+                        </div>
+                    </section>
+                )}
+
+                {/* ── MACRO & QUANTITATIVE ────────────────────────────────────── */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    {/* QUANT */}
+                    {quantMetrics && (
+                        <section id="quant" className="scroll-mt-20" data-animate>
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                    <Bot className="w-3.5 h-3.5 text-indigo-400" />
+                                </div>
+                                <span className="section-title">Quantitative Models</span>
+                                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            </div>
+                            <div className="card p-6 flex flex-col gap-2">
+                                <ScoreBar label="Hurst Exponent" value={quantMetrics.hurst_exponent} variant={(quantMetrics.hurst_exponent||0)>0.5 ? 'bull' : 'gold'} thick />
+                                <ScoreBar label="Kelly Allocation (%)" value={quantMetrics.kelly_fraction ? quantMetrics.kelly_fraction*100 : null} variant="gold" thick />
+                                <ScoreBar label="Granger p-value (x100)" value={quantMetrics.granger_p_value ? quantMetrics.granger_p_value*100 : null} variant={quantMetrics.granger_p_value < 0.05 ? 'bull' : 'bear'} thick />
+                                <ScoreBar label="Sent ↔ Price ρ (x100)" value={quantMetrics.sentiment_price_corr ? quantMetrics.sentiment_price_corr*100 : null} variant="gold" thick />
+                                
+                                <div className="mt-4 pt-4 border-t border-[#1a1a3a] grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="section-title mb-1">HMM Regime</div>
+                                        <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 1 ? 'text-emerald-400' : 'text-red-400'}`}>{quantMetrics.hmm_state === 1 ? 'Bull Market' : 'Bear Market'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="section-title mb-1">Stationarity</div>
+                                        <div className={`font-mono text-xl font-700 ${quantMetrics.adf_stationary ? 'text-emerald-400' : 'text-red-400'}`}>{quantMetrics.adf_stationary ? 'Stationary' : 'Non-Stationary'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* MACRO */}
+                    {macroIndicators && (
+                        <section id="macro" className="scroll-mt-20" data-animate>
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                                </div>
+                                <span className="section-title">Macro Environment</span>
+                                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Tile label="VIX Index" value={macroIndicators.vix?.toFixed(2) || '—'} variant={macroIndicators.vix > 30 ? 'bear' : macroIndicators.vix < 15 ? 'bull' : 'gold'} />
+                                <Tile label="10Y Yield" value={macroIndicators.ten_year_yield ? `${macroIndicators.ten_year_yield.toFixed(2)}%` : '—'} variant="gold" />
+                                <Tile label="Fear & Greed" value={macroIndicators.fear_greed_index?.toFixed(0) || '—'} variant={macroIndicators.fear_greed_index > 60 ? 'bull' : macroIndicators.fear_greed_index < 40 ? 'bear' : 'gold'} />
+                                <Tile label="1M ETF Return" value={macroIndicators.sector_etf_momentum_1m ? `${(macroIndicators.sector_etf_momentum_1m*100).toFixed(1)}%` : '—'} variant={macroIndicators.sector_etf_momentum_1m >= 0 ? 'bull' : 'bear'} />
+                            </div>
+                        </section>
+                    )}
+                </div>
+
+                {/* ── CHARTS ──────────────────────────────────────────────────── */}
+                <section id="sentiment" className="col-span-12 scroll-mt-20" data-animate>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {/* Sentiment timeline */}
+                        <div className="card card-accent relative overflow-hidden p-0 w-full" data-animate-child>
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
+                                <div>
+                                    <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Sentiment Timeline</h3>
+                                    <p className="text-[11px] text-[#5d5d8a] mt-0.5">Real-time aggregate scoring</p>
+                                </div>
+                                <div className="badge badge-gold"><div className="status-live mr-1" /> LIVE</div>
+                            </div>
+                            <div className="px-4 pb-4 pt-6 h-[260px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={recentSentiments} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%"   stopColor="#f59e0b" stopOpacity={0.35} />
+                                                <stop offset="40%"  stopColor="#f59e0b" stopOpacity={0.12} />
+                                                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="1 8" stroke="#1e1e42" vertical={false} />
+                                        <XAxis dataKey="timeLabel" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} tickMargin={8} />
+                                        <YAxis dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} orientation="right" width={35} domain={[-1,1]} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1, strokeOpacity: 0.3 }} />
+                                        <ReferenceArea y1={0.6} y2={1.0} fill="#0ecf8a" fillOpacity={0.04} />
+                                        <ReferenceArea y1={-1.0} y2={-0.6} fill="#f5495a" fillOpacity={0.04} />
+                                        <ReferenceLine y={0.6} stroke="#0ecf8a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopRight', style: { fill: '#0ecf8a', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                        <ReferenceLine y={-0.6} stroke="#f5495a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomRight', style: { fill: '#f5495a', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                        <Area type="monotone" dataKey="sentiment" stroke="#f59e0b" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#f59e0b', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Distribution chart */}
+                        {gaussianData && (
+                            <div className="card card-accent relative overflow-hidden p-0 w-full" data-animate-child>
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
+                                    <div>
+                                        <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Opinion Distribution</h3>
+                                        <p className="text-[11px] text-[#5d5d8a] mt-0.5">Gaussian vs KDE</p>
+                                    </div>
+                                    <div className={`badge ${gaussianData.mean > 0 ? 'badge-bull' : 'badge-bear'}`}>
+                                        μ {gaussianData.mean.toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="px-4 pb-4 pt-6 h-[260px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={gaussianData.curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="distrGrad" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#f5495a" />
+                                                    <stop offset="50%" stopColor="#f59e0b" />
+                                                    <stop offset="100%" stopColor="#0ecf8a" />
+                                                </linearGradient>
+                                                <linearGradient id="distrVGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                                                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="1 8" stroke="#1e1e42" vertical={false} />
+                                            <XAxis dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} tickMargin={8} domain={[-1,1]} type="number" />
+                                            <YAxis hide />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                                            <ReferenceLine x={gaussianData.mean} stroke={gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a'} strokeWidth={2} label={{ value: 'μ', position: 'top', style: { fill: gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a', fontSize: 12, fontWeight: 'bold' } }} />
+                                            <ReferenceArea x1={gaussianData.mean - gaussianData.stdDev} x2={gaussianData.mean + gaussianData.stdDev} fill="#f59e0b" fillOpacity={0.06} />
+                                            <Area type="monotone" dataKey="density" stroke="url(#distrGrad)" strokeWidth={2.5} fill="url(#distrVGrad)" dot={false} isAnimationActive={true} />
+                                            {/* KDE if available */}
+                                            {quantMetrics?.kde_data && (
+                                              <Area type="monotone" data={quantMetrics.kde_data} dataKey="density" stroke="#6366f1" strokeWidth={1} fill="none" dot={false} strokeDasharray="4 4" />
+                                            )}
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {/* ── INSIDER TABLE ───────────────────────────────────────────── */}
+                {insiderTrades?.length > 0 && (
+                    <section id="insider" className="col-span-12 scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
+                            </div>
+                            <span className="section-title">Insider Flow</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                        </div>
+                        
+                        <div className="bg-[#0d0d24] rounded-2xl border border-[#1e1e42] overflow-hidden shadow-card" data-animate-child>
+                            <div className="px-6 py-4 flex items-center justify-between border-b border-[#1a1a3a] bg-[#08081a]">
+                                <h3 className="section-title">Recent Transactions</h3>
+                                <div className="flex gap-2">
+                                    {(['all', 'buy', 'sell'] as const).map((f) => (
+                                        <button key={f} onClick={() => setTradeFilter(f)}
+                                            className={`px-4 py-1.5 text-[11px] font-600 rounded-lg uppercase tracking-wider transition-all ${tradeFilter === f ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' : 'text-[#5d5d8a] hover:text-[#9898c0] border border-transparent'}`}>
+                                            {f}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left data-table">
+                                    <thead className="bg-[#0a0b12] border-b border-[#1a1a3a]">
+                                        <tr>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Insider</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Type</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Shares</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Value</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04]">
+                                        {insiderStats.filteredTrades.slice(0, 10).map((trade: any, idx: number) => {
+                                            const isBuy = trade.transaction?.toLowerCase().includes('buy') || trade.transaction?.toLowerCase().includes('purchase');
+                                            return (
+                                                <tr key={trade.id} className={idx % 2 === 0 ? 'bg-[#0d0d24]' : 'bg-[#0a0b10]'}>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-[#e2e8f0] font-500 text-[13px]">{trade.insider_name}</div>
+                                                        <div className="text-[11px] text-[#5d5d8a] truncate max-w-[200px] mt-0.5">{trade.position || '—'}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`badge ${isBuy ? 'badge-bull' : 'badge-bear'}`}>{trade.transaction}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#9898c0]">
+                                                        {trade.shares?.toLocaleString() || '—'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#fcd97a]">
+                                                        {trade.value ? fmt.format(trade.value) : '—'}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#5d5d8a]">
+                                                        {new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+                )}
+                
+            </main>
         </div>
     );
 }

@@ -80,14 +80,6 @@ export default async function Page(
         upperBound = bootstrapMeans[Math.floor(numBootstraps * 0.975)];
     }
 
-    // Use Bayesian CI if available, otherwise fall back to bootstrap
-    const bayesPosterior = (quantMetrics as any)?.bayes_posterior;
-    const bayesStd = (quantMetrics as any)?.bayes_std;
-    if (bayesPosterior != null && bayesStd != null) {
-        // Use Bayesian credible interval (95% = ±1.96 * std)
-        lowerBound = bayesPosterior - 1.96 * bayesStd;
-        upperBound = bayesPosterior + 1.96 * bayesStd;
-    }
 
     // T-test (One-sample) against 0 (neutral) approximation
     let pValue = 1;
@@ -181,6 +173,15 @@ export default async function Page(
         }
     } catch (e) {
         console.error("Failed to fetch USDSEK rate from open API:", e);
+    }
+
+    // Use Bayesian CI if available, otherwise fall back to bootstrap
+    const bayesPosterior = (quantMetrics as any)?.bayes_posterior;
+    const bayesStd = (quantMetrics as any)?.bayes_std;
+    if (bayesPosterior != null && bayesStd != null) {
+        // Use Bayesian credible interval (95% = ±1.96 * std)
+        lowerBound = bayesPosterior - 1.96 * bayesStd;
+        upperBound = bayesPosterior + 1.96 * bayesStd;
     }
 
     return (
