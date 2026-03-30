@@ -98,7 +98,7 @@ function Tile({ label, value, sub, variant = 'gold', icon: Icon }: any) {
 
 // ─── Score Bar ────────────────────────────────────────────────────────────────
 function ScoreBar({ label, value, variant = 'gold', thick = false }: { label: string; value: number | null; variant?: 'bull'|'bear'|'gold'; thick?: boolean }) {
-    const pct = value ?? 0;
+    const pct = Math.max(0, Math.min(100, value ?? 0));
     const barClass = `score-bar-${variant} ${thick ? 'score-bar-thick' : ''}`;
     const txtClass = variant === 'bull' ? '#0ecf8a' : variant === 'bear' ? '#f5495a' : '#f0b429';
     return (
@@ -251,7 +251,10 @@ export default function DashboardClient({
         return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
     }, [searchQuery, isCommandOpen]);
 
-    const sig = getSignal(recommendationScore?.signal);
+    const activeRec = recommendationScores
+        ? (selectedHorizon === 15 ? recommendationScores.h15 : selectedHorizon === 30 ? recommendationScores.h30 : recommendationScores.h90) ?? recommendationScore
+        : recommendationScore;
+    const sig = getSignal(activeRec?.signal);
 
     const insiderStats = useMemo(() => {
         if (!insiderTrades?.length) return { buyVolume: 0, sellVolume: 0, netVolume: 0, chartData: [], filteredTrades: [] };
@@ -454,7 +457,7 @@ export default function DashboardClient({
                 )}
 
                 {recommendationScore && (
-                    <section id="hero" className={`col-span-12 rounded-[20px] overflow-hidden relative min-h-[280px] xl:min-h-[320px] bg-gradient-to-br border border-[#1e1e42] shadow-[0_20px_60px_rgba(0,0,0,0.6)] animate-in ${sig.bgHero}`} 
+                    <section id="hero" className={`col-span-12 rounded-[20px] overflow-hidden relative min-h-[280px] xl:min-h-[320px] bg-gradient-to-br border border-[#1e1e42] shadow-[0_20px_60px_rgba(0,0,0,0.6)] animate-in transition-all duration-500 ${sig.bgHero}`}
                              style={{backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`}}>
                         
                         <div className="absolute top-0 left-0 w-full h-full bg-[url('/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
@@ -471,16 +474,30 @@ export default function DashboardClient({
                                 </div>
                                 <div className="text-[15px] text-[#9898c0] font-500 mt-2">Composite Signal Target</div>
 
-                                {/* Horizon tab pills */}
+                                {/* Horizon tab pills + mini comparison */}
                                 {recommendationScores && (
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        {([15, 30, 90] as const).map(h => (
-                                            <button
-                                                key={h}
-                                                onClick={() => setSelectedHorizon(h)}
-                                                className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#5d5d8a] hover:border-white/20 hover:text-[#9898c0]'}`}
-                                            >{h}D</button>
-                                        ))}
+                                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                        <div className="flex items-center gap-1.5">
+                                            {([15, 30, 90] as const).map(h => (
+                                                <button
+                                                    key={h}
+                                                    onClick={() => setSelectedHorizon(h)}
+                                                    className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#5d5d8a] hover:border-white/20 hover:text-[#9898c0]'}`}
+                                                >{h}D</button>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] font-mono text-[#5d5d8a]">
+                                            {(['h15', 'h30', 'h90'] as const).map((k, i) => {
+                                                const r = recommendationScores[k];
+                                                const s = getSignal(r?.signal);
+                                                return r ? (
+                                                    <span key={k} className="flex items-center gap-1">
+                                                        <span className="text-[#3d3d6a]">{[15,30,90][i]}d</span>
+                                                        <span style={{ color: s.shadow.replace('0.5)', '1)').replace('0.6)', '1)') }}>{r.composite_score?.toFixed(0)}</span>
+                                                    </span>
+                                                ) : null;
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                                 
@@ -488,17 +505,17 @@ export default function DashboardClient({
                                      style={{textShadow: `0 0 40px ${sig.shadow}`}}>
                                     {sig.word}
                                 </div>
-                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#5d5d8a] mt-1">15-Day Outlook</div>
-                                
+                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#5d5d8a] mt-1">{selectedHorizon}-Day Outlook</div>
+
                                 <div className="flex items-center gap-4 mt-2">
-                                    <span className="badge badge-gold">Score: {recommendationScore.composite_score?.toFixed(1)}/100 · 15d</span>
+                                    <span className="badge badge-gold">Score: {activeRec?.composite_score?.toFixed(1)}/100 · {selectedHorizon}d</span>
                                     {predictionCount > 0 && predictionAccuracy != null && (
                                         <span className="font-mono text-[12px] text-[#9898c0]">Model Acc: {(predictionAccuracy * 100).toFixed(1)}%</span>
                                     )}
                                 </div>
-                                {recommendationScore.narrative && (
+                                {activeRec?.narrative && (
                                     <p className="text-[13px] leading-[1.7] text-[#9898c0] mt-2 max-w-[480px] italic border-l-2 border-white/10 pl-3">
-                                        {recommendationScore.narrative}
+                                        {activeRec.narrative}
                                     </p>
                                 )}
                             </div>
@@ -521,8 +538,8 @@ export default function DashboardClient({
                                 </div>
                                 
                                 <div className="flex-1 flex items-center justify-center">
-                                    {recommendationScore.confidence != null && (
-                                        <ConfidenceGauge value={recommendationScore.confidence * 100} colors={sig.gauge} />
+                                    {activeRec?.confidence != null && (
+                                        <ConfidenceGauge value={activeRec.confidence * 100} colors={sig.gauge} />
                                     )}
                                 </div>
                             </div>
@@ -630,14 +647,16 @@ export default function DashboardClient({
                             </div>
                             <div className="card p-6 flex flex-col gap-2">
                                 <ScoreBar label="Hurst Exponent" value={quantMetrics.hurst_exponent} variant={(quantMetrics.hurst_exponent||0)>0.5 ? 'bull' : 'gold'} thick />
-                                <ScoreBar label="Kelly Allocation (%)" value={quantMetrics.kelly_fraction ? quantMetrics.kelly_fraction*100 : null} variant="gold" thick />
+                                <ScoreBar label="Kelly Allocation (%)" value={quantMetrics.kelly_fraction != null ? Math.max(-100, Math.min(100, quantMetrics.kelly_fraction * 100)) : null} variant={quantMetrics.kelly_fraction != null && quantMetrics.kelly_fraction < 0 ? 'bear' : 'gold'} thick />
                                 <ScoreBar label="Granger p-value (x100)" value={quantMetrics.granger_p_value ? quantMetrics.granger_p_value*100 : null} variant={quantMetrics.granger_p_value < 0.05 ? 'bull' : 'bear'} thick />
                                 <ScoreBar label="Sent ↔ Price ρ (x100)" value={quantMetrics.sentiment_price_corr ? quantMetrics.sentiment_price_corr*100 : null} variant="gold" thick />
                                 
                                 <div className="mt-4 pt-4 border-t border-[#1a1a3a] grid grid-cols-2 gap-4">
                                     <div>
                                         <div className="section-title mb-1">HMM Regime</div>
-                                        <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 1 ? 'text-emerald-400' : 'text-red-400'}`}>{quantMetrics.hmm_state === 1 ? 'Bull Market' : 'Bear Market'}</div>
+                                        <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 2 ? 'text-emerald-400' : quantMetrics.hmm_state === 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                                            {quantMetrics.hmm_state === 2 ? 'Bull' : quantMetrics.hmm_state === 0 ? 'Bear' : quantMetrics.hmm_state === 1 ? 'Neutral' : '—'}
+                                        </div>
                                     </div>
                                     <div>
                                         <div className="section-title mb-1">Stationarity</div>
@@ -973,8 +992,8 @@ export default function DashboardClient({
                             // ── Technical analysis text ────────────────────────────
                             let technicalText = '';
                             if (technicalIndicators) {
-                                const rsi  = technicalIndicators.rsi;
-                                const macd = technicalIndicators.macd_signal;
+                                const rsi  = technicalIndicators.rsi_14;
+                                const macdHist = technicalIndicators.macd_histogram;
                                 const tech = technicalIndicators.technical_signal;
 
                                 const rsiText = rsi != null
@@ -982,8 +1001,8 @@ export default function DashboardClient({
                                     : rsi < 30 ? `RSI of ${rsi.toFixed(0)} signals an oversold market and a potential buying opportunity.`
                                     : `RSI of ${rsi.toFixed(0)} is neutral and provides no clear directional signal.`
                                     : '';
-                                const macdText = macd
-                                    ? macd === 'BULLISH' ? 'MACD crossover is positive, confirming upward momentum.' : 'MACD crossover is negative, suggesting fading momentum.'
+                                const macdText = macdHist != null
+                                    ? macdHist > 0 ? 'MACD histogram is positive, confirming upward momentum.' : 'MACD histogram is negative, suggesting fading momentum.'
                                     : '';
                                 const techText = tech
                                     ? `Overall technical signal: ${tech === 'BULLISH' ? 'BULLISH – price action supports a positive view' : tech === 'BEARISH' ? 'BEARISH – technical patterns argue for caution' : 'NEUTRAL – no clear direction emerges'}.`
@@ -1203,7 +1222,7 @@ export default function DashboardClient({
                             </div>
                             <span className="section-title">Prediction Audit Trail</span>
                             <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className="badge badge-gold">15-Day Lookback</span>
+                            <span className="badge badge-gold">25 Most Recent</span>
                         </div>
 
                         {/* Stats bar */}
@@ -1248,11 +1267,12 @@ export default function DashboardClient({
                                         <tr>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Date</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Signal</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Horizon</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Score</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Entry</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Exit (15d)</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Exit</th>
                                             <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Return</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Outcome (15d)</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Outcome</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.04]">
@@ -1269,6 +1289,9 @@ export default function DashboardClient({
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}>{pred.signal.replace('_', ' ')}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="font-mono text-[11px] text-[#5d5d8a] border border-[#1a1a3a] px-2 py-0.5 rounded">{pred.horizon ?? 15}d</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#9898c0]">
                                                         {pred.composite_score?.toFixed(1) ?? '—'}
@@ -1287,8 +1310,8 @@ export default function DashboardClient({
                                                         ) : '—'}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className={`badge ${pred.outcome === 'CORRECT' ? 'badge-bull' : 'badge-bear'}`}>
-                                                            {pred.outcome}
+                                                        <span className={`badge ${pred.outcome === 'CORRECT' ? 'badge-bull' : pred.outcome === 'INCORRECT' ? 'badge-bear' : 'badge-hold'}`}>
+                                                            {pred.outcome ?? 'PENDING'}
                                                         </span>
                                                     </td>
                                                 </tr>

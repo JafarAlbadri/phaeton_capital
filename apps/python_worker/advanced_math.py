@@ -9,14 +9,8 @@ from hmmlearn import hmm
 import traceback
 import re
 
-def main():
+def process_quant(payload):
     try:
-        input_data = sys.stdin.read()
-        if not input_data:
-            print(json.dumps({"error": "No input data provided"}))
-            return
-
-        payload = json.loads(input_data)
         ticker_symbol = payload.get("ticker", "")
         sentiments_raw = payload.get("sentiments", [])
 
@@ -507,3 +501,18 @@ def main():
     except Exception as e:
         import traceback
         return {"error": str(e), "traceback": traceback.format_exc()}
+
+def main():
+    try:
+        input_data = sys.stdin.read()
+        if not input_data:
+            print(json.dumps({"error": "No input data provided"}))
+            return
+        payload = json.loads(input_data)
+        result = process_quant(payload)
+        print(json.dumps(result))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+
+if __name__ == "__main__":
+    main()

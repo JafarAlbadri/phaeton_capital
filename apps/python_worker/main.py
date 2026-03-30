@@ -266,3 +266,29 @@ async def crosslist_endpoint(ticker: str):
     except Exception as e:
         return {"error": str(e)}
 
+
+@app.get("/search")
+async def search_endpoint(q: str = ""):
+    """Ticker search: company name or partial ticker → ranked equity results."""
+    if not q or len(q.strip()) < 1:
+        return []
+    try:
+        import yfinance as yf
+        search = yf.Search(q.strip(), max_results=8, news_count=0)
+        quotes = getattr(search, 'quotes', None) or []
+        results = []
+        for item in quotes:
+            qt = item.get("quoteType", "")
+            if qt not in ("EQUITY", "ETF"):
+                continue
+            results.append({
+                "symbol": item.get("symbol", ""),
+                "shortname": item.get("shortname") or item.get("longname") or item.get("symbol", ""),
+                "exchange": item.get("exchange", ""),
+                "quoteType": qt,
+            })
+            if len(results) >= 6:
+                break
+        return results
+    except Exception:
+        return []

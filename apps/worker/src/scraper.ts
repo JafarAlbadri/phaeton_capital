@@ -110,8 +110,7 @@ export async function scrapeReddit(keyword: string, limit = 100): Promise<Scrape
                 author_karma: authorData.karma,
                 account_age_days: authorData.ageDays,
                 post_timestamp: new Date(data.created_utc * 1000),
-                content: data.title + "
-" + (data.selftext || ''),
+                content: data.title + "\n" + (data.selftext || ''),
             };
         }).filter((p: ScrapedPost) => p.content.trim().length > 10);
     } catch (error) {

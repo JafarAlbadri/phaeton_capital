@@ -1,6 +1,6 @@
 import { logWrapper } from './logger';
 import { labelSentimentAndDetectManipulation, AiInput } from './ai';
-import { scrapeReddit, scrapeGoogleNews, scrapeYahooFinanceNews, scrapeStockTwits, scrapeEDGAR, scrapeOptionsFlow, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
+import { scrapeReddit, scrapePolygonNews, scrapeNewsAPI, scrapeStockTwits, scrapeEDGAR, scrapeOptionsFlow, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
 import { fetchAndSaveTrends } from './trends';
 import { fetchAndSaveCrossListing } from './crosslist';
@@ -251,8 +251,8 @@ async function processPosts(keywordOverride?: string) {
 
     const [redditPosts, newsPosts, yahooPosts, stockTwitsPosts, edgarPosts] = await Promise.all([
         scrapeReddit(currentKeyword, 100),
-        scrapeGoogleNews(currentKeyword),
-        scrapeYahooFinanceNews(currentKeyword),
+        scrapePolygonNews(currentKeyword),
+        scrapeNewsAPI(currentKeyword),
         scrapeStockTwits(currentKeyword),
         scrapeEDGAR(currentKeyword),
     ]);
@@ -321,7 +321,13 @@ async function processPosts(keywordOverride?: string) {
 
     logWrapper.info(`Segmented ${newPosts.length} posts into ${allBatches.length} smart token-sized batches.`);
 
+    let consecutiveAiFailures = 0;
     for (let i = 0; i < allBatches.length; i++) {
+        if (consecutiveAiFailures >= 2) {
+            logWrapper.warn(`[AI Circuit Breaker] Skipping remaining ${allBatches.length - i} batches — quota exhausted this cycle.`);
+            break;
+        }
+
         const batch = allBatches[i];
 
         const aiInputs: AiInput[] = batch.map(p => ({
@@ -335,9 +341,11 @@ async function processPosts(keywordOverride?: string) {
         await new Promise(r => setTimeout(r, delayMs));
 
         if (!aiResults) {
-            logWrapper.info('AI labeling failed or returned null for batch. Skipping.');
+            consecutiveAiFailures++;
+            logWrapper.info(`AI labeling failed or returned null for batch ${i + 1}/${allBatches.length}. Failures: ${consecutiveAiFailures}`);
             continue;
         }
+        consecutiveAiFailures = 0;
 
         const scrape_batch_id = 'batch_' + Date.now();
 

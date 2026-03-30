@@ -34,7 +34,7 @@ services:
       - .:/app
     environment:
       - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
-    command: sh -c "cd packages/db && bun install && bun run push"
+    command: sh -c "cd packages/db && bun install && bun run push || true"
 
   redis:
     image: redis:7-alpine
@@ -63,6 +63,9 @@ services:
       - AI_RPM_LIMIT=${AI_RPM_LIMIT:-4}
       - TARGET_KEYWORD=${TARGET_KEYWORD:-Gold}
       - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHON_WORKER_URL=http://python_worker:8000
     ports:
       - "8080:8080"
 
@@ -77,6 +80,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
       - TARGET_KEYWORD=${TARGET_KEYWORD:-Gold}
+      - PYTHON_WORKER_URL=http://python_worker:8000
+      - WORKER_URL=http://worker:8080
     ports:
       - "3000:3000"
 

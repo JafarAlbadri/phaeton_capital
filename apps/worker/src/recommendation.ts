@@ -77,13 +77,22 @@ async function computeOptimizedWeights(ticker: string, base: Weights): Promise<W
 
 export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 90 = 15): Promise<void> {
     try {
-        const [quant, fundamental, tech, macro, insiders, riskProfile] = await Promise.all([
+        // Horizon-specific sentiment lookback: 15d=7days, 30d=30days, 90d=90days
+        const sentimentLookbackDays = horizon === 15 ? 7 : horizon === 30 ? 30 : 90;
+        const sentimentCutoff = new Date(Date.now() - sentimentLookbackDays * 24 * 60 * 60 * 1000);
+
+        const [quant, fundamental, tech, macro, insiders, riskProfile, recentSentiments] = await Promise.all([
             prisma.quantMetrics.findUnique({ where: { ticker } }),
             prisma.fundamentalData.findUnique({ where: { ticker } }),
             prisma.technicalIndicators.findUnique({ where: { ticker } }),
             prisma.macroIndicators.findUnique({ where: { ticker } }),
             prisma.insiderTrade.findMany({ where: { ticker }, orderBy: { date: 'desc' }, take: 50 }),
             prisma.riskProfile.findUnique({ where: { ticker } }),
+            prisma.sentiment.findMany({
+                where: { ticker, is_manipulation: false, post_timestamp: { gte: sentimentCutoff } },
+                select: { sentiment: true, confidence: true },
+                take: 500,
+            }),
         ]);
 
         // Options flow (optional — may not exist yet)
@@ -95,15 +104,29 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         const baseWeights = selectRegimeWeights(quant?.hmm_state, macro?.vix);
         const WEIGHTS = await computeOptimizedWeights(ticker, baseWeights);
 
-        // --- Sentiment Score ---
+        // --- Sentiment Score — window-weighted by horizon ---
         let sentimentScore = 50;
-        if (quant?.bayes_posterior != null) sentimentScore = clamp((quant.bayes_posterior + 1) * 50);
+        if (recentSentiments.length > 0) {
+            // Weighted mean of recent sentiment (confidence-weighted)
+            let wSum = 0, wTotal = 0;
+            for (const s of recentSentiments) {
+                const w = s.confidence || 0.1;
+                wSum += s.sentiment * w;
+                wTotal += w;
+            }
+            if (wTotal > 0) sentimentScore = clamp(((wSum / wTotal) + 1) * 50);
+        } else if (quant?.bayes_posterior != null) {
+            // Fall back to Bayesian posterior if no raw sentiment in window
+            sentimentScore = clamp((quant.bayes_posterior + 1) * 50);
+        }
 
         // Options flow nudge on sentiment
         if (optionsFlow?.put_call_ratio != null) {
             const pcr = optionsFlow.put_call_ratio;
             if (pcr < 0.7) sentimentScore = clamp(sentimentScore + 5);
             else if (pcr > 1.3) sentimentScore = clamp(sentimentScore - 5);
+        }
+
         // Google Trends nudge on sentiment
         const trendsScore = (quant as any)?.trends_score as number | null | undefined;
         if (trendsScore != null) {
@@ -217,13 +240,18 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         const riskOverride = riskProfile?.overall_risk_rating === 5 && (signal === 'BUY' || signal === 'STRONG_BUY');
         const finalSignal = riskOverride ? 'HOLD' : signal;
 
+        // Confidence: data coverage × sentiment freshness
         let dataSources = 0;
         if (quant) dataSources++;
         if (fundamental) dataSources++;
         if (tech) dataSources++;
         if (macro) dataSources++;
         if (insiders.length > 0) dataSources++;
-        const confidence = dataSources / 5;
+        const dataSourceScore = dataSources / 5;
+        // Penalise if no sentiment data in the horizon window
+        const sentimentFreshness = recentSentiments.length > 10 ? 1.0
+            : recentSentiments.length > 0 ? 0.5 + (recentSentiments.length / 20) : 0.3;
+        const confidence = dataSourceScore * sentimentFreshness;
 
         // Adjust Kelly lookback and prediction resolution based on horizon
         const resolutionDays = horizon;

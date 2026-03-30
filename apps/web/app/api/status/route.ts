@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
       select: { createdAt: true }
     });
 
-    const rec = await prisma.recommendationScore.findUnique({
-      where: { ticker },
+    const rec = await (prisma.recommendationScore as any).findUnique({
+      where: { ticker_horizon: { ticker, horizon: 15 } },
       select: { signal: true, composite_score: true, updatedAt: true }
     });
 

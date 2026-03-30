@@ -191,14 +191,14 @@ export default async function Page(
     const correctPredictions = predictionRecords.filter(p => p.outcome === 'CORRECT').length;
     const predictionAccuracy = totalPredictions > 0 ? correctPredictions / totalPredictions : null;
 
-    // Prediction audit trail (last 25 resolved predictions with returns)
+    // Prediction audit trail (last 25 records — resolved + pending)
     const predictionHistory = await prisma.predictionRecord.findMany({
-        where: { ticker: targetKeyword, outcome: { in: ['CORRECT', 'INCORRECT'] } },
+        where: { ticker: targetKeyword },
         orderBy: { createdAt: 'desc' },
         take: 25,
         select: {
             id: true, signal: true, price_at_signal: true, price_15d_later: true,
-            outcome: true, composite_score: true, createdAt: true,
+            outcome: true, composite_score: true, createdAt: true, horizon: true,
         },
     });
 
@@ -207,12 +207,13 @@ export default async function Page(
     let auditAvgReturn: number | null = null;
     let auditMaxDrawdown: number | null = null;
     let auditSharpe: number | null = null;
-    if (predictionHistory.length > 0) {
-        const returns = predictionHistory
+    const resolvedPredictions = predictionHistory.filter(p => p.outcome === 'CORRECT' || p.outcome === 'INCORRECT');
+    if (resolvedPredictions.length > 0) {
+        const returns = resolvedPredictions
             .filter(p => p.price_at_signal && p.price_15d_later)
             .map(p => (p.price_15d_later! - p.price_at_signal) / p.price_at_signal);
-        const correct = predictionHistory.filter(p => p.outcome === 'CORRECT').length;
-        auditHitRate = correct / predictionHistory.length;
+        const correct = resolvedPredictions.filter(p => p.outcome === 'CORRECT').length;
+        auditHitRate = correct / resolvedPredictions.length;
         if (returns.length > 0) {
             auditAvgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
             auditMaxDrawdown = Math.min(...returns);

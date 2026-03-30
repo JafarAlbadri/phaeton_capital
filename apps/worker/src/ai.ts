@@ -155,11 +155,11 @@ ${inputContent}`;
     } catch (err: any) {
         // Dynamic Fallback Router
         if (err?.message?.includes('429') || err?.status === 429 || err?.message?.includes('Quota')) {
-            logWrapper.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-1.5-flash...`);
+            logWrapper.warn(`[AI Route] Primary model (${aiModel}) hit a Rate Limit/Error (429). Initiating Fallback Route to gemini-2.0-flash...`);
             try {
                 // Instantly re-attempt using the free/fast tier fallback model
                 const response = await ai.models.generateContent({
-                    model: 'gemini-1.5-flash',
+                    model: 'gemini-2.0-flash',
                     contents: inputContent,
                     config: {
                         systemInstruction,
@@ -183,7 +183,7 @@ ${inputContent}`;
                     sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
                     is_manipulation: !!item.is_manipulation,
                     confidence: typeof item.confidence === 'number' ? item.confidence : 0,
-                    ai_model: 'gemini-1.5-flash',
+                    ai_model: 'gemini-2.0-flash',
                     prompt_version: PROMPT_VERSION,
                 }));
             } catch (fallbackErr) {
