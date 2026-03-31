@@ -1,6 +1,25 @@
 import prisma from '@sentiment-crowd/db';
 import DashboardClient from './DashboardClient';
 
+// ── Quant helpers ────────────────────────────────────────────────────────────
+function pearsonCorrelation(xs: number[], ys: number[]): number {
+    const n = xs.length;
+    if (n < 2) return 0;
+    const mx = xs.reduce((a, b) => a + b, 0) / n;
+    const my = ys.reduce((a, b) => a + b, 0) / n;
+    const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
+    const den = Math.sqrt(
+        xs.reduce((s, x) => s + (x - mx) ** 2, 0) *
+        ys.reduce((s, y) => s + (y - my) ** 2, 0)
+    );
+    return den === 0 ? 0 : num / den;
+}
+
+function icTStat(ic: number, n: number): number {
+    if (n < 3 || Math.abs(ic) >= 1) return 0;
+    return ic * Math.sqrt(n - 2) / Math.sqrt(1 - ic ** 2);
+}
+
 // Ensure the page is never cached, completely dynamic
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -33,11 +52,21 @@ export default async function Page(
     let currentSimPrice = basePrice * 0.95; // Start slightly lower
 
     // Prepare data for line chart (reverse for chronological order)
-    const chartData = recentData.reverse().map((item: any) => {
-        // Simple random walk correlated with sentiment
+    recentData.reverse(); // mutates to ascending chronological order
+    const firstTs = recentData[0]?.post_timestamp;
+    const lastTs = recentData[recentData.length - 1]?.post_timestamp;
+    const spansMultipleDays = firstTs && lastTs && firstTs.toDateString() !== lastTs.toDateString();
+
+    // Hoist formatters outside map to avoid per-iteration Intl object allocation
+    const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+    const timeFmt = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const chartData = recentData.map((item: any) => {
         currentSimPrice += (item.sentiment * basePrice * 0.001) + ((Math.random() - 0.5) * basePrice * 0.002);
+        const dateStr = dateFmt.format(item.post_timestamp);
+        const timeLabel = spansMultipleDays ? dateStr : `${dateStr} ${timeFmt.format(item.post_timestamp)}`;
         return {
-            timeLabel: new Date(item.post_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timeLabel,
             sentiment: item.sentiment,
             ticker: item.ticker,
             price: currentSimPrice
@@ -224,6 +253,66 @@ export default async function Page(
         }
     }
 
+    // ── Signal Attribution (IC / IR / T-Stat) ──────────────────────────────
+    const icPairs = resolvedPredictions
+        .filter(p => p.price_at_signal && p.price_15d_later && p.composite_score != null)
+        .map(p => ({
+            score: p.composite_score as number,
+            ret: (p.price_15d_later! - p.price_at_signal) / p.price_at_signal,
+        }));
+
+    const ic = icPairs.length >= 5
+        ? pearsonCorrelation(icPairs.map(p => p.score), icPairs.map(p => p.ret))
+        : null;
+
+    // Rolling IC series (window = 10) for IR
+    let ir: number | null = null;
+    if (icPairs.length >= 10) {
+        const windowSize = 10;
+        const icSeries: number[] = [];
+        for (let i = windowSize; i <= icPairs.length; i++) {
+            const window = icPairs.slice(i - windowSize, i);
+            icSeries.push(pearsonCorrelation(window.map(p => p.score), window.map(p => p.ret)));
+        }
+        const icMean = icSeries.reduce((a, b) => a + b, 0) / icSeries.length;
+        const icStd = Math.sqrt(icSeries.reduce((s, v) => s + (v - icMean) ** 2, 0) / icSeries.length);
+        ir = icStd > 0 ? icMean / icStd : null;
+    }
+
+    const tStat = ic !== null ? icTStat(ic, icPairs.length) : null;
+    const icPValue = tStat !== null ? Math.exp(-0.717 * Math.abs(tStat) - 0.416 * tStat ** 2) : null;
+    const icIsSignificant = icPValue !== null && icPValue < 0.05;
+
+    // Win rate by signal type
+    const signalGroups: Record<string, { calls: number; correct: number; returns: number[] }> = {};
+    for (const p of resolvedPredictions) {
+        if (!signalGroups[p.signal]) signalGroups[p.signal] = { calls: 0, correct: 0, returns: [] };
+        signalGroups[p.signal].calls++;
+        if (p.outcome === 'CORRECT') signalGroups[p.signal].correct++;
+        if (p.price_at_signal && p.price_15d_later) {
+            signalGroups[p.signal].returns.push((p.price_15d_later! - p.price_at_signal) / p.price_at_signal);
+        }
+    }
+    const bySignalType = Object.entries(signalGroups).map(([signal, g]) => ({
+        signal,
+        calls: g.calls,
+        hitRate: g.calls > 0 ? g.correct / g.calls : null,
+        avgReturn: g.returns.length > 0 ? g.returns.reduce((a, b) => a + b, 0) / g.returns.length : null,
+    }));
+
+    const signalAttribution = {
+        ic,
+        ir,
+        tStat,
+        pValue: icPValue,
+        isSignificant: icIsSignificant,
+        n: icPairs.length,
+        bySignalType,
+        transferEntropy: (quantMetrics as any)?.transfer_entropy ?? null,
+        grangerP: (quantMetrics as any)?.granger_p_value ?? null,
+        sentimentPriceCorr: (quantMetrics as any)?.sentiment_price_corr ?? null,
+    };
+
     // 5. Fetch USD to SEK Exchange Rate
     let usdSekRate = null;
     try {
@@ -268,6 +357,7 @@ export default async function Page(
             trendsHistory={trendsHistory}
             crossListingData={crossListingData}
             regionalSentiment={regionalSentiment}
+            signalAttribution={signalAttribution}
         />
     );
 }

@@ -86,10 +86,10 @@ function Tile({ label, value, sub, variant = 'gold', icon: Icon }: any) {
                 </div>
                 <div className="flex-1">
                     <div className="section-title mb-1.5">{label}</div>
-                    <div className={`font-mono text-[32px] xl:text-[36px] font-700 leading-none tracking-[-0.02em] transition-transform duration-200 group-hover:scale-[1.02] origin-left ${valClass}`}>
+                    <div className={`font-mono text-[18px] xl:text-[20px] font-700 leading-none tracking-[-0.02em] transition-transform duration-200 group-hover:scale-[1.02] origin-left ${valClass}`}>
                         {value}
                     </div>
-                    {sub && <div className="text-[11px] text-[#5d5d8a] mt-1.5">{sub}</div>}
+                    {sub && <div className="text-[11px] text-[#7878a0] mt-1.5">{sub}</div>}
                 </div>
             </div>
         </div>
@@ -103,10 +103,10 @@ function ScoreBar({ label, value, variant = 'gold', thick = false }: { label: st
     const txtClass = variant === 'bull' ? '#0ecf8a' : variant === 'bear' ? '#f5495a' : '#f0b429';
     return (
         <div className="flex items-center gap-3 py-2 border-b border-[#1a1a3a] last:border-0" data-animate-child>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#5d5d8a] flex-shrink-0" />
-            <span className="text-[12px] font-500 text-[#9898c0] whitespace-nowrap">{label}</span>
-            <div className="flex-1 h-px" style={{background: 'repeating-linear-gradient(90deg,#1e1e42 0px,#1e1e42 2px,transparent 2px,transparent 8px)'}} />
-            <span className="font-mono text-[13px] font-600 min-w-[32px] text-right" style={{color: txtClass}}>{value != null ? value.toFixed(1) : '–'}</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#4a4a7a] flex-shrink-0" />
+            <span className="text-[12px] font-500 text-[#b0b0d0] whitespace-nowrap">{label}</span>
+            <div className="flex-1 h-px" style={{background: 'repeating-linear-gradient(90deg,#2a2a50 0px,#2a2a50 2px,transparent 2px,transparent 8px)'}} />
+            <span className="font-mono text-[13px] font-700 min-w-[36px] text-right" style={{color: txtClass}}>{value != null ? value.toFixed(1) : '–'}</span>
             <div className={`w-28 score-bar-track ${thick ? 'h-[10px]' : ''}`}>
                 <div className={`score-bar-fill ${barClass}`} style={{ width: `${pct}%` }} />
             </div>
@@ -182,7 +182,7 @@ export default function DashboardClient({
     insiderTrades, quantMetrics, technicalIndicators, macroIndicators,
     riskProfile, recommendationScore, recommendationScores,
     predictionAccuracy, predictionCount, predictionHistory, auditStats,
-    trendsHistory, crossListingData, regionalSentiment,
+    trendsHistory, crossListingData, regionalSentiment, signalAttribution,
 }: any) {
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
@@ -308,18 +308,50 @@ export default function DashboardClient({
 
     return (
         <div className="min-h-screen relative text-[#f0efff]">
+
+            {/* ── LOADING OVERLAY ─────────────────────────────────────────── */}
+            {(loading || isPending) && (
+                <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#05050f]/90 backdrop-blur-md">
+                    <div className="flex flex-col items-center gap-6">
+                        {/* Spinning rings */}
+                        <div className="relative w-20 h-20">
+                            <div className="absolute inset-0 rounded-full border-2 border-[#1e1e42]" />
+                            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-400 animate-spin" />
+                            <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-[#f0b429] animate-spin" style={{ animationDuration: '1.4s', animationDirection: 'reverse' }} />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
+                            </div>
+                        </div>
+                        {/* Label */}
+                        <div className="flex flex-col items-center gap-1.5">
+                            <span className="font-mono text-[13px] font-700 tracking-[0.2em] uppercase text-[#f0efff]">
+                                {loading ? `Scanning ${searchQuery.toUpperCase()}` : 'Loading Data'}
+                            </span>
+                            <span className="text-[11px] text-[#9090b8] tracking-wider">Fetching market intelligence...</span>
+                        </div>
+                        {/* Animated dots progress */}
+                        <div className="flex items-center gap-1.5">
+                            {[0, 1, 2, 3, 4].map(i => (
+                                <div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-400/40 animate-pulse"
+                                     style={{ animationDelay: `${i * 150}ms` }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── COMMAND PALETTE ─────────────────────────────────────────── */}
             {isCommandOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20" onClick={() => setIsCommandOpen(false)}>
                     <div className="w-full max-w-2xl bg-[#0d0d24] rounded-2xl border border-[#2d3050] shadow-[0_25px_80px_rgba(0,0,0,0.6)] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center px-4 border-b border-[#1a1a3a]">
-                            <Search className="w-5 h-5 text-[#5d5d8a]" />
+                            <Search className="w-5 h-5 text-[#8080aa]" />
                             <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') triggerScrape(); }}
                                 placeholder="Search ticker or company name..."
-                                className="w-full h-14 bg-transparent border-none outline-none px-4 text-lg text-[#f0efff] placeholder:text-[#5d5d8a] uppercase" />
+                                className="w-full h-14 bg-transparent border-none outline-none px-4 text-lg text-[#f0efff] placeholder:text-[#8080aa] uppercase" />
                             <div className="flex items-center gap-1">
-                                <kbd className="px-2 py-1 bg-[#12122e] rounded text-[10px] text-[#5d5d8a] font-mono border border-[#1a1a3a]">ESC</kbd>
+                                <kbd className="px-2 py-1 bg-[#12122e] rounded text-[10px] text-[#8080aa] font-mono border border-[#1a1a3a]">ESC</kbd>
                             </div>
                         </div>
                         {/* Search results dropdown */}
@@ -330,16 +362,16 @@ export default function DashboardClient({
                                         className="w-full flex items-center gap-4 px-5 py-3 hover:bg-[#12122e] transition-colors text-left group">
                                         <span className="font-mono text-[14px] font-700 text-[#f0efff] w-20 shrink-0">{r.symbol}</span>
                                         <span className="text-[13px] text-[#9898c0] flex-1 truncate group-hover:text-[#f0efff] transition-colors">{r.shortname}</span>
-                                        <span className="text-[10px] font-mono text-[#5d5d8a] border border-[#1a1a3a] px-2 py-0.5 rounded shrink-0">{r.exchange}</span>
+                                        <span className="text-[10px] font-mono text-[#8080aa] border border-[#1a1a3a] px-2 py-0.5 rounded shrink-0">{r.exchange}</span>
                                     </button>
                                 ))}
                             </div>
                         )}
                         {searchLoading && (
-                            <div className="px-5 py-3 text-[12px] text-[#5d5d8a]">Searching...</div>
+                            <div className="px-5 py-3 text-[12px] text-[#9898c0]">Searching...</div>
                         )}
                         {!searchLoading && searchResults.length === 0 && searchQuery.trim().length > 0 && (
-                            <div className="px-5 py-3 text-[12px] text-[#5d5d8a]">No results — try a ticker symbol or full company name</div>
+                            <div className="px-5 py-3 text-[12px] text-[#9898c0]">No results — try a ticker symbol or full company name</div>
                         )}
 
                         {/* Popular fallback when no query */}
@@ -365,19 +397,19 @@ export default function DashboardClient({
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col">
                         <span className="font-display font-800 tracking-[0.15em] text-gradient-gold text-lg leading-none">PHAETON</span>
-                        <span className="text-[10px] tracking-[0.3em] text-[#5d5d8a] font-600">CAPITAL</span>
+                        <span className="text-[10px] tracking-[0.3em] text-[#8080aa] font-600">CAPITAL</span>
                     </div>
                 </div>
                 
                 <div className="flex-1 max-w-lg mx-8 hidden md:block">
                     <button onClick={() => setIsCommandOpen(true)} className="w-full flex items-center gap-3 px-4 h-9 rounded-xl bg-white/[0.03] border border-[#1e1e42] hover:bg-white/[0.05] transition-colors group">
-                        <Search className="w-4 h-4 text-[#5d5d8a] group-hover:text-[#9898c0]" />
-                        <span className="text-sm text-[#5d5d8a] flex-1 text-left uppercase tracking-widest font-mono">
+                        <Search className="w-4 h-4 text-[#8080aa] group-hover:text-[#9898c0]" />
+                        <span className="text-sm text-[#8080aa] flex-1 text-left uppercase tracking-widest font-mono">
                             {targetKeyword || 'Search...'}
                         </span>
                         <div className="flex items-center gap-1">
-                            <Command className="w-3 h-3 text-[#5d5d8a]" />
-                            <span className="text-[10px] font-mono text-[#5d5d8a]">K</span>
+                            <Command className="w-3 h-3 text-[#8080aa]" />
+                            <span className="text-[10px] font-mono text-[#8080aa]">K</span>
                         </div>
                     </button>
                 </div>
@@ -407,6 +439,7 @@ export default function DashboardClient({
                         { icon: Briefcase, label: 'Insider Flow', id: '#insider' },
                         { icon: Award, label: 'Full Analysis', id: '#helhetsanalys' },
                         { icon: Calendar, label: 'Predictions', id: '#predictions' },
+                        { icon: Activity, label: 'Alpha Attribution', id: '#alpha' },
                     ].map((item, i) => (
                         <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
                             <item.icon className="w-4 h-4 shrink-0" />
@@ -482,11 +515,11 @@ export default function DashboardClient({
                                                 <button
                                                     key={h}
                                                     onClick={() => setSelectedHorizon(h)}
-                                                    className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#5d5d8a] hover:border-white/20 hover:text-[#9898c0]'}`}
+                                                    className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#8080aa] hover:border-white/20 hover:text-[#9898c0]'}`}
                                                 >{h}D</button>
                                             ))}
                                         </div>
-                                        <div className="flex items-center gap-2 text-[10px] font-mono text-[#5d5d8a]">
+                                        <div className="flex items-center gap-2 text-[10px] font-mono text-[#8080aa]">
                                             {(['h15', 'h30', 'h90'] as const).map((k, i) => {
                                                 const r = recommendationScores[k];
                                                 const s = getSignal(r?.signal);
@@ -505,7 +538,7 @@ export default function DashboardClient({
                                      style={{textShadow: `0 0 40px ${sig.shadow}`}}>
                                     {sig.word}
                                 </div>
-                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#5d5d8a] mt-1">{selectedHorizon}-Day Outlook</div>
+                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#9898c0] mt-1">{selectedHorizon}-Day Outlook</div>
 
                                 <div className="flex items-center gap-4 mt-2">
                                     <span className="badge badge-gold">Score: {activeRec?.composite_score?.toFixed(1)}/100 · {selectedHorizon}d</span>
@@ -524,16 +557,16 @@ export default function DashboardClient({
                             <div className="p-8 xl:p-10 border-t md:border-t-0 md:border-l border-white/[0.06] flex flex-col gap-6 relative z-10 bg-black/10 backdrop-blur-sm">
                                 <div className="grid grid-cols-3 gap-4">
                                     <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">Price</div>
-                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">${fundamentalData?.current_price?.toFixed(2) || '—'}</div>
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">Price</div>
+                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">${fundamentalData?.current_price?.toFixed(2) || '—'}</div>
                                     </div>
                                     <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">P/E Ratio</div>
-                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">{fundamentalData?.pe_ratio?.toFixed(1) || '—'}</div>
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">P/E Ratio</div>
+                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">{fundamentalData?.pe_ratio?.toFixed(1) || '—'}</div>
                                     </div>
                                     <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#5d5d8a] mb-1 font-600">Mkt Cap</div>
-                                        <div className="text-[24px] font-700 text-slate-100 font-mono tracking-tight">{fundamentalData?.market_cap ? `${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—'}</div>
+                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">Mkt Cap</div>
+                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">{fundamentalData?.market_cap ? `${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—'}</div>
                                     </div>
                                 </div>
                                 
@@ -738,7 +771,7 @@ export default function DashboardClient({
                                         <div className="grid grid-cols-2 gap-2 mb-3">
                                             {dims.map(d => (
                                                 <div key={d.key}>
-                                                    <div className="flex justify-between text-[10px] text-[#5d5d8a] mb-1">
+                                                    <div className="flex justify-between text-[10px] text-[#8080aa] mb-1">
                                                         <span>{d.label}</span><span className="font-mono">{cp[d.key]}</span>
                                                     </div>
                                                     <div className="h-1.5 rounded-full bg-[#12122e] overflow-hidden">
@@ -748,7 +781,7 @@ export default function DashboardClient({
                                             ))}
                                         </div>
                                         {implications.slice(1, 3).map((imp: string, i: number) => (
-                                            <p key={i} className="text-[10px] text-[#5d5d8a] leading-relaxed mb-1">{imp}</p>
+                                            <p key={i} className="text-[10px] text-[#8080aa] leading-relaxed mb-1">{imp}</p>
                                         ))}
                                     </div>
                                 );
@@ -785,7 +818,7 @@ export default function DashboardClient({
                                                 <div className="rounded-md transition-all"
                                                      style={{ height: `${Math.max(4, Math.abs(r.mean_sentiment) * 48)}px`, marginTop: r.mean_sentiment > 0 ? 0 : 'auto', background: r.mean_sentiment > 0.1 ? '#0ecf8a' : r.mean_sentiment < -0.1 ? '#f5495a' : '#f59e0b', opacity: 0.75 }} />
                                             </div>
-                                            <span className="text-[10px] text-[#5d5d8a]">{regionMap[r.region] ?? r.region}</span>
+                                            <span className="text-[10px] text-[#8080aa]">{regionMap[r.region] ?? r.region}</span>
                                             <span className={`text-[10px] font-700 font-mono ${r.mean_sentiment > 0.1 ? 'text-emerald-400' : r.mean_sentiment < -0.1 ? 'text-red-400' : 'text-amber-400'}`}>{r.mean_sentiment.toFixed(2)}</span>
                                         </div>
                                     ))}
@@ -800,7 +833,7 @@ export default function DashboardClient({
                             <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
                                 <div>
                                     <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Sentiment Timeline</h3>
-                                    <p className="text-[11px] text-[#5d5d8a] mt-0.5">Real-time aggregate scoring</p>
+                                    <p className="text-[11px] text-[#9090b8] mt-0.5">Real-time aggregate scoring</p>
                                 </div>
                                 <div className="badge badge-gold"><div className="status-live mr-1" /> LIVE</div>
                             </div>
@@ -836,7 +869,7 @@ export default function DashboardClient({
                                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
                                     <div>
                                         <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Opinion Distribution</h3>
-                                        <p className="text-[11px] text-[#5d5d8a] mt-0.5">Gaussian vs KDE</p>
+                                        <p className="text-[11px] text-[#9090b8] mt-0.5">Gaussian vs KDE</p>
                                     </div>
                                     <div className={`badge ${gaussianData.mean > 0 ? 'badge-bull' : 'badge-bear'}`}>
                                         μ {gaussianData.mean.toFixed(2)}
@@ -897,7 +930,7 @@ export default function DashboardClient({
                                 <div className="flex gap-2">
                                     {(['all', 'buy', 'sell'] as const).map((f) => (
                                         <button key={f} onClick={() => setTradeFilter(f)}
-                                            className={`px-4 py-1.5 text-[11px] font-600 rounded-lg uppercase tracking-wider transition-all ${tradeFilter === f ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' : 'text-[#5d5d8a] hover:text-[#9898c0] border border-transparent'}`}>
+                                            className={`px-4 py-1.5 text-[11px] font-600 rounded-lg uppercase tracking-wider transition-all ${tradeFilter === f ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' : 'text-[#8080aa] hover:text-[#9898c0] border border-transparent'}`}>
                                             {f}
                                         </button>
                                     ))}
@@ -907,11 +940,11 @@ export default function DashboardClient({
                                 <table className="w-full text-left data-table">
                                     <thead className="bg-[#0a0b12] border-b border-[#1a1a3a]">
                                         <tr>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Insider</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Type</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Shares</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Value</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Date</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Insider</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Type</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Shares</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Value</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Date</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.04]">
@@ -921,7 +954,7 @@ export default function DashboardClient({
                                                 <tr key={trade.id} className={idx % 2 === 0 ? 'bg-[#0d0d24]' : 'bg-[#0a0b10]'}>
                                                     <td className="px-6 py-4">
                                                         <div className="text-[#e2e8f0] font-500 text-[13px]">{trade.insider_name}</div>
-                                                        <div className="text-[11px] text-[#5d5d8a] truncate max-w-[200px] mt-0.5">{trade.position || '—'}</div>
+                                                        <div className="text-[11px] text-[#9090b8] truncate max-w-[200px] mt-0.5">{trade.position || '—'}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`badge ${isBuy ? 'badge-bull' : 'badge-bear'}`}>{trade.transaction}</span>
@@ -932,7 +965,7 @@ export default function DashboardClient({
                                                     <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#fcd97a]">
                                                         {trade.value ? fmt.format(trade.value) : '—'}
                                                     </td>
-                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#5d5d8a]">
+                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#9898c0]">
                                                         {new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </td>
                                                 </tr>
@@ -1175,7 +1208,7 @@ export default function DashboardClient({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-3">
-                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#5d5d8a]">Overall Assessment</span>
+                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#9898c0]">Overall Assessment</span>
                                                     <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalWord}</span>
                                                     <span className="font-mono text-[12px] text-[#9898c0]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
                                                 </div>
@@ -1233,28 +1266,28 @@ export default function DashboardClient({
                                     <div className={`font-mono text-[28px] font-700 ${(auditStats.hitRate ?? 0) > 0.6 ? 'text-emerald-400' : (auditStats.hitRate ?? 0) < 0.4 ? 'text-red-400' : 'text-amber-400'}`}>
                                         {auditStats.hitRate != null ? `${(auditStats.hitRate * 100).toFixed(0)}%` : '—'}
                                     </div>
-                                    <div className="text-[11px] text-[#5d5d8a]">correct predictions</div>
+                                    <div className="text-[11px] text-[#9090b8]">correct predictions</div>
                                 </div>
                                 <div className="card p-4 flex flex-col gap-1" data-animate-child>
                                     <div className="section-title">Avg Return</div>
                                     <div className={`font-mono text-[28px] font-700 ${(auditStats.avgReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {auditStats.avgReturn != null ? `${(auditStats.avgReturn * 100).toFixed(2)}%` : '—'}
                                     </div>
-                                    <div className="text-[11px] text-[#5d5d8a]">per 15-day trade</div>
+                                    <div className="text-[11px] text-[#9090b8]">per 15-day trade</div>
                                 </div>
                                 <div className="card p-4 flex flex-col gap-1" data-animate-child>
                                     <div className="section-title">Max Drawdown</div>
                                     <div className="font-mono text-[28px] font-700 text-red-400">
                                         {auditStats.maxDrawdown != null ? `${(auditStats.maxDrawdown * 100).toFixed(2)}%` : '—'}
                                     </div>
-                                    <div className="text-[11px] text-[#5d5d8a]">worst single outcome</div>
+                                    <div className="text-[11px] text-[#9090b8]">worst single outcome</div>
                                 </div>
                                 <div className="card p-4 flex flex-col gap-1" data-animate-child>
                                     <div className="section-title">Signal Sharpe</div>
                                     <div className={`font-mono text-[28px] font-700 ${(auditStats.sharpe ?? 0) > 1 ? 'text-emerald-400' : (auditStats.sharpe ?? 0) < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                                         {auditStats.sharpe != null ? auditStats.sharpe.toFixed(2) : '—'}
                                     </div>
-                                    <div className="text-[11px] text-[#5d5d8a]">return / volatility</div>
+                                    <div className="text-[11px] text-[#9090b8]">return / volatility</div>
                                 </div>
                             </div>
                         )}
@@ -1265,14 +1298,14 @@ export default function DashboardClient({
                                 <table className="w-full text-left data-table">
                                     <thead className="bg-[#0a0b12] border-b border-[#1a1a3a]">
                                         <tr>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Date</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Signal</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Horizon</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Score</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Entry</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Exit</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] text-right">Return</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a]">Outcome</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Date</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Signal</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Horizon</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Score</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Entry</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Exit</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Return</th>
+                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Outcome</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/[0.04]">
@@ -1284,14 +1317,14 @@ export default function DashboardClient({
                                             const isBear = pred.signal === 'STRONG_SELL' || pred.signal === 'SELL';
                                             return (
                                                 <tr key={pred.id} className={idx % 2 === 0 ? 'bg-[#0d0d24]' : 'bg-[#0a0b10]'}>
-                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#5d5d8a]">
+                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#9898c0]">
                                                         {new Date(pred.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}>{pred.signal.replace('_', ' ')}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className="font-mono text-[11px] text-[#5d5d8a] border border-[#1a1a3a] px-2 py-0.5 rounded">{pred.horizon ?? 15}d</span>
+                                                        <span className="font-mono text-[11px] text-[#9090b8] border border-[#1a1a3a] px-2 py-0.5 rounded">{pred.horizon ?? 15}d</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#9898c0]">
                                                         {pred.composite_score?.toFixed(1) ?? '—'}
@@ -1321,6 +1354,209 @@ export default function DashboardClient({
                                 </table>
                             </div>
                         </div>
+                    </section>
+                )}
+
+                {/* ── ALPHA ATTRIBUTION ───────────────────────────────────────── */}
+                {signalAttribution && (
+                    <section id="alpha" className="col-span-12 scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
+                                <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                            </div>
+                            <span className="section-title">Alpha Attribution</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            <span className="badge badge-gold">Institutional Signal Quality</span>
+                        </div>
+
+                        {/* Block A: IC / IR / T-Stat / Causal Lead KPIs */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                            {/* IC */}
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Information Coefficient</div>
+                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ic === null ? 'text-[#9898c0]' : signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.ic !== null ? signalAttribution.ic.toFixed(3) : '—'}
+                                </div>
+                                <div className="text-[11px] text-[#9090b8] mt-1">rank-corr(score, return)</div>
+                                {signalAttribution.ic !== null && (
+                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {signalAttribution.ic > 0.1 ? '✓ Strong predictive power' : signalAttribution.ic > 0 ? '~ Weak signal' : '✗ Negative signal'}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* IR */}
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Information Ratio</div>
+                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#9898c0]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                                    {signalAttribution.ir !== null ? signalAttribution.ir.toFixed(2) : '—'}
+                                </div>
+                                <div className="text-[11px] text-[#9090b8] mt-1">IC / σ(IC) · rolling 10</div>
+                                {signalAttribution.ir !== null && (
+                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {signalAttribution.ir > 1.5 ? '✓ Institutional grade' : signalAttribution.ir > 0.5 ? '~ Developing edge' : '✗ Inconsistent'}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* T-Stat */}
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">T-Statistic</div>
+                                <div className={`font-mono text-[28px] font-700 leading-none flex items-baseline gap-1.5 ${signalAttribution.tStat === null ? 'text-[#9898c0]' : Math.abs(signalAttribution.tStat) > 1.96 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.tStat !== null ? Math.abs(signalAttribution.tStat).toFixed(2) : '—'}
+                                    {signalAttribution.isSignificant && <span className="text-[16px] text-emerald-400">★</span>}
+                                </div>
+                                <div className="text-[11px] text-[#9090b8] mt-1">
+                                    {signalAttribution.pValue !== null ? `p = ${signalAttribution.pValue.toFixed(3)}` : 'insufficient data'}
+                                </div>
+                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.isSignificant ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.isSignificant ? '✓ Statistically significant' : '~ Not yet significant'}
+                                </div>
+                            </div>
+
+                            {/* Causal Lead / Granger */}
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Causal Signal</div>
+                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.grangerP === null ? 'text-[#9898c0]' : signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.grangerP !== null ? (signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)) : '—'}
+                                </div>
+                                <div className="text-[11px] text-[#9090b8] mt-1">Granger p-value</div>
+                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.grangerP !== null && signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.grangerP !== null
+                                        ? signalAttribution.grangerP < 0.05 ? '✓ Sentiment Granger-causes price' : '~ Correlation, not causation'
+                                        : 'Run quant scan for data'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
+                            {/* Block B: Component Score Breakdown */}
+                            {recommendationScore && (
+                                <div className="card p-6" data-animate-child>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="section-title">Component Signal Breakdown</div>
+                                        <span className="text-[10px] font-mono text-[#8080aa]">{targetKeyword?.toUpperCase()} · Current Tick</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        {[
+                                            { label: 'Sentiment', key: 'sentiment_score' },
+                                            { label: 'Technical', key: 'technical_score' },
+                                            { label: 'Fundamental', key: 'fundamental_score' },
+                                            { label: 'Quant Models', key: 'quant_score' },
+                                            { label: 'Insider Flow', key: 'insider_score' },
+                                            { label: 'Macro Env', key: 'macro_score' },
+                                        ].map(({ label, key }) => {
+                                            const val = recommendationScore[key];
+                                            const variant = val > 60 ? 'bull' : val < 40 ? 'bear' : 'gold';
+                                            return <ScoreBar key={key} label={label} value={val ?? null} variant={variant} thick />;
+                                        })}
+                                    </div>
+                                    {signalAttribution.sentimentPriceCorr !== null && (
+                                        <div className="mt-4 pt-4 border-t border-[#1a1a3a] flex items-center gap-3">
+                                            <div className="text-[11px] text-[#9090b8]">Sentiment ↔ Price Correlation</div>
+                                            <div className={`font-mono text-[13px] font-700 ml-auto ${Math.abs(signalAttribution.sentimentPriceCorr) > 0.3 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                {signalAttribution.sentimentPriceCorr.toFixed(3)}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Block C: Win Rate by Signal Type */}
+                            {signalAttribution.bySignalType?.length > 0 && (
+                                <div className="card p-6" data-animate-child>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="section-title">Win Rate by Signal Type</div>
+                                        <span className="text-[10px] font-mono text-[#8080aa]">{signalAttribution.n} resolved predictions</span>
+                                    </div>
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-[#1a1a3a]">
+                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Signal</th>
+                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-center">Calls</th>
+                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Hit Rate</th>
+                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Avg Return</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/[0.04]">
+                                            {(['STRONG_BUY','BUY','HOLD','SELL','STRONG_SELL'] as const).map(sig => {
+                                                const row = signalAttribution.bySignalType.find((r: any) => r.signal === sig);
+                                                if (!row) return null;
+                                                const isBull = sig === 'STRONG_BUY' || sig === 'BUY';
+                                                const isBear = sig === 'SELL' || sig === 'STRONG_SELL';
+                                                const hrColor = row.hitRate > 0.6 ? 'text-emerald-400' : row.hitRate < 0.4 ? 'text-red-400' : 'text-amber-400';
+                                                const retColor = row.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400';
+                                                return (
+                                                    <tr key={sig} className="py-2">
+                                                        <td className="py-2.5">
+                                                            <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}>
+                                                                {sig.replace('_', ' ')}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2.5 text-center font-mono text-[13px] text-[#9898c0]">{row.calls}</td>
+                                                        <td className={`py-2.5 text-right font-mono text-[13px] font-700 ${hrColor}`}>
+                                                            {row.hitRate !== null ? `${(row.hitRate * 100).toFixed(0)}%` : '—'}
+                                                        </td>
+                                                        <td className={`py-2.5 text-right font-mono text-[13px] font-700 ${retColor}`}>
+                                                            {row.avgReturn !== null ? `${row.avgReturn >= 0 ? '+' : ''}${(row.avgReturn * 100).toFixed(2)}%` : '—'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Block D: Transfer Entropy + Granger causality explainer */}
+                        {(signalAttribution.transferEntropy !== null || signalAttribution.grangerP !== null) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5" data-animate-child>
+                                {signalAttribution.transferEntropy !== null && (
+                                    <div className="card p-5 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Zap className="w-3.5 h-3.5 text-amber-400" />
+                                            <div className="section-title">Transfer Entropy</div>
+                                            <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.transferEntropy > 0.02 ? 'text-emerald-400' : signalAttribution.transferEntropy > 0.01 ? 'text-amber-400' : 'text-[#9898c0]'}`}>
+                                                {signalAttribution.transferEntropy.toFixed(4)} bits
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] text-[#9090b8] leading-relaxed">
+                                            {signalAttribution.transferEntropy > 0.02
+                                                ? 'Sentiment flow carries meaningful directional information about future price movement — signal has causal information content above noise threshold.'
+                                                : signalAttribution.transferEntropy > 0.01
+                                                ? 'Moderate information transfer detected. Sentiment provides some predictive content, but signal-to-noise ratio is below institutional threshold.'
+                                                : 'Low information transfer. Sentiment and price are largely independent — treat with caution.'}
+                                        </p>
+                                        <div className="mt-1 h-1.5 rounded-full bg-[#12122e] overflow-hidden">
+                                            <div className="h-full rounded-full score-bar-fill score-bar-gold" style={{ width: `${Math.min(100, signalAttribution.transferEntropy * 2500)}%` }} />
+                                        </div>
+                                    </div>
+                                )}
+                                {signalAttribution.grangerP !== null && (
+                                    <div className="card p-5 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400" />
+                                            <div className="section-title">Granger Causality</div>
+                                            <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : signalAttribution.grangerP < 0.1 ? 'text-amber-400' : 'text-red-400'}`}>
+                                                p = {signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)}
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] text-[#9090b8] leading-relaxed">
+                                            {signalAttribution.grangerP < 0.05
+                                                ? 'Sentiment Granger-causes price with statistical confidence (p < 0.05). Past sentiment scores contain information that predicts future price — beyond what price history alone explains.'
+                                                : signalAttribution.grangerP < 0.1
+                                                ? 'Marginal causality evidence (p < 0.10). Sentiment may lead price but evidence is not yet at the 95% confidence threshold required for institutional claims.'
+                                                : 'Sentiment does not Granger-cause price at current data levels. The relationship is correlational, not causal — price and sentiment move together but neither leads the other.'}
+                                        </p>
+                                        <div className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-700 ${signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${signalAttribution.grangerP < 0.05 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                            {signalAttribution.grangerP < 0.05 ? 'Causal — sentiment leads price' : 'Correlation only'}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </section>
                 )}
 
