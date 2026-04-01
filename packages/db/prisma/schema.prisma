@@ -124,6 +124,7 @@ model QuantMetrics {
   var_99                Float?
   cvar_95               Float?
   trends_score          Float?
+  contrarian_signal     Json?    // { isContrarian, type, confidence, reasons[] }
   updatedAt             DateTime @updatedAt
 
   @@index([ticker])
@@ -266,4 +267,73 @@ model RegionalSentiment {
 
   @@unique([ticker, region])
   @@index([ticker])
+}
+
+// ── Phase 1 New Models ────────────────────────────────────────────────────────
+
+model SentimentVelocity {
+  id          String   @id @default(cuid())
+  ticker      String
+  computedAt  DateTime @default(now())
+  velocity1h  Float
+  velocity6h  Float
+  velocity24h Float
+  accel6h     Float
+  accel24h    Float
+
+  @@index([ticker, computedAt(sort: Desc)])
+}
+
+enum AlertType {
+  SCORE_THRESHOLD
+  REGIME_CHANGE
+  SENTIMENT_SPIKE
+  SCORE_CROSS
+  EARNINGS_APPROACHING
+  VELOCITY_SPIKE
+}
+
+model Alert {
+  id          String     @id @default(cuid())
+  ticker      String
+  type        AlertType
+  threshold   Float?
+  direction   String?
+  horizon     String?
+  active      Boolean    @default(true)
+  lastFired   DateTime?
+  lastScore   Float?
+  cooldownMin Int        @default(60)
+  createdAt   DateTime   @default(now())
+  fired       AlertFired[]
+
+  @@index([ticker])
+}
+
+model AlertFired {
+  id      String   @id @default(cuid())
+  alertId String
+  firedAt DateTime @default(now())
+  payload Json
+  alert   Alert    @relation(fields: [alertId], references: [id])
+
+  @@index([alertId])
+}
+
+model Watchlist {
+  id        String          @id @default(cuid())
+  name      String          @default("My Watchlist")
+  items     WatchlistItem[]
+  createdAt DateTime        @default(now())
+}
+
+model WatchlistItem {
+  id          String    @id @default(cuid())
+  watchlistId String
+  ticker      String
+  addedAt     DateTime  @default(now())
+  notes       String?
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id])
+
+  @@unique([watchlistId, ticker])
 }
