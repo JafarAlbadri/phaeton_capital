@@ -5,14 +5,21 @@ import { useRouter } from "next/navigation";
 import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, ReferenceLine, Cell, ReferenceArea,
-    ComposedChart, Line
+    ComposedChart, Line, Scatter, ScatterChart
 } from 'recharts';
 import {
     Activity, AlertTriangle, RefreshCw, BarChart2, TrendingUp, TrendingDown,
     Bot, DollarSign, Target, Briefcase, Info, Search, ListPlus,
     Shield, Globe, Award, Zap, ChevronUp, ChevronDown, Minus,
-    Calendar, ArrowUpRight, ArrowDownRight, Command, LayoutGrid, Radio, Hexagon
+    Calendar, ArrowUpRight, ArrowDownRight, Command, LayoutGrid, Radio, Hexagon,
+    Star, Flame, RotateCcw, ChevronRight
 } from 'lucide-react';
+import ScreenerGrid from '../components/ScreenerGrid';
+import { InlineExplain, ExplainTooltip } from '../components/ExplainTooltip';
+import PeerComparison from '../components/PeerComparison';
+import ScoreWeightsPanel from '../components/ScoreWeightsPanel';
+import QueueStatus from '../components/QueueStatus';
+
 
 // ─── Animations Hook ──────────────────────────────────────────────────────────
 function useScrollAnimation() {
@@ -183,6 +190,7 @@ export default function DashboardClient({
     riskProfile, recommendationScore, recommendationScores,
     predictionAccuracy, predictionCount, predictionHistory, auditStats,
     trendsHistory, crossListingData, regionalSentiment, signalAttribution,
+    scoreHistory, peerTickers, earningsSetup,
 }: any) {
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
@@ -192,31 +200,81 @@ export default function DashboardClient({
     const [tradeFilter, setTradeFilter] = useState<'all' | 'buy' | 'sell'>('all');
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [selectedHorizon, setSelectedHorizon] = useState<15 | 30 | 90>(15);
+    const [btData, setBtData] = useState<any>(null);
+    const [btLoading, setBtLoading] = useState(false);
+    const [btHorizon, setBtHorizon] = useState<15 | 30 | 90>(15);
+    const [btOpen, setBtOpen] = useState(false);
+    const [sseConnected, setSseConnected] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [squeezeData, setSqueezeData] = useState<any>(null);
     const router = useRouter();
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const btAbortRef = useRef<AbortController | null>(null);
     
     useScrollAnimation();
 
+    // Reset backtest panel + refetch squeeze when the viewed ticker changes
     useEffect(() => {
-        const es = new EventSource('/api/events');
-        es.addEventListener('recommendation', (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (data?.ticker?.toUpperCase() === targetKeyword?.toUpperCase()) {
-                    startTransition(() => router.refresh());
+        setBtData(null);
+        setBtOpen(false);
+        setSqueezeData(null);
+        if (btAbortRef.current) { btAbortRef.current.abort(); btAbortRef.current = null; }
+        // Fetch short squeeze data
+        fetch(`/api/squeeze/${targetKeyword}`).then(r => r.json()).then(d => {
+            if (!d.error) setSqueezeData(d);
+        }).catch(() => {});
+    }, [targetKeyword]);
+
+    useEffect(() => {
+        let es: EventSource | null = null;
+        let retryDelay = 1000;
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        let destroyed = false;
+
+        const connect = () => {
+            if (destroyed) return;
+            es = new EventSource('/api/events');
+
+            es.addEventListener('open', () => {
+                retryDelay = 1000;
+                setSseConnected(true);
+            });
+            es.addEventListener('recommendation', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data?.ticker?.toUpperCase() === targetKeyword?.toUpperCase()) {
+                        setLastUpdated(new Date());
+                        startTransition(() => router.refresh());
+                    }
+                } catch {}
+            });
+            es.addEventListener('sentiment_update', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data?.ticker?.toUpperCase() === targetKeyword?.toUpperCase()) {
+                        setLastUpdated(new Date());
+                        startTransition(() => router.refresh());
+                    }
+                } catch {}
+            });
+            es.onerror = () => {
+                es?.close();
+                setSseConnected(false);
+                if (!destroyed) {
+                    retryTimer = setTimeout(() => {
+                        retryDelay = Math.min(retryDelay * 2, 30_000);
+                        connect();
+                    }, retryDelay);
                 }
-            } catch {}
-        });
-        es.addEventListener('sentiment_update', (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (data?.ticker?.toUpperCase() === targetKeyword?.toUpperCase()) {
-                    startTransition(() => router.refresh());
-                }
-            } catch {}
-        });
-        es.onerror = () => { es.close(); };
-        return () => es.close();
+            };
+        };
+
+        connect();
+        return () => {
+            destroyed = true;
+            if (retryTimer) clearTimeout(retryTimer);
+            es?.close();
+        };
     }, [targetKeyword]);
 
     // Command palette listener
@@ -414,9 +472,29 @@ export default function DashboardClient({
                     </button>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                    {/* SSE connectivity + last updated */}
+                    <div className="hidden sm:flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-emerald-400' : 'bg-[#5d5d8a] animate-pulse'}`} title={sseConnected ? 'Live' : 'Reconnecting…'} />
+                        {lastUpdated && (
+                            <span className="text-[10px] text-[#5d5d8a] font-mono">
+                                {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
+                    </div>
 
-                    
+                    {/* Queue status */}
+                    <div className="hidden md:block"><QueueStatus /></div>
+
+                    {/* Share signal card */}
+                    {recommendationScore && (
+                        <a href={`/api/og?ticker=${targetKeyword}&signal=${recommendationScore.signal}&score=${recommendationScore.composite_score?.toFixed(1)}&horizon=15`}
+                           target="_blank" rel="noopener noreferrer"
+                           className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0c0c24] border border-[#1e1e3a] hover:border-[#2a2a5a] text-[11px] text-[#9898c0] hover:text-[#f0efff] transition-all">
+                            <ArrowUpRight className="w-3 h-3" /> Share
+                        </a>
+                    )}
+
                     <button onClick={() => triggerScrape()} disabled={loading}
                         className="flex items-center gap-2 px-4 h-9 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-600 text-white hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50">
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -440,6 +518,7 @@ export default function DashboardClient({
                         { icon: Award, label: 'Full Analysis', id: '#helhetsanalys' },
                         { icon: Calendar, label: 'Predictions', id: '#predictions' },
                         { icon: Activity, label: 'Alpha Attribution', id: '#alpha' },
+                        { icon: Zap, label: 'Squeeze', id: '#squeeze' },
                     ].map((item, i) => (
                         <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
                             <item.icon className="w-4 h-4 shrink-0" />
@@ -575,9 +654,56 @@ export default function DashboardClient({
                                         <ConfidenceGauge value={activeRec.confidence * 100} colors={sig.gauge} />
                                     )}
                                 </div>
+
+                                {/* Score history sparkline */}
+                                {scoreHistory?.length > 1 && (() => {
+                                    const scores = scoreHistory.map((h: any) => h.score).filter(Boolean);
+                                    const min = Math.min(...scores), max = Math.max(...scores);
+                                    const range = max - min || 1;
+                                    const W = 200, H = 32;
+                                    const pts = scores.map((s: number, i: number) =>
+                                        `${(i / (scores.length - 1)) * W},${H - ((s - min) / range) * H}`
+                                    ).join(' ');
+                                    const last = scores[scores.length - 1];
+                                    const prev = scores[scores.length - 2];
+                                    const trend = last > prev ? '#0ecf8a' : last < prev ? '#f5495a' : '#f59e0b';
+                                    return (
+                                        <div className="border-t border-white/[0.06] pt-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a]">Score History</span>
+                                                <ExplainTooltip topic="composite_score" />
+                                            </div>
+                                            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-8 overflow-visible">
+                                                <defs>
+                                                    <linearGradient id="scoreHistGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor={trend} stopOpacity={0.2} />
+                                                        <stop offset="100%" stopColor={trend} stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <polyline points={pts} fill="none" stroke={trend} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </section>
+
+                    {/* Score Weights Panel */}
+                    {recommendationScore && (
+                        <ScoreWeightsPanel
+                            scores={{
+                                sentiment: recommendationScore.sentiment_score,
+                                technical: recommendationScore.technical_score,
+                                fundamental: recommendationScore.fundamental_score,
+                                quant: recommendationScore.quant_score,
+                                insider: recommendationScore.insider_score,
+                                macro: recommendationScore.macro_score,
+                                risk: recommendationScore.risk_score,
+                            }}
+                            baseComposite={recommendationScore.composite_score}
+                        />
+                    )}
                 )}
 
                 {/* ── FUNDAMENTALS ────────────────────────────────────────────── */}
@@ -587,7 +713,7 @@ export default function DashboardClient({
                             <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
                                 <DollarSign className="w-3.5 h-3.5 text-indigo-400" />
                             </div>
-                            <span className="section-title">Fundamental Data</span>
+                            <InlineExplain topic="fundamental_score"><span className="section-title">Fundamental Data</span></InlineExplain>
                             <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
                         </div>
                         
@@ -639,6 +765,113 @@ export default function DashboardClient({
                     </section>
                 )}
 
+                {/* ── PEER COMPARISON ─────────────────────────────────────────── */}
+                {peerTickers?.length > 0 && recommendationScore && (
+                    <PeerComparison
+                        currentTicker={targetKeyword}
+                        sector={fundamentalData?.sector ?? null}
+                        peerTickers={peerTickers}
+                    />
+                )}
+
+                {/* ── PRE-EARNINGS SETUP ──────────────────────────────────────── */}
+                {earningsSetup?.daysToEarnings != null && earningsSetup.daysToEarnings >= 0 && earningsSetup.daysToEarnings <= 30 && (
+                    <section className="scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
+                                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                            </div>
+                            <InlineExplain topic="pre_earnings"><span className="section-title">Pre-Earnings Setup</span></InlineExplain>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            <span className={`px-3 py-1 rounded-lg text-[11px] font-700 border ${earningsSetup.daysToEarnings <= 7 ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+                                {earningsSetup.daysToEarnings === 0 ? 'TODAY' : `${earningsSetup.daysToEarnings}d away`}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="card p-4 text-center">
+                                <div className="section-title mb-2">Earnings Date</div>
+                                <div className="font-mono text-[14px] font-700 text-amber-400">{earningsSetup.nextEarningsDate}</div>
+                            </div>
+                            <div className="card p-4 text-center">
+                                <div className="section-title mb-2 flex items-center justify-center gap-1">
+                                    IV Percentile <ExplainTooltip topic="pre_earnings" />
+                                </div>
+                                <div className={`font-mono text-[14px] font-700 ${earningsSetup.ivPercentile != null ? (earningsSetup.ivPercentile > 70 ? 'text-red-400' : earningsSetup.ivPercentile > 40 ? 'text-amber-400' : 'text-emerald-400') : 'text-[#5d5d8a]'}`}>
+                                    {earningsSetup.ivPercentile != null ? `${earningsSetup.ivPercentile.toFixed(1)}%` : '—'}
+                                </div>
+                                <div className="text-[10px] text-[#5d5d8a] mt-1">
+                                    {earningsSetup.ivPercentile != null ? (earningsSetup.ivPercentile > 70 ? 'Options expensive' : earningsSetup.ivPercentile < 30 ? 'Options cheap' : 'Normal IV') : ''}
+                                </div>
+                            </div>
+                            <div className="card p-4 text-center">
+                                <div className="section-title mb-2">Put/Call Ratio</div>
+                                <div className={`font-mono text-[14px] font-700 ${earningsSetup.putCallRatio != null ? (earningsSetup.putCallRatio > 1.2 ? 'text-red-400' : earningsSetup.putCallRatio < 0.8 ? 'text-emerald-400' : 'text-amber-400') : 'text-[#5d5d8a]'}`}>
+                                    {earningsSetup.putCallRatio != null ? earningsSetup.putCallRatio.toFixed(2) : '—'}
+                                </div>
+                                <div className="text-[10px] text-[#5d5d8a] mt-1">
+                                    {earningsSetup.putCallRatio != null ? (earningsSetup.putCallRatio > 1.2 ? 'Bearish skew' : earningsSetup.putCallRatio < 0.8 ? 'Bullish skew' : 'Neutral') : ''}
+                                </div>
+                            </div>
+                            <div className="card p-4 text-center">
+                                <div className="section-title mb-2">Max Pain</div>
+                                <div className="font-mono text-[14px] font-700 text-[#9898c0]">
+                                    {earningsSetup.maxPainPrice != null ? `$${earningsSetup.maxPainPrice.toFixed(2)}` : '—'}
+                                </div>
+                                <div className="text-[10px] text-[#5d5d8a] mt-1">Options max pain price</div>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* ── SHORT SQUEEZE INDICATOR ──────────────────────────────────── */}
+                {squeezeData && (
+                    <section id="squeeze" className="scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-red-500/15 flex items-center justify-center border border-red-500/20">
+                                <Zap className="w-3.5 h-3.5 text-red-400" />
+                            </div>
+                            <InlineExplain topic="squeeze"><span className="section-title">Short Squeeze Pressure</span></InlineExplain>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            <span className={`px-3 py-1 rounded-lg text-[11px] font-700 border ${
+                                squeezeData.level === 'EXTREME' ? 'bg-red-500/20 border-red-500/40 text-red-300' :
+                                squeezeData.level === 'HIGH'    ? 'bg-orange-500/20 border-orange-500/40 text-orange-300' :
+                                squeezeData.level === 'MODERATE'? 'bg-amber-500/20 border-amber-500/40 text-amber-300' :
+                                'bg-[#0c0c24] border-[#1e1e3a] text-[#5d5d8a]'
+                            }`}>{squeezeData.level}</span>
+                        </div>
+                        <div className="card p-5">
+                            <div className="flex items-center gap-6 mb-4">
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[11px] text-[#5d5d8a]">Pressure</span>
+                                        <span className="font-mono text-[13px] font-700 text-red-400">{squeezeData.pressure_score?.toFixed(1)}/100</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-[#12122e] border border-[#1a1a3a]">
+                                        <div className="h-full rounded-full transition-all" style={{
+                                            width: `${squeezeData.pressure_score}%`,
+                                            background: squeezeData.pressure_score >= 70 ? '#f5495a' : squeezeData.pressure_score >= 50 ? '#f97316' : squeezeData.pressure_score >= 30 ? '#f59e0b' : '#5d5d8a'
+                                        }} />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
+                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Short Float</div>
+                                    <div className="font-mono text-[14px] font-700 text-red-400">{squeezeData.short_float_pct?.toFixed(1)}%</div>
+                                </div>
+                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
+                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Days to Cover</div>
+                                    <div className="font-mono text-[14px] font-700 text-amber-400">{squeezeData.days_to_cover?.toFixed(1) ?? '—'}</div>
+                                </div>
+                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
+                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Shares Short</div>
+                                    <div className="font-mono text-[14px] font-700 text-[#9898c0]">{squeezeData.shares_short ? `${(squeezeData.shares_short / 1e6).toFixed(1)}M` : '—'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
                 {/* ── TECHNICAL ANALYSIS ──────────────────────────────────────── */}
                 {technicalIndicators && (
                     <section id="technical" className="col-span-12 scroll-mt-20" data-animate>
@@ -646,7 +879,7 @@ export default function DashboardClient({
                             <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
                                 <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
                             </div>
-                            <span className="section-title">Technical Analysis</span>
+                            <InlineExplain topic="technical_score"><span className="section-title">Technical Analysis</span></InlineExplain>
                             <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
                             {technicalIndicators.technical_signal && (
                                 <span className={`badge ${technicalIndicators.technical_signal==='BULLISH' ? 'badge-bull' : 'badge-bear'}`}>
@@ -675,7 +908,7 @@ export default function DashboardClient({
                                 <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
                                     <Bot className="w-3.5 h-3.5 text-indigo-400" />
                                 </div>
-                                <span className="section-title">Quantitative Models</span>
+                                <InlineExplain topic="quant_score"><span className="section-title">Quantitative Models</span></InlineExplain>
                                 <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
                             </div>
                             <div className="card p-6 flex flex-col gap-2">
@@ -686,7 +919,7 @@ export default function DashboardClient({
                                 
                                 <div className="mt-4 pt-4 border-t border-[#1a1a3a] grid grid-cols-2 gap-4">
                                     <div>
-                                        <div className="section-title mb-1">HMM Regime</div>
+                                        <div className="section-title mb-1 flex items-center gap-1">HMM Regime <ExplainTooltip topic="hmm" /></div>
                                         <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 2 ? 'text-emerald-400' : quantMetrics.hmm_state === 0 ? 'text-red-400' : 'text-amber-400'}`}>
                                             {quantMetrics.hmm_state === 2 ? 'Bull' : quantMetrics.hmm_state === 0 ? 'Bear' : quantMetrics.hmm_state === 1 ? 'Neutral' : '—'}
                                         </div>
@@ -730,9 +963,118 @@ export default function DashboardClient({
                                         })()}
                                     </div>
                                 )}
+                                <div className="mt-4 flex gap-2">
+                                    {quantMetrics.contrarian_signal?.isContrarian && (
+                                        <span className="badge badge-gold">
+                                            Contrarian: {quantMetrics.contrarian_signal.type ?? 'SIGNAL'}
+                                            {quantMetrics.contrarian_signal.confidence != null && ` (${(quantMetrics.contrarian_signal.confidence * 100).toFixed(0)}%)`}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </section>
                     )}
+
+                    {/* ── Epic 1: Backtest Chart ──────────────────────────────── */}
+                    <section id="backtest" className="scroll-mt-20" data-animate>
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
+                                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                            </div>
+                            <span className="section-title">Signal Backtest</span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                            <button onClick={() => {
+                                const opening = !btOpen;
+                                setBtOpen(opening);
+                                if (opening && !btData) {
+                                    if (btAbortRef.current) btAbortRef.current.abort();
+                                    const ctrl = new AbortController();
+                                    btAbortRef.current = ctrl;
+                                    setBtLoading(true);
+                                    fetch(`/api/backtest/${targetKeyword}?horizon=${btHorizon}&years=2`, { signal: ctrl.signal })
+                                        .then(r => r.json()).then(d => { if (!d.error) setBtData(d); })
+                                        .catch(e => { if (e?.name !== 'AbortError') setBtData(null); })
+                                        .finally(() => setBtLoading(false));
+                                }
+                            }} className="px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-700 hover:bg-amber-500/20 transition-all">
+                                {btOpen ? 'Collapse' : 'View Backtest'}
+                            </button>
+                        </div>
+                        {btOpen && (
+                            <div className="card p-5">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-[11px] text-[#9090b8]">Horizon:</span>
+                                    {([15, 30, 90] as const).map(h => (
+                                        <button key={h} onClick={() => { setBtHorizon(h); setBtData(null); }}
+                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-700 transition-all ${
+                                                btHorizon === h ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300' : 'bg-[#0c0c24] border border-[#1e1e3a] text-[#5d5d8a] hover:text-[#9898c0]'
+                                            }`}>{h}D</button>
+                                    ))}
+                                    <button onClick={() => {
+                                        if (btAbortRef.current) btAbortRef.current.abort();
+                                        const ctrl = new AbortController();
+                                        btAbortRef.current = ctrl;
+                                        setBtLoading(true);
+                                        setBtData(null);
+                                        fetch(`/api/backtest/${targetKeyword}?horizon=${btHorizon}&years=2`, { signal: ctrl.signal })
+                                            .then(r => r.json()).then(d => { if (!d.error) setBtData(d); })
+                                            .catch(e => { if (e?.name !== 'AbortError') setBtData(null); })
+                                            .finally(() => setBtLoading(false));
+                                    }} disabled={btLoading}
+                                        className="ml-auto px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-700 hover:bg-indigo-500/20 transition-all">
+                                        {btLoading ? 'Loading…' : 'Run'}
+                                    </button>
+                                </div>
+                                {btLoading && !btData && (
+                                    <div className="h-48 flex items-center justify-center">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+                                            <span className="text-[12px] text-[#5d5d8a]">Running backtest…</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {btData && (
+                                    <>
+                                        <div className="grid grid-cols-4 gap-3 mb-5">
+                                            {[
+                                                { label: 'Win Rate',   value: `${(btData.hit_rate * 100).toFixed(1)}%`,    color: btData.hit_rate > 0.55 ? 'text-emerald-400' : 'text-amber-400' },
+                                                { label: 'Avg Return', value: `${btData.avg_return_pct?.toFixed(2)}%`,     color: btData.avg_return_pct > 0 ? 'text-emerald-400' : 'text-red-400' },
+                                                { label: 'Sharpe',     value: btData.sharpe_ratio?.toFixed(2),             color: btData.sharpe_ratio > 1 ? 'text-emerald-400' : 'text-amber-400' },
+                                                { label: 'Max DD',     value: `${btData.max_drawdown_pct?.toFixed(1)}%`,   color: 'text-red-400' },
+                                            ].map(s => (
+                                                <div key={s.label} className="bg-[#0c0c24] rounded-xl border border-[#1e1e3a] p-3 text-center">
+                                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">{s.label}</div>
+                                                    <div className={`font-mono text-[15px] font-700 ${s.color}`}>{s.value}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="h-52">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ComposedChart data={btData.equity_curve} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                                                    <defs>
+                                                        <linearGradient id="btGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                                                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <XAxis dataKey="date" hide />
+                                                    <YAxis domain={['auto', 'auto']} hide />
+                                                    <Tooltip content={<CustomTooltip />} />
+                                                    <ReferenceLine y={100} stroke="#2a2a5a" strokeDasharray="4 4" />
+                                                    <Area type="monotone" dataKey="equity" name="Strategy" stroke="#f59e0b" fill="url(#btGrad)" strokeWidth={1.5} dot={false} />
+                                                    <Line type="monotone" dataKey="spy" name="SPY" stroke="#6366f1" strokeWidth={1} strokeDasharray="5 3" dot={false} />
+                                                </ComposedChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="flex justify-center gap-6 mt-2">
+                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Strategy</span>
+                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #6366f1'}} /> SPY Benchmark</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </section>
 
                     {/* MACRO */}
                     {macroIndicators && (
@@ -1246,9 +1588,23 @@ export default function DashboardClient({
                     </section>
                 )}
 
+                {/* ── Epic 3: Watchlist & Screener ────────────────────────────────── */}
+                <section id="watchlist" className="col-span-12 scroll-mt-20" data-animate>
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
+                            <Star className="w-3.5 h-3.5 text-amber-400" />
+                        </div>
+                        <span className="section-title">Watchlist Screener</span>
+                        <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                        <span className="badge badge-gold">Multi-Horizon</span>
+                    </div>
+                    <ScreenerGrid showAddButton />
+                </section>
+
                 {/* ── PREDICTION AUDIT TRAIL ──────────────────────────────────── */}
                 {predictionHistory?.length > 0 && (
                     <section id="predictions" className="col-span-12 scroll-mt-20" data-animate>
+
                         <div className="flex items-center gap-3 mb-5">
                             <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
                                 <Calendar className="w-3.5 h-3.5 text-indigo-400" />
@@ -1364,7 +1720,7 @@ export default function DashboardClient({
                             <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
                                 <Activity className="w-3.5 h-3.5 text-indigo-400" />
                             </div>
-                            <span className="section-title">Alpha Attribution</span>
+                            <InlineExplain topic="ic"><span className="section-title">Alpha Attribution</span></InlineExplain>
                             <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
                             <span className="badge badge-gold">Institutional Signal Quality</span>
                         </div>

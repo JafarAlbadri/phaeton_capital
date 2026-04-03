@@ -303,8 +303,10 @@ model Alert {
   active      Boolean    @default(true)
   lastFired   DateTime?
   lastScore   Float?
-  cooldownMin Int        @default(60)
-  createdAt   DateTime   @default(now())
+  cooldownMin  Int        @default(60)
+  webhook_url  String?    // Optional URL to POST alert payload to
+  notify_email String?    // Optional email to notify (future use)
+  createdAt    DateTime   @default(now())
   fired       AlertFired[]
 
   @@index([ticker])

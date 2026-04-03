@@ -195,6 +195,45 @@ export default async function Page(
     const recommendationScore = h15 ?? null; // default to 15d for backward compat
     const recommendationScores = { h15, h30, h90 };
 
+    // ── Score history for sparkline (last 30 prediction records at 15d horizon)
+    const scoreHistoryRaw = await prisma.predictionRecord.findMany({
+        where: { ticker: targetKeyword, horizon: 15 },
+        orderBy: { createdAt: 'asc' },
+        take: 30,
+        select: { createdAt: true, composite_score: true, signal: true },
+    });
+    const scoreHistory = scoreHistoryRaw.map(p => ({
+        date: p.createdAt.toISOString().slice(0, 10),
+        score: p.composite_score,
+        signal: p.signal,
+    }));
+
+    // ── Sector peers for comparison
+    const peerRows = fundamentalData?.sector
+        ? await prisma.fundamentalData.findMany({
+            where: { sector: fundamentalData.sector, ticker: { not: targetKeyword } },
+            select: { ticker: true },
+            take: 7,
+          })
+        : [];
+    const peerTickers = peerRows.map((p: any) => p.ticker);
+
+    // ── Options flow for earnings setup
+    const optionsFlow = await (prisma as any).optionsFlow?.findUnique({
+        where: { ticker: targetKeyword },
+    }).catch(() => null) ?? null;
+
+    const daysToEarnings = fundamentalData?.next_earnings_date
+        ? Math.ceil((new Date(fundamentalData.next_earnings_date).getTime() - Date.now()) / 86_400_000)
+        : null;
+    const earningsSetup = {
+        daysToEarnings,
+        nextEarningsDate: fundamentalData?.next_earnings_date?.toISOString().slice(0, 10) ?? null,
+        ivPercentile: optionsFlow?.iv_percentile ?? null,
+        putCallRatio: optionsFlow?.put_call_ratio ?? null,
+        maxPainPrice: optionsFlow?.max_pain_price ?? null,
+    };
+
     // V2: Trends history (last 13 weeks)
     const trendsHistory = await (prisma as any).trendsHistory?.findMany({
         where: { ticker: targetKeyword }, orderBy: { week_start: 'desc' }, take: 13
@@ -358,6 +397,9 @@ export default async function Page(
             crossListingData={crossListingData}
             regionalSentiment={regionalSentiment}
             signalAttribution={signalAttribution}
+            scoreHistory={scoreHistory}
+            peerTickers={peerTickers}
+            earningsSetup={earningsSetup}
         />
     );
 }

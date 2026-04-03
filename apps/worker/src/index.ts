@@ -19,6 +19,9 @@ import { executeQuantModels } from './quant';
 import { fetchAndSaveMacro } from './macro';
 import { computeRiskProfile } from './risk';
 import { computeRecommendation } from './recommendation';
+import { computeVelocity } from './velocity';
+import { evaluateAlerts } from './alerts/evaluator';
+import { screenerQuery } from './screener';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -34,8 +37,19 @@ import IORedis from 'ioredis';
 const redisConnection = new IORedis({
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    maxRetriesPerRequest: null
+    maxRetriesPerRequest: null,
+    lazyConnect: true,
 });
+
+// Fail fast if Redis is unreachable at startup
+try {
+    await redisConnection.connect();
+    await redisConnection.ping();
+    logWrapper.info('Redis connection established.');
+} catch (e) {
+    logWrapper.error('Redis connection failed — worker cannot start:', e);
+    process.exit(1);
+}
 
 const scrapeQueue = new Queue('scrapeQueue', { connection: redisConnection });
 
@@ -225,6 +239,10 @@ async function processPosts(keywordOverride?: string) {
                 logWrapper.info(`Saved options flow for ${currentKeyword}`);
             } catch { /* model may not exist yet */ }
         }).catch(() => {});
+
+        // Capture the current HMM state before any update so REGIME_CHANGE alerts can diff
+        const prevQuantState = await prisma.quantMetrics.findUnique({ where: { ticker: currentKeyword }, select: { hmm_state: true } });
+        const prevHmmState = prevQuantState?.hmm_state ?? null;
 
         // Run quant models immediately to populate UI before the slow sentiment scrape
         await executeQuantModels(currentKeyword);
@@ -419,6 +437,43 @@ async function processPosts(keywordOverride?: string) {
         });
     } catch (_e) { /* non-critical */ }
 
+    // Epic 6: Compute sentiment velocity + acceleration
+    const velocity = await computeVelocity(currentKeyword).catch(e => { console.error('[velocity] error:', e); return null; });
+
+    // Epic 5: Fetch contrarian signal from Python worker and save
+    try {
+        const PYTHON = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+        const cRes = await fetch(`${PYTHON}/contrarian/${currentKeyword}`);
+        if (cRes.ok) {
+            const contrarian = await cRes.json();
+            if (!contrarian.error) {
+                await (prisma.quantMetrics as any).upsert({
+                    where: { ticker: currentKeyword },
+                    create: { ticker: currentKeyword, contrarian_signal: contrarian },
+                    update: { contrarian_signal: contrarian },
+                });
+                if (contrarian.isContrarian) {
+                    console.log(`[contrarian] ${currentKeyword}: ${contrarian.type} conf=${contrarian.confidence}`);
+                }
+            }
+        }
+    } catch (e) { console.error('[contrarian] error:', e); }
+
+    // Epic 2: Evaluate alerts for this ticker
+    try {
+        const rec = await (prisma.recommendationScore as any).findUnique({
+            where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } },
+        });
+        const quant = await prisma.quantMetrics.findUnique({ where: { ticker: currentKeyword } });
+        await evaluateAlerts(currentKeyword, {
+            compositeScore: rec?.composite_score ?? null,
+            signal: rec?.signal ?? null,
+            hmmState: quant?.hmm_state ?? null,
+            prevHmmState,
+            sentimentDelta: velocity?.velocity6h ?? null,
+        });
+    } catch (e) { console.error('[alerts] error:', e); }
+
     } finally {
         isScraping = false;
     }
@@ -430,10 +485,11 @@ async function start() {
         async fetch(req: Request) {
             const url = new URL(req.url);
 
+            const corsOrigin = process.env.CORS_ORIGIN || '*';
             const corsHeaders = {
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': corsOrigin,
                 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
             };
 
             if (req.method === 'OPTIONS') {
@@ -450,6 +506,20 @@ async function start() {
                 return new Response(JSON.stringify({ status: 'ready', queue_length: await scrapeQueue.count() }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
                 });
+            }
+
+            if (url.pathname === '/queue-status' && req.method === 'GET') {
+                const [waiting, active, delayed, failed] = await Promise.all([
+                    scrapeQueue.getWaitingCount(),
+                    scrapeQueue.getActiveCount(),
+                    scrapeQueue.getDelayedCount(),
+                    scrapeQueue.getFailedCount(),
+                ]);
+                const jobs = await scrapeQueue.getJobs(['active', 'waiting'], 0, 10);
+                return new Response(JSON.stringify({
+                    waiting, active, delayed, failed,
+                    jobs: jobs.map(j => ({ id: j.id, name: j.name, ticker: j.data?.keyword, state: j.toJSON().processedOn ? 'active' : 'waiting' })),
+                }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
             }
 
             // AI Calibration Feedback Endpoint
@@ -498,6 +568,16 @@ async function start() {
             }
 
             if (url.pathname === '/trigger' && req.method === 'POST') {
+                const workerSecret = process.env.WORKER_SECRET;
+                if (workerSecret) {
+                    const auth = req.headers.get('Authorization');
+                    if (auth !== `Bearer ${workerSecret}`) {
+                        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                            status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                        });
+                    }
+                }
+
                 let dynamicKeyword = targetKeyword;
                 try {
                     const body = await req.clone().json();
@@ -523,26 +603,69 @@ async function start() {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
                 });
             }
+            // ── Epic 3: Screener ─────────────────────────────────────────────────────
+            if (url.pathname === '/screener' && req.method === 'GET') {
+                try {
+                    const tickersParam = url.searchParams.get('tickers') || '';
+                    const tickers = tickersParam.split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+                    const sortBy  = url.searchParams.get('sortBy') || 'composite15d';
+                    const order   = (url.searchParams.get('order') || 'desc') as 'asc' | 'desc';
+                    const rows = await screenerQuery(tickers, sortBy, order);
+                    return new Response(JSON.stringify(rows), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                } catch (e: any) {
+                    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                }
+            }
+
+            // ── Epic 1: Backtest proxy ────────────────────────────────────────────────
+            if (url.pathname.startsWith('/backtest/') && req.method === 'GET') {
+                const ticker = url.pathname.split('/')[2]?.toUpperCase();
+                if (!ticker) return new Response('Missing ticker', { status: 400 });
+                try {
+                    const PYTHON = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+                    const qs = url.search;
+                    const res = await fetch(`${PYTHON}/backtest/${ticker}${qs}`, { signal: AbortSignal.timeout(35_000) });
+                    const data = await res.text();
+                    return new Response(data, { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                } catch (e: any) {
+                    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                }
+            }
+
+            // ── Epic 7: Earnings history proxy ────────────────────────────────────────
+            if (url.pathname.startsWith('/earnings-history/') && req.method === 'GET') {
+                const ticker = url.pathname.split('/')[2]?.toUpperCase();
+                if (!ticker) return new Response('Missing ticker', { status: 400 });
+                try {
+                    const PYTHON = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+                    const res = await fetch(`${PYTHON}/earnings-history/${ticker}`, { signal: AbortSignal.timeout(20_000) });
+                    const data = await res.text();
+                    return new Response(data, { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                } catch (e: any) {
+                    return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+                }
+            }
+
             return new Response('Worker running.', { headers: corsHeaders });
+
         }
     });
 
     logWrapper.info('Worker Server listening on port 8080');
 
     // Startup run
-    scrapeQueue.add('process', { keyword: targetKeyword }, { 
+    scrapeQueue.add('process', { keyword: targetKeyword }, {
         jobId: `startup_${targetKeyword}`,
-        removeOnComplete: true, 
-        removeOnFail: 1000 
+        removeOnComplete: true,
+        removeOnFail: 1000,
     }).catch(logWrapper.error);
-    
-    // Recurring 15-min interval
-    scrapeQueue.add('process', { keyword: targetKeyword }, { 
-        repeat: { pattern: '*/15 * * * *' },
-        jobId: `recurring_${targetKeyword}`,
-        removeOnComplete: true, 
-        removeOnFail: 1000 
-    }).catch(logWrapper.error);
+
+    // Recurring 15-min interval — upsertJobScheduler prevents duplicate repeat jobs on restart
+    scrapeQueue.upsertJobScheduler(
+        `recurring_${targetKeyword}`,
+        { pattern: '*/15 * * * *' },
+        { name: 'process', data: { keyword: targetKeyword }, opts: { removeOnComplete: true, removeOnFail: 1000 } },
+    ).catch(logWrapper.error);
 }
 
 start().catch(logWrapper.error);
