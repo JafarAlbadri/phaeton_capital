@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { HelpCircle } from "lucide-react";
 
 // ── Explanation data ────────────────────────────────────────────────────────────

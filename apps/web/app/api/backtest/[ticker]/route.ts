@@ -8,9 +8,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(
     _req: NextRequest,
-    { params }: { params: { ticker: string } }
+    { params }: { params: Promise<{ ticker: string }> }
 ) {
-    const ticker = params.ticker.toUpperCase();
+    const { ticker: rawTicker } = await params;
+    const ticker = rawTicker.toUpperCase();
     if (!TICKER_RE.test(ticker)) {
         return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 });
     }

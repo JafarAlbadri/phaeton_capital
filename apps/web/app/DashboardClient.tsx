@@ -568,7 +568,7 @@ export default function DashboardClient({
                     </div>
                 )}
 
-                {recommendationScore && (
+                {recommendationScore && (<>
                     <section id="hero" className={`col-span-12 rounded-[20px] overflow-hidden relative min-h-[280px] xl:min-h-[320px] bg-gradient-to-br border border-[#1e1e42] shadow-[0_20px_60px_rgba(0,0,0,0.6)] animate-in transition-all duration-500 ${sig.bgHero}`}
                              style={{backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`}}>
                         
@@ -704,7 +704,7 @@ export default function DashboardClient({
                             baseComposite={recommendationScore.composite_score}
                         />
                     )}
-                )}
+                </>)}
 
                 {/* ── FUNDAMENTALS ────────────────────────────────────────────── */}
                 {fundamentalData && (

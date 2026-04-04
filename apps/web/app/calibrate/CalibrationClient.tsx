@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { CheckCircle, XCircle, Minus, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Post {

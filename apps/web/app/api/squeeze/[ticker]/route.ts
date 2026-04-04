@@ -6,9 +6,10 @@ const TICKER_RE = /^[A-Z]{1,5}$/;
 
 export async function GET(
     _req: NextRequest,
-    { params }: { params: { ticker: string } }
+    { params }: { params: Promise<{ ticker: string }> }
 ) {
-    const ticker = params.ticker.toUpperCase();
+    const { ticker: rawTicker } = await params;
+    const ticker = rawTicker.toUpperCase();
     if (!TICKER_RE.test(ticker)) return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 });
     try {
         const res = await fetch(`${PYTHON_URL}/squeeze/${ticker}`, { signal: AbortSignal.timeout(15_000) });
