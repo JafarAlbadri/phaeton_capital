@@ -3,15 +3,18 @@ import prisma from '@sentiment-crowd/db';
 
 function getRiskRating(maxDrawdown: number | null, var95: number | null, liquidity: number | null, eventRisk: boolean): number {
   let score = 0;
+  // Drawdown thresholds calibrated for equities (2y window):
+  // <-50% = extreme, <-35% = high — normal stocks draw down 20-30%
   if (maxDrawdown != null) {
-    if (maxDrawdown < -0.20) score += 2;
-    else if (maxDrawdown < -0.10) score += 1;
+    if (maxDrawdown < -0.50) score += 2;
+    else if (maxDrawdown < -0.35) score += 1;
   }
+  // VaR 95 (15-day): <-15% extreme, <-10% elevated
   if (var95 != null) {
-    if (var95 < -0.05) score += 2;
-    else if (var95 < -0.03) score += 1;
+    if (var95 < -0.15) score += 2;
+    else if (var95 < -0.10) score += 1;
   }
-  if (liquidity != null && liquidity < 0.01) score += 1;
+  if (liquidity != null && liquidity < 0.001) score += 1;
   if (eventRisk) score += 1;
   return Math.min(5, score + 1); // 1-5 scale
 }

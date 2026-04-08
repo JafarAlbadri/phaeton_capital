@@ -55,14 +55,21 @@ export async function executeQuantModels(ticker: string): Promise<QuantMetricsDa
             take: 500
         });
 
-        // Pass payload over string standard input
+        // Pass payload with time-decay weights so Python models can prioritise fresh data
+        const now = Date.now();
+        const halfLifeMs = 24 * 3600_000; // 24h half-life
+        const lambda = Math.LN2 / halfLifeMs;
         const payload = JSON.stringify({
             ticker: ticker,
-            sentiments: recentData.map(d => ({
-                post_timestamp: d.post_timestamp.toISOString(),
-                sentiment: d.sentiment,
-                confidence: d.confidence
-            }))
+            sentiments: recentData.map(d => {
+                const ageMs = now - d.post_timestamp.getTime();
+                return {
+                    post_timestamp: d.post_timestamp.toISOString(),
+                    sentiment: d.sentiment,
+                    confidence: d.confidence,
+                    decay_weight: Math.exp(-lambda * ageMs),
+                };
+            })
         });
 
         const pythonWorkerUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';

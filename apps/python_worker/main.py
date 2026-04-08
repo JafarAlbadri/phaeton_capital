@@ -50,11 +50,20 @@ async def options_endpoint(ticker: str):
         current_iv = float(calls['impliedVolatility'].mean()) if not calls.empty else None
         iv_percentile = None
         try:
+            from scipy.stats import percentileofscore
+            # Compute IV percentile: rank current IV against a rolling 252-day
+            # series of daily average ATM implied volatility estimates.
+            # Since we only have one snapshot of option IVs, we approximate
+            # historical IV using close-to-close realized vol over rolling 21-day
+            # windows (annualised), then rank today's option-implied IV against it.
             hist = stock.history(period="1y")
-            if hist is not None and len(hist) > 20:
-                hv = float(hist['Close'].pct_change().dropna().std() * np.sqrt(252))
-                if hv > 0 and current_iv is not None:
-                    iv_percentile = min(100.0, round((current_iv / hv) * 50, 1))
+            if hist is not None and len(hist) > 30 and current_iv is not None:
+                daily_ret = hist['Close'].pct_change().dropna()
+                # Rolling 21-day realised vol as proxy for historical IV regime
+                rolling_vol = daily_ret.rolling(21).std() * np.sqrt(252)
+                rolling_vol = rolling_vol.dropna().values
+                if len(rolling_vol) >= 20:
+                    iv_percentile = round(float(percentileofscore(rolling_vol, current_iv)), 1)
         except Exception:
             pass
 
@@ -213,6 +222,304 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
         }
     except Exception as e:
         return {"error": str(e)}
+
+# ── Composite Backtest ────────────────────────────────────────────────────────
+
+@app.get("/composite-backtest/{ticker}")
+async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int = 3):
+    """
+    Walk-forward backtest using the FULL multi-factor composite scoring logic
+    (technical + fundamental + quant), mirroring recommendation.ts.
+    Returns equity curve, Sharpe, alpha, hit rate vs SPY.
+    """
+    try:
+        import yfinance as yf
+        import numpy as np
+        import pandas as pd
+        from hmmlearn import hmm as hmmlib
+
+        t = ticker.upper()
+        stock = yf.Ticker(t)
+        spy = yf.Ticker("SPY")
+
+        hist = stock.history(period=f"{years}y")
+        spy_hist = spy.history(period=f"{years}y")
+
+        if hist is None or len(hist) < 252:
+            return {"error": "Need at least 1 year of data"}
+
+        close = hist["Close"]
+        volume = hist["Volume"]
+        spy_close = spy_hist["Close"]
+
+        # ── Pre-compute all indicators over full history ──
+
+        # RSI-14
+        delta = close.diff()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        rs = gain / loss.replace(0, np.nan)
+        rsi = 100 - (100 / (1 + rs))
+
+        # MACD histogram
+        ema12 = close.ewm(span=12, adjust=False).mean()
+        ema26 = close.ewm(span=26, adjust=False).mean()
+        macd_line = ema12 - ema26
+        macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist = macd_line - macd_signal
+
+        # SMAs
+        sma20 = close.rolling(20).mean()
+        sma50 = close.rolling(50).mean()
+        sma200 = close.rolling(200).mean()
+
+        # Bollinger Bands
+        bb_middle = sma20
+        bb_std = close.rolling(20).std()
+        bb_upper = bb_middle + 2 * bb_std
+        bb_lower = bb_middle - 2 * bb_std
+
+        # Returns for quant models
+        returns = close.pct_change().dropna()
+
+        # HMM regime detection (rolling 252-day windows)
+        hmm_states = pd.Series(1, index=close.index)  # default neutral
+        if len(returns) > 300:
+            try:
+                model = hmmlib.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
+                ret_vals = returns.values.reshape(-1, 1)
+                model.fit(ret_vals[:252])
+                means = model.means_.flatten()
+                bull_idx = int(np.argmax(means))
+                bear_idx = int(np.argmin(means))
+
+                for i in range(252, len(ret_vals)):
+                    window = ret_vals[max(0, i-252):i]
+                    try:
+                        model.fit(window)
+                        state = model.predict(window[-1:].reshape(1, -1))[0]
+                        if state == bull_idx:
+                            hmm_states.iloc[i+1] = 2
+                        elif state == bear_idx:
+                            hmm_states.iloc[i+1] = 0
+                        else:
+                            hmm_states.iloc[i+1] = 1
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        # Hurst exponent (rolling)
+        def rolling_hurst(prices, window=100):
+            if len(prices) < window:
+                return 0.5
+            y = np.cumsum(prices[-window:] - np.mean(prices[-window:]))
+            scales = np.unique(np.floor(np.logspace(np.log10(10), np.log10(window//4), 10)).astype(int))
+            if len(scales) < 3:
+                return 0.5
+            F, valid = [], []
+            for s in scales:
+                nw = len(y) // s
+                if nw == 0:
+                    continue
+                yt = y[:nw*s].reshape(nw, s)
+                x = np.arange(s)
+                rms = sum(np.sum((yt[j] - np.polyval(np.polyfit(x, yt[j], 1), x))**2) for j in range(nw))
+                F.append(np.sqrt(rms / (nw * s)))
+                valid.append(s)
+            if len(valid) < 3:
+                return 0.5
+            return float(np.polyfit(np.log(valid), np.log(F), 1)[0])
+
+        # Fetch fundamental info (static — used as constant fundamental score)
+        info = stock.info
+        target_price = info.get("targetMeanPrice")
+        pe_ratio = info.get("trailingPE")
+        analyst_sb = info.get("numberOfAnalystOpinions", 0)
+
+        # ── Weights (mirrors recommendation.ts WEIGHTS_NEUTRAL) ──
+        W = {"technical": 0.35, "fundamental": 0.20, "quant": 0.30, "baseline": 0.15}
+
+        # ── Walk-forward simulation ──
+        h = int(horizon)
+        start_idx = max(252, 200)
+        trades = []
+        equity = [100.0]
+        eq = 100.0
+
+        for i in range(start_idx, len(close) - h, h):
+            price = float(close.iloc[i])
+            exit_price = float(close.iloc[i + h])
+
+            # === Technical Score (mirrors recommendation.ts) ===
+            tech = 50.0
+            r = float(rsi.iloc[i]) if not np.isnan(rsi.iloc[i]) else 50.0
+            if r < 30:
+                tech += 15
+            elif r > 70:
+                tech -= 15
+            else:
+                tech += (50 - r) * 0.3
+
+            m = float(macd_hist.iloc[i]) if not np.isnan(macd_hist.iloc[i]) else 0.0
+            tech += 15 if m > 0 else -15
+
+            # Bollinger band position
+            bb_u = float(bb_upper.iloc[i]) if not np.isnan(bb_upper.iloc[i]) else price
+            bb_l = float(bb_lower.iloc[i]) if not np.isnan(bb_lower.iloc[i]) else price
+            bb_range = bb_u - bb_l
+            if bb_range > 0:
+                price_vs_bb = (price - (bb_l + bb_range/2)) / (bb_range/2)
+                tech -= price_vs_bb * 10
+
+            # Golden/death cross
+            s50 = float(sma50.iloc[i]) if not np.isnan(sma50.iloc[i]) else price
+            s200 = float(sma200.iloc[i]) if not np.isnan(sma200.iloc[i]) else price
+            s50_prev = float(sma50.iloc[i-1]) if i > 0 and not np.isnan(sma50.iloc[i-1]) else s50
+            s200_prev = float(sma200.iloc[i-1]) if i > 0 and not np.isnan(sma200.iloc[i-1]) else s200
+            if s50 > s200 and s50_prev <= s200_prev:
+                tech += 10  # golden cross
+            if s50 < s200 and s50_prev >= s200_prev:
+                tech -= 10  # death cross
+
+            tech = max(0, min(100, tech))
+
+            # === Fundamental Score (static from current info) ===
+            fund = 50.0
+            if target_price and price > 0:
+                upside = (target_price - price) / price
+                fund += max(-30, min(30, upside * 100))
+            fund = max(0, min(100, fund))
+
+            # === Quant Score ===
+            quant = 50.0
+            hmm_s = int(hmm_states.iloc[i]) if i < len(hmm_states) else 1
+            if hmm_s == 2:
+                quant += 15
+            elif hmm_s == 0:
+                quant -= 15
+
+            # Hurst
+            hurst = rolling_hurst(close.values[:i+1])
+            if hurst > 0.6:
+                quant += 5
+            elif hurst < 0.4:
+                quant -= 5
+
+            # Kelly (rolling)
+            if i > 20:
+                ret_window = returns.values[max(0, i-252):i]
+                mu = float(np.mean(ret_window)) - 0.0005
+                var = float(np.var(ret_window))
+                if var > 0:
+                    kelly = max(-1, min(1, (mu / var) * 0.25))
+                    quant += min(kelly * 25, 15)
+
+            quant = max(0, min(100, quant))
+
+            # === Composite ===
+            composite = (
+                tech * W["technical"] +
+                fund * W["fundamental"] +
+                quant * W["quant"] +
+                50.0 * W["baseline"]  # sentiment/insider/macro assumed neutral
+            )
+            composite = max(0, min(100, composite))
+
+            # Signal
+            if composite > 55:
+                direction = "BUY"
+                ret = (exit_price - price) / price
+            elif composite < 45:
+                direction = "SELL"
+                ret = (price - exit_price) / price
+            else:
+                continue
+
+            eq *= (1 + ret)
+            equity.append(round(eq, 4))
+            trades.append({
+                "date": close.index[i].strftime("%Y-%m-%d"),
+                "direction": direction,
+                "score": round(composite, 1),
+                "tech_score": round(tech, 1),
+                "fund_score": round(fund, 1),
+                "quant_score": round(quant, 1),
+                "entry": round(price, 4),
+                "exit": round(exit_price, 4),
+                "return_pct": round(ret * 100, 3),
+                "outcome": "CORRECT" if ret > 0 else "INCORRECT",
+            })
+
+        if not trades:
+            return {"error": "No trades generated — signal stayed neutral"}
+
+        # ── Performance metrics ──
+        rets = [t["return_pct"] / 100 for t in trades]
+        hit_rate = sum(1 for r in rets if r > 0) / len(rets)
+        avg_ret = float(np.mean(rets))
+        std_ret = float(np.std(rets))
+        sharpe = (avg_ret / std_ret * np.sqrt(252 / h)) if std_ret > 0 else 0.0
+        eq_arr = np.array(equity)
+        peak = np.maximum.accumulate(eq_arr)
+        max_dd = float(((eq_arr - peak) / peak).min())
+
+        # Buy-and-hold benchmark
+        bh_start = float(close.iloc[start_idx])
+        bh_return = float((close.iloc[-1] - bh_start) / bh_start) * 100
+        strategy_return = (eq - 100)
+
+        # SPY benchmark
+        spy_start = float(spy_close.iloc[min(start_idx, len(spy_close) - 1)]) if len(spy_close) > 0 else 1.0
+        spy_return = float((spy_close.iloc[-1] - spy_start) / spy_start) * 100 if spy_start > 0 else 0.0
+        alpha = strategy_return - spy_return
+
+        # Equity curve (downsampled for chart)
+        step = max(1, len(equity) // 80)
+        curve = []
+        for i in range(0, len(equity), step):
+            trade_idx = min(i, len(trades) - 1)
+            d = trades[trade_idx]["date"]
+            spy_val = None
+            try:
+                matched = spy_close[spy_close.index >= pd.Timestamp(d)]
+                if len(matched) > 0 and spy_start > 0:
+                    spy_val = round(float(matched.iloc[0]) / spy_start * 100, 4)
+            except Exception:
+                pass
+            curve.append({"date": d, "equity": equity[i], "spy": spy_val})
+
+        # Win/loss stats
+        wins = [r for r in rets if r > 0]
+        losses = [r for r in rets if r <= 0]
+        avg_win = float(np.mean(wins)) * 100 if wins else 0
+        avg_loss = float(np.mean(losses)) * 100 if losses else 0
+        profit_factor = abs(sum(wins) / sum(losses)) if losses and sum(losses) != 0 else float('inf')
+
+        return {
+            "ticker": t,
+            "method": "composite_multifactor",
+            "horizon": h,
+            "years_tested": years,
+            "total_trades": len(trades),
+            "hit_rate": round(hit_rate, 4),
+            "avg_return_pct": round(avg_ret * 100, 4),
+            "sharpe_ratio": round(sharpe, 4),
+            "max_drawdown_pct": round(max_dd * 100, 4),
+            "final_equity": round(eq, 4),
+            "strategy_return_pct": round(strategy_return, 4),
+            "benchmark_return_pct": round(bh_return, 4),
+            "spy_return_pct": round(spy_return, 4),
+            "alpha_vs_spy_pct": round(alpha, 4),
+            "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else None,
+            "avg_win_pct": round(avg_win, 4),
+            "avg_loss_pct": round(avg_loss, 4),
+            "equity_curve": curve,
+            "recent_trades": trades[-20:],
+        }
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 # ── Epic 5: Contrarian Signal ──────────────────────────────────────────────────
 
@@ -510,3 +817,116 @@ async def squeeze_endpoint(ticker: str):
         }
     except Exception as e:
         return {"error": str(e)}
+
+# ── ML Weight Optimization ────────────────────────────────────────────────────
+
+@app.post("/optimize-weights")
+async def optimize_weights_endpoint(request: Request):
+    """
+    Train LogisticRegressionCV on resolved PredictionRecords to find optimal
+    component weights. Expects JSON body:
+    {
+      "records": [
+        { "sentiment_score": 62, "technical_score": 55, ..., "hmm_state": 2, "outcome": "CORRECT" },
+        ...
+      ],
+      "base_weights": { "sentiment": 0.25, "technical": 0.20, ... }
+    }
+    Returns: { "weights": { "sentiment": 0.28, ... }, "accuracy_cv": 0.64, "n_samples": 85 }
+    """
+    try:
+        import numpy as np
+        from sklearn.linear_model import LogisticRegressionCV
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.model_selection import StratifiedKFold
+
+        payload = await request.json()
+        records = payload.get("records", [])
+        base_weights = payload.get("base_weights", {})
+
+        FEATURE_KEYS = ["sentiment_score", "technical_score", "fundamental_score",
+                        "quant_score", "insider_score", "macro_score"]
+
+        # Filter to records that have all required features
+        valid = []
+        for r in records:
+            if r.get("outcome") not in ("CORRECT", "INCORRECT"):
+                continue
+            row = []
+            skip = False
+            for k in FEATURE_KEYS:
+                v = r.get(k)
+                if v is None:
+                    skip = True
+                    break
+                row.append(float(v))
+            if skip:
+                continue
+            # Include hmm_state as a feature (default 1 = neutral)
+            hmm = r.get("hmm_state")
+            row.append(float(hmm) if hmm is not None else 1.0)
+            valid.append((row, 1 if r["outcome"] == "CORRECT" else 0))
+
+        if len(valid) < 30:
+            return {
+                "error": "insufficient_data",
+                "n_samples": len(valid),
+                "weights": base_weights,
+            }
+
+        X = np.array([v[0] for v in valid])
+        y = np.array([v[1] for v in valid])
+
+        # Check class balance — need at least 5 of each class
+        n_pos, n_neg = int(np.sum(y)), int(np.sum(1 - y))
+        if n_pos < 5 or n_neg < 5:
+            return {
+                "error": "class_imbalance",
+                "n_positive": n_pos,
+                "n_negative": n_neg,
+                "weights": base_weights,
+            }
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        n_folds = min(5, min(n_pos, n_neg))
+        cv = StratifiedKFold(n_splits=max(2, n_folds), shuffle=True, random_state=42)
+
+        model = LogisticRegressionCV(
+            Cs=10,
+            cv=cv,
+            penalty="l2",
+            scoring="accuracy",
+            max_iter=1000,
+            random_state=42,
+        )
+        model.fit(X_scaled, y)
+
+        # Extract coefficients for the 6 component features (exclude hmm_state)
+        coefs = model.coef_[0][:6]
+        accuracy_cv = float(model.scores_[1].mean())
+
+        # Weights from absolute coefficients — larger |coef| = more predictive
+        abs_coefs = np.abs(coefs)
+
+        # Blend: 70% ML-derived, 30% prior base weights (regularisation toward base)
+        base_arr = np.array([base_weights.get(k.replace("_score", ""), 1/6) for k in FEATURE_KEYS])
+        base_arr = base_arr / base_arr.sum()
+
+        blended = 0.7 * (abs_coefs / abs_coefs.sum()) + 0.3 * base_arr
+        blended = blended / blended.sum()
+
+        weights = {k.replace("_score", ""): round(float(w), 4) for k, w in zip(FEATURE_KEYS, blended)}
+
+        return {
+            "weights": weights,
+            "accuracy_cv": round(accuracy_cv, 4),
+            "n_samples": len(valid),
+            "raw_coefs": {k.replace("_score", ""): round(float(c), 4) for k, c in zip(FEATURE_KEYS, coefs)},
+            "hmm_coef": round(float(model.coef_[0][6]), 4),
+        }
+
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}

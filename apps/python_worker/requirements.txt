@@ -8,3 +8,4 @@ statsmodels
 arch
 hmmlearn
 pytrends
+scikit-learn

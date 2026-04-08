@@ -44,11 +44,15 @@ def process_quant(payload):
 
         if not sent_df.empty:
             sent_df['date'] = pd.to_datetime(sent_df['post_timestamp']).dt.tz_localize(None).dt.normalize()
-            # Daily sentiment aggregated by confidence-weighted mean
-            sent_df['weighted_sent'] = sent_df['sentiment'] * sent_df.get('confidence', 1.0)
+            # Use pre-computed time-decay weights from worker (falls back to 1.0 if absent)
+            if 'decay_weight' not in sent_df.columns:
+                sent_df['decay_weight'] = 1.0
+            # Daily sentiment aggregated by confidence × decay-weighted mean
+            sent_df['combined_weight'] = sent_df['confidence'].fillna(0.5) * sent_df['decay_weight']
+            sent_df['weighted_sent'] = sent_df['sentiment'] * sent_df['combined_weight']
 
             daily_sent = sent_df.groupby('date').apply(
-                lambda x: x['weighted_sent'].sum() / x['confidence'].sum() if x['confidence'].sum() > 0 else 0
+                lambda x: x['weighted_sent'].sum() / x['combined_weight'].sum() if x['combined_weight'].sum() > 0 else 0
             )
             daily_sent.name = 'sentiment'
             merged_df = hist.join(daily_sent, how='inner').dropna()
@@ -347,7 +351,9 @@ def process_quant(payload):
                 for sent_row in sent_df.itertuples():
                     obs = float(sent_row.sentiment)
                     conf = float(getattr(sent_row, 'confidence', 0.5))
-                    obs_var = max(0.001, (1 - conf) ** 2)
+                    decay = float(getattr(sent_row, 'decay_weight', 1.0))
+                    # Scale observation variance by inverse decay — older posts contribute less certainty
+                    obs_var = max(0.001, (1 - conf) ** 2 / max(decay, 0.01))
 
                     # Bayesian update (conjugate Normal-Normal)
                     posterior_var_new = 1.0 / (1.0 / posterior_var + 1.0 / obs_var)

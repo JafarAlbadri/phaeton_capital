@@ -38,39 +38,86 @@ async function computeOptimizedWeights(ticker: string, base: Weights): Promise<W
     if (cached && Date.now() - cached.ts < 15 * 60 * 1000) return cached.weights;
 
     try {
+        // Fetch resolved predictions across ALL tickers for more training data
         const resolved = await prisma.predictionRecord.findMany({
-            where: { ticker, outcome: { in: ['CORRECT', 'INCORRECT'] } },
+            where: { outcome: { in: ['CORRECT', 'INCORRECT'] } },
             orderBy: { createdAt: 'desc' },
-            take: 100,
-            select: { outcome: true, composite_score: true },
+            take: 500,
+            select: {
+                outcome: true, sentiment_score: true, technical_score: true,
+                fundamental_score: true, quant_score: true, insider_score: true,
+                macro_score: true, hmm_state: true,
+            },
         });
 
-        if (resolved.length < 10) {
+        // Need component scores to train — old records without them are useless
+        const withFeatures = resolved.filter(r =>
+            r.sentiment_score != null && r.technical_score != null &&
+            r.fundamental_score != null && r.quant_score != null
+        );
+
+        if (withFeatures.length < 30) {
+            logWrapper.info(`ML weights: only ${withFeatures.length} records with features — using base weights`);
             weightCache.set(ticker, { weights: base, ts: Date.now() });
             return base;
         }
 
-        const correctRate = resolved.filter(r => r.outcome === 'CORRECT').length / resolved.length;
-        const adjusted = { ...base };
-        const MAX_NUDGE = 0.05;
+        // Call Python ML endpoint
+        const pythonUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
+        const mlResponse = await fetch(`${pythonUrl}/optimize-weights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                records: withFeatures.map(r => ({
+                    sentiment_score: r.sentiment_score,
+                    technical_score: r.technical_score,
+                    fundamental_score: r.fundamental_score,
+                    quant_score: r.quant_score,
+                    insider_score: r.insider_score,
+                    macro_score: r.macro_score,
+                    hmm_state: r.hmm_state,
+                    outcome: r.outcome,
+                })),
+                base_weights: base,
+            }),
+            signal: AbortSignal.timeout(15_000),
+        });
 
-        if (correctRate > 0.60) {
-            const boost = Math.min((correctRate - 0.5) * 0.1, MAX_NUDGE);
-            adjusted.quant = Math.min(0.35, adjusted.quant + boost);
-            adjusted.macro  = Math.max(0.02, adjusted.macro  - boost);
-        } else if (correctRate < 0.40) {
-            const boost = Math.min((0.5 - correctRate) * 0.1, MAX_NUDGE);
-            adjusted.fundamental = Math.min(0.35, adjusted.fundamental + boost);
-            adjusted.sentiment   = Math.max(0.10, adjusted.sentiment   - boost);
+        if (!mlResponse.ok) {
+            logWrapper.warn(`ML weights endpoint returned ${mlResponse.status} — using base weights`);
+            weightCache.set(ticker, { weights: base, ts: Date.now() });
+            return base;
         }
 
-        const total = Object.values(adjusted).reduce((a, b) => a + b, 0);
-        (Object.keys(adjusted) as (keyof Weights)[]).forEach(k => { adjusted[k] /= total; });
+        const mlResult = await mlResponse.json() as {
+            weights?: Weights; accuracy_cv?: number; n_samples?: number; error?: string;
+        };
 
-        logWrapper.info(`Weight optimisation for ${ticker}: accuracy=${(correctRate*100).toFixed(0)}%`);
-        weightCache.set(ticker, { weights: adjusted, ts: Date.now() });
-        return adjusted;
-    } catch {
+        if (mlResult.error || !mlResult.weights) {
+            logWrapper.info(`ML weights: ${mlResult.error ?? 'no weights returned'} (n=${mlResult.n_samples ?? 0}) — using base weights`);
+            weightCache.set(ticker, { weights: base, ts: Date.now() });
+            return base;
+        }
+
+        // Validate: every weight must be positive and sum ≈ 1
+        const w = mlResult.weights;
+        const keys: (keyof Weights)[] = ['sentiment', 'technical', 'fundamental', 'quant', 'insider', 'macro'];
+        const allPositive = keys.every(k => typeof w[k] === 'number' && w[k] > 0);
+        if (!allPositive) {
+            logWrapper.warn('ML weights: invalid weight values — using base weights');
+            weightCache.set(ticker, { weights: base, ts: Date.now() });
+            return base;
+        }
+
+        // Normalise to sum=1 (safety net)
+        const total = keys.reduce((s, k) => s + w[k], 0);
+        keys.forEach(k => { w[k] /= total; });
+
+        logWrapper.info(`ML weights: accuracy_cv=${((mlResult.accuracy_cv ?? 0)*100).toFixed(1)}% n=${mlResult.n_samples} → ${keys.map(k => `${k}=${(w[k]*100).toFixed(1)}%`).join(' ')}`);
+        weightCache.set(ticker, { weights: w, ts: Date.now() });
+        return w;
+    } catch (err) {
+        logWrapper.warn('ML weight optimisation failed — using base weights:', err);
         return base;
     }
 }
@@ -90,7 +137,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             prisma.riskProfile.findUnique({ where: { ticker } }),
             prisma.sentiment.findMany({
                 where: { ticker, is_manipulation: false, post_timestamp: { gte: sentimentCutoff } },
-                select: { sentiment: true, confidence: true },
+                select: { sentiment: true, confidence: true, post_timestamp: true },
                 take: 500,
             }),
         ]);
@@ -104,13 +151,19 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         const baseWeights = selectRegimeWeights(quant?.hmm_state, macro?.vix);
         const WEIGHTS = await computeOptimizedWeights(ticker, baseWeights);
 
-        // --- Sentiment Score — window-weighted by horizon ---
+        // --- Sentiment Score — time-decayed, confidence-weighted by horizon ---
         let sentimentScore = 50;
         if (recentSentiments.length > 0) {
-            // Weighted mean of recent sentiment (confidence-weighted)
+            // Exponential time-decay: half-life scales with horizon
+            // 15d → 24h half-life, 30d → 48h, 90d → 7d
+            const halfLifeHours = horizon === 15 ? 24 : horizon === 30 ? 48 : 168;
+            const lambda = Math.LN2 / (halfLifeHours * 3600_000); // decay constant in ms⁻¹
+            const now = Date.now();
             let wSum = 0, wTotal = 0;
             for (const s of recentSentiments) {
-                const w = s.confidence || 0.1;
+                const ageMs = now - s.post_timestamp.getTime();
+                const timeDecay = Math.exp(-lambda * ageMs);
+                const w = (s.confidence || 0.1) * timeDecay;
                 wSum += s.sentiment * w;
                 wTotal += w;
             }
@@ -237,10 +290,14 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         );
 
         const signal = signalFromScore(composite);
-        const riskOverride = riskProfile?.overall_risk_rating === 5 && (signal === 'BUY' || signal === 'STRONG_BUY');
-        const finalSignal = riskOverride ? 'HOLD' : signal;
+        // High risk reduces confidence instead of killing the signal entirely
+        const riskRating = riskProfile?.overall_risk_rating ?? 1;
+        const riskOverride = riskRating === 5 && (signal === 'STRONG_BUY' || signal === 'STRONG_SELL');
+        const finalSignal = riskOverride
+            ? (signal === 'STRONG_BUY' ? 'BUY' : 'SELL')  // Downgrade one notch, don't kill
+            : signal;
 
-        // Confidence: data coverage × sentiment freshness
+        // Confidence: data coverage × sentiment freshness × risk penalty
         let dataSources = 0;
         if (quant) dataSources++;
         if (fundamental) dataSources++;
@@ -248,10 +305,11 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         if (macro) dataSources++;
         if (insiders.length > 0) dataSources++;
         const dataSourceScore = dataSources / 5;
-        // Penalise if no sentiment data in the horizon window
         const sentimentFreshness = recentSentiments.length > 10 ? 1.0
             : recentSentiments.length > 0 ? 0.5 + (recentSentiments.length / 20) : 0.3;
-        const confidence = dataSourceScore * sentimentFreshness;
+        // Risk penalty: rating 5 → 0.7x confidence, rating 4 → 0.85x, else 1.0x
+        const riskPenalty = riskRating >= 5 ? 0.7 : riskRating >= 4 ? 0.85 : 1.0;
+        const confidence = dataSourceScore * sentimentFreshness * riskPenalty;
 
         // Adjust Kelly lookback and prediction resolution based on horizon
         const resolutionDays = horizon;
@@ -274,9 +332,16 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             }
         });
 
-        if (fundamental?.current_price && horizon === 15) {
+        if (fundamental?.current_price) {
             await prisma.predictionRecord.create({
-                data: { ticker, signal: finalSignal, price_at_signal: fundamental.current_price, composite_score: composite, outcome: 'PENDING', horizon }
+                data: {
+                    ticker, signal: finalSignal, price_at_signal: fundamental.current_price,
+                    composite_score: composite, outcome: 'PENDING', horizon,
+                    sentiment_score: sentimentScore, technical_score: technicalScore,
+                    fundamental_score: fundamentalScore, quant_score: quantScore,
+                    insider_score: insiderScore, macro_score: macroScore,
+                    hmm_state: quant?.hmm_state ?? null,
+                },
             });
         }
 

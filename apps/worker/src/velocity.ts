@@ -21,10 +21,21 @@ export async function computeVelocity(ticker: string): Promise<VelocityResult | 
         const avgSentiment = async (from: Date, to: Date): Promise<number | null> => {
             const rows = await prisma.sentiment.findMany({
                 where: { ticker, post_timestamp: { gte: from, lt: to } },
-                select: { sentiment: true },
+                select: { sentiment: true, confidence: true, post_timestamp: true },
             });
             if (rows.length === 0) return null;
-            return rows.reduce((s, r) => s + r.sentiment, 0) / rows.length;
+            // Time-decayed weighted mean (half-life 6h for velocity windows)
+            const halfLifeMs = 6 * 3600_000;
+            const lambda = Math.LN2 / halfLifeMs;
+            const toMs = to.getTime();
+            let wSum = 0, wTotal = 0;
+            for (const r of rows) {
+                const ageMs = toMs - r.post_timestamp.getTime();
+                const w = (r.confidence || 0.1) * Math.exp(-lambda * ageMs);
+                wSum += r.sentiment * w;
+                wTotal += w;
+            }
+            return wTotal > 0 ? wSum / wTotal : null;
         };
 
         const [s0_1, s1_2, s0_6, s6_12, s0_24, s24_48] = await Promise.all([
