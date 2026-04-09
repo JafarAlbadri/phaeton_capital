@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle } from "lucide-react";
 
 // ── Explanation data ────────────────────────────────────────────────────────────
@@ -329,219 +330,120 @@ const EXPLANATIONS: Record<string, ExplanationEntry> = {
   },
 };
 
-// ── Popup Window (window.open) ─────────────────────────────────────────────────
+// ── ExplainModal (in-app floating box) ─────────────────────────────────────────
 
-/**
- * Escape user-facing strings before injecting into the popup HTML so a value
- * with `<` or `&` can't break the document.
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+interface ModalProps {
+  entry: ExplanationEntry;
+  onClose: () => void;
 }
 
-function buildPopupHtml(entry: ExplanationEntry): string {
-  const title = escapeHtml(entry.title);
-  const explain = escapeHtml(entry.explain);
-  const whyMatters = escapeHtml(entry.whyMatters);
-  const rangeBlock = entry.range
-    ? `
-        <div class="range">
-          <p class="range-label">Normal range</p>
-          <p class="range-value">${escapeHtml(entry.range)}</p>
-        </div>`
-    : "";
+function ExplainModal({ entry, onClose }: ModalProps) {
+  // ESC closes the box. Lock body scroll while open so the page underneath
+  // can't move while the user is reading.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>${title} — Phaeton Capital</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    :root {
-      color-scheme: dark;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #09091f;
-      color: #c8c8e0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    body {
-      padding: 28px 30px 32px;
-      min-height: 100vh;
-    }
-    .header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-    .title {
-      color: #fcd97a;
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1.35;
-      margin: 0;
-    }
-    .close-btn {
-      background: transparent;
-      border: 1px solid rgba(212, 160, 23, 0.35);
-      color: #7878a0;
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: all 0.15s ease;
-    }
-    .close-btn:hover {
-      color: #fcd97a;
-      border-color: rgba(212, 160, 23, 0.7);
-      background: rgba(212, 160, 23, 0.08);
-    }
-    .divider {
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(212, 160, 23, 0.35), transparent);
-      margin-bottom: 18px;
-    }
-    p.body-text {
-      color: #c8c8e0;
-      font-size: 14px;
-      line-height: 1.65;
-      margin: 0 0 18px 0;
-    }
-    .section-label {
-      color: #f0efff;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin: 0 0 6px 0;
-    }
-    .range {
-      background: #0c0c24;
-      border: 1px solid #1a1a3a;
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-top: 6px;
-    }
-    .range-label {
-      color: #7878a0;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.10em;
-      margin: 0 0 6px 0;
-    }
-    .range-value {
-      color: #fcd97a;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 12.5px;
-      line-height: 1.6;
-      margin: 0;
-    }
-    .footer {
-      margin-top: 24px;
-      text-align: center;
-      font-size: 10px;
-      color: #5d5d8a;
-    }
-    kbd {
-      background: #1a1a3a;
-      color: #9898c0;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      border: 1px solid #2a2a4a;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1 class="title">${title}</h1>
-    <button class="close-btn" onclick="window.close()">Close ✕</button>
-  </div>
-  <div class="divider"></div>
+  if (typeof window === "undefined") return null;
 
-  <p class="body-text">${explain}</p>
+  return createPortal(
+    <div
+      // Full-viewport dim layer. Very dark + heavy blur so the page behind
+      // visibly recedes — this is what makes the box read as a "separate box"
+      // rather than text painted onto the website.
+      className="fixed inset-0 z-[2147483647] flex items-center justify-center px-4 py-8 bg-black/85 backdrop-blur-md"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={entry.title}
+    >
+      {/* The floating box. Generous size, strong shadow + ring + gold border
+          so it visually pops off the dimmed page behind it. */}
+      <div
+        className={[
+          "relative w-full max-w-xl max-h-[85vh] overflow-hidden",
+          "bg-[#0a0a1c] rounded-2xl",
+          "border border-[#d4a017]/60 ring-1 ring-[#d4a017]/20",
+          "shadow-[0_30px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(212,160,23,0.15)]",
+          "flex flex-col",
+        ].join(" ")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title bar — visually distinct from body so the box reads like
+            a window with chrome. */}
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#d4a017]/25 bg-gradient-to-b from-[#12122a] to-[#0a0a1c]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-[#fcd97a] shadow-[0_0_8px_rgba(252,217,122,0.6)] flex-shrink-0" />
+            <p className="text-[#fcd97a] font-bold text-[15px] leading-snug truncate">
+              {entry.title}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[#9898c0] hover:text-[#fcd97a] hover:bg-white/5 transition-colors flex-shrink-0 p-1.5 rounded-md border border-[#2a2a4a] hover:border-[#d4a017]/50"
+            aria-label="Close"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2.5 2.5l11 11M13.5 2.5l-11 11"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
 
-  <p class="section-label">Why it matters</p>
-  <p class="body-text">${whyMatters}</p>
-  ${rangeBlock}
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-6 py-5 flex flex-col gap-4">
+          <p className="text-[#d8d8ee] text-[14px] leading-[1.65]">
+            {entry.explain}
+          </p>
 
-  <p class="footer">Press <kbd>Esc</kbd> or click Close to dismiss this window</p>
+          <div>
+            <p className="text-[#fcd97a] text-[10.5px] font-bold tracking-[0.10em] uppercase mb-2">
+              Why it matters
+            </p>
+            <p className="text-[#c8c8e0] text-[14px] leading-[1.65]">
+              {entry.whyMatters}
+            </p>
+          </div>
 
-  <script>
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') window.close();
-    });
-  </script>
-</body>
-</html>`;
-}
+          {entry.range && (
+            <div className="bg-[#05051a] border border-[#1a1a3a] rounded-[10px] px-4 py-3 mt-1">
+              <p className="text-[#7878a0] text-[10px] font-bold tracking-[0.10em] uppercase mb-1.5">
+                Normal range
+              </p>
+              <p className="text-[#fcd97a] font-mono text-[12px] leading-relaxed">
+                {entry.range}
+              </p>
+            </div>
+          )}
+        </div>
 
-/**
- * Map of currently-open popup windows keyed by topic, so clicking the same
- * `?` twice focuses the existing window instead of spawning a duplicate.
- */
-const openPopups = new Map<string, Window>();
-
-function openExplainPopup(topic: string, entry: ExplanationEntry) {
-  // If a window for this topic is already open, just focus it.
-  const existing = openPopups.get(topic);
-  if (existing && !existing.closed) {
-    existing.focus();
-    return;
-  }
-
-  const width = 540;
-  const height = 640;
-  // Center on the parent window for a nice default position.
-  const left = (window.screen.availWidth - width) / 2;
-  const top = (window.screen.availHeight - height) / 2;
-
-  const features = [
-    `width=${width}`,
-    `height=${height}`,
-    `left=${left}`,
-    `top=${top}`,
-    "menubar=no",
-    "toolbar=no",
-    "location=no",
-    "status=no",
-    "resizable=yes",
-    "scrollbars=yes",
-  ].join(",");
-
-  const popup = window.open("", `phaeton_explain_${topic}`, features);
-  if (!popup) {
-    // Popup blocked — fall back to alert with plain text so the user still
-    // gets the explanation rather than a silent failure.
-    const fallback = `${entry.title}\n\n${entry.explain}\n\nWhy it matters:\n${entry.whyMatters}${
-      entry.range ? `\n\nNormal range: ${entry.range}` : ""
-    }`;
-    window.alert(fallback);
-    return;
-  }
-
-  popup.document.open();
-  popup.document.write(buildPopupHtml(entry));
-  popup.document.close();
-  popup.focus();
-
-  openPopups.set(topic, popup);
+        {/* Footer hint */}
+        <div className="px-6 py-3 border-t border-[#1a1a3a] bg-[#05051a]/60 text-center">
+          <p className="text-[10px] text-[#7878a0]">
+            Press{" "}
+            <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono border border-[#2a2a4a]">
+              Esc
+            </kbd>{" "}
+            or click outside to close
+          </p>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 // ── ExplainTooltip ─────────────────────────────────────────────────────────────
@@ -552,7 +454,10 @@ export interface ExplainTooltipProps {
 }
 
 export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
+  const [open, setOpen] = useState(false);
   const entry = EXPLANATIONS[topic];
+
+  const close = useCallback(() => setOpen(false), []);
 
   if (!entry) return null;
 
@@ -565,18 +470,23 @@ export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          openExplainPopup(topic, entry);
+          setOpen(true);
         }}
         aria-label={`Explain ${topic}`}
-        title={`Open ${entry.title} in a new window`}
+        title={entry.title}
         className={[
           "inline-flex items-center justify-center",
           "text-[#5d5d8a] hover:text-[#fcd97a]",
           "transition-colors duration-150",
-        ].join(" ")}
+          open && "text-[#fcd97a]",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
       </button>
+
+      {open && <ExplainModal entry={entry} onClose={close} />}
     </span>
   );
 }
