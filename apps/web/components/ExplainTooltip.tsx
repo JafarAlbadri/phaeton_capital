@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import React from "react";
 import { HelpCircle } from "lucide-react";
 
 // ── Explanation data ────────────────────────────────────────────────────────────
@@ -330,106 +329,219 @@ const EXPLANATIONS: Record<string, ExplanationEntry> = {
   },
 };
 
-// ── ExplainModal (portal) ──────────────────────────────────────────────────────
+// ── Popup Window (window.open) ─────────────────────────────────────────────────
 
-interface ModalProps {
-  entry: ExplanationEntry;
-  onClose: () => void;
+/**
+ * Escape user-facing strings before injecting into the popup HTML so a value
+ * with `<` or `&` can't break the document.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function ExplainModal({ entry, onClose }: ModalProps) {
-  // ESC to close + lock body scroll while open
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
+function buildPopupHtml(entry: ExplanationEntry): string {
+  const title = escapeHtml(entry.title);
+  const explain = escapeHtml(entry.explain);
+  const whyMatters = escapeHtml(entry.whyMatters);
+  const rangeBlock = entry.range
+    ? `
+        <div class="range">
+          <p class="range-label">Normal range</p>
+          <p class="range-value">${escapeHtml(entry.range)}</p>
+        </div>`
+    : "";
 
-  if (typeof window === "undefined") return null;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title} — Phaeton Capital</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #09091f;
+      color: #c8c8e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      padding: 28px 30px 32px;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .title {
+      color: #fcd97a;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.35;
+      margin: 0;
+    }
+    .close-btn {
+      background: transparent;
+      border: 1px solid rgba(212, 160, 23, 0.35);
+      color: #7878a0;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .close-btn:hover {
+      color: #fcd97a;
+      border-color: rgba(212, 160, 23, 0.7);
+      background: rgba(212, 160, 23, 0.08);
+    }
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(212, 160, 23, 0.35), transparent);
+      margin-bottom: 18px;
+    }
+    p.body-text {
+      color: #c8c8e0;
+      font-size: 14px;
+      line-height: 1.65;
+      margin: 0 0 18px 0;
+    }
+    .section-label {
+      color: #f0efff;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 6px 0;
+    }
+    .range {
+      background: #0c0c24;
+      border: 1px solid #1a1a3a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 6px;
+    }
+    .range-label {
+      color: #7878a0;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      margin: 0 0 6px 0;
+    }
+    .range-value {
+      color: #fcd97a;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 10px;
+      color: #5d5d8a;
+    }
+    kbd {
+      background: #1a1a3a;
+      color: #9898c0;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #2a2a4a;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 class="title">${title}</h1>
+    <button class="close-btn" onclick="window.close()">Close ✕</button>
+  </div>
+  <div class="divider"></div>
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center px-4 py-8 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s_ease-out]"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={entry.title}
-    >
-      <div
-        className={[
-          "relative w-full max-w-lg max-h-[85vh] overflow-y-auto",
-          "bg-[#09091f] border border-[#d4a017]/40 rounded-[14px]",
-          "shadow-[0_20px_60px_rgba(0,0,0,0.85)]",
-          "p-6 flex flex-col gap-4",
-        ].join(" ")}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 pr-1">
-          <p className="text-[#fcd97a] font-bold text-[16px] leading-snug">
-            {entry.title}
-          </p>
-          <button
-            onClick={onClose}
-            className="text-[#7878a0] hover:text-[#fcd97a] transition-colors flex-shrink-0 -mt-1 -mr-1 p-1 rounded-md hover:bg-white/5"
-            aria-label="Close explanation"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M2 2l12 12M14 2L2 14"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
+  <p class="body-text">${explain}</p>
 
-        {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-[#d4a017]/30 to-transparent" />
+  <p class="section-label">Why it matters</p>
+  <p class="body-text">${whyMatters}</p>
+  ${rangeBlock}
 
-        {/* Explanation */}
-        <p className="text-[#c8c8e0] text-[13.5px] leading-relaxed">
-          {entry.explain}
-        </p>
+  <p class="footer">Press <kbd>Esc</kbd> or click Close to dismiss this window</p>
 
-        {/* Why it matters */}
-        <div>
-          <p className="text-[#f0efff] text-[11px] font-bold tracking-[0.08em] uppercase mb-1.5">
-            Why it matters
-          </p>
-          <p className="text-[#c8c8e0] text-[13.5px] leading-relaxed">
-            {entry.whyMatters}
-          </p>
-        </div>
+  <script>
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') window.close();
+    });
+  </script>
+</body>
+</html>`;
+}
 
-        {/* Normal range */}
-        {entry.range && (
-          <div className="bg-[#0c0c24] border border-[#1a1a3a] rounded-[10px] px-4 py-3">
-            <p className="text-[#7878a0] text-[10px] font-bold tracking-[0.10em] uppercase mb-1.5">
-              Normal range
-            </p>
-            <p className="text-[#fcd97a] font-mono text-[12px] leading-relaxed">
-              {entry.range}
-            </p>
-          </div>
-        )}
+/**
+ * Map of currently-open popup windows keyed by topic, so clicking the same
+ * `?` twice focuses the existing window instead of spawning a duplicate.
+ */
+const openPopups = new Map<string, Window>();
 
-        {/* Footer hint */}
-        <p className="text-[10px] text-[#5d5d8a] text-center pt-1">
-          Press <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono">Esc</kbd> or click outside to close
-        </p>
-      </div>
-    </div>,
-    document.body
-  );
+function openExplainPopup(topic: string, entry: ExplanationEntry) {
+  // If a window for this topic is already open, just focus it.
+  const existing = openPopups.get(topic);
+  if (existing && !existing.closed) {
+    existing.focus();
+    return;
+  }
+
+  const width = 540;
+  const height = 640;
+  // Center on the parent window for a nice default position.
+  const left = (window.screen.availWidth - width) / 2;
+  const top = (window.screen.availHeight - height) / 2;
+
+  const features = [
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    "menubar=no",
+    "toolbar=no",
+    "location=no",
+    "status=no",
+    "resizable=yes",
+    "scrollbars=yes",
+  ].join(",");
+
+  const popup = window.open("", `phaeton_explain_${topic}`, features);
+  if (!popup) {
+    // Popup blocked — fall back to alert with plain text so the user still
+    // gets the explanation rather than a silent failure.
+    const fallback = `${entry.title}\n\n${entry.explain}\n\nWhy it matters:\n${entry.whyMatters}${
+      entry.range ? `\n\nNormal range: ${entry.range}` : ""
+    }`;
+    window.alert(fallback);
+    return;
+  }
+
+  popup.document.open();
+  popup.document.write(buildPopupHtml(entry));
+  popup.document.close();
+  popup.focus();
+
+  openPopups.set(topic, popup);
 }
 
 // ── ExplainTooltip ─────────────────────────────────────────────────────────────
@@ -440,11 +552,7 @@ export interface ExplainTooltipProps {
 }
 
 export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
-  const [open, setOpen] = useState(false);
-
   const entry = EXPLANATIONS[topic];
-
-  const close = useCallback(() => setOpen(false), []);
 
   if (!entry) return null;
 
@@ -457,22 +565,18 @@ export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
-          setOpen(true);
+          openExplainPopup(topic, entry);
         }}
         aria-label={`Explain ${topic}`}
+        title={`Open ${entry.title} in a new window`}
         className={[
           "inline-flex items-center justify-center",
           "text-[#5d5d8a] hover:text-[#fcd97a]",
           "transition-colors duration-150",
-          open && "text-[#fcd97a]",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        ].join(" ")}
       >
         <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
       </button>
-
-      {open && <ExplainModal entry={entry} onClose={close} />}
     </span>
   );
 }
