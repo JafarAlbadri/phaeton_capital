@@ -9,6 +9,15 @@ if (!apiKey) {
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const aiModel = process.env.AI_MODEL || 'gemini-2.5-flash';
 
+// Groq-hosted Gemma 2 9B as third-tier fallback (free, fast, unlimited-ish)
+// when both Gemini Flash models return 429.
+const groqApiKey = process.env.GROQ_API_KEY;
+const GROQ_GEMMA_MODEL = 'gemma2-9b-it';
+const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+if (!groqApiKey) {
+    logWrapper.warn('GROQ_API_KEY is not set. Gemma fallback disabled — only Gemini tiers available.');
+}
+
 export interface AiInput {
     id: string;
     text: string;
@@ -77,6 +86,106 @@ export interface AiLabelResult {
     is_manipulation: boolean;
     confidence: number; // 0 to 1
     ai_model: string; // The specific model used (main or fallback)
+}
+
+/**
+ * Strip ```json / ``` markdown code fences that smaller open models often emit
+ * around their JSON output.
+ */
+function stripCodeFences(s: string): string {
+    let out = s.trim();
+    if (out.startsWith('```json')) out = out.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    else if (out.startsWith('```')) out = out.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    return out.trim();
+}
+
+/**
+ * Third-tier fallback: Groq-hosted Gemma 2 9B IT.
+ * Used only when both Gemini 2.5 Flash AND Gemini 2.0 Flash return 429.
+ * Quality is meaningfully lower than Flash, but degraded labels beat no labels.
+ */
+async function labelWithGroqGemma(
+    systemInstruction: string,
+    inputContent: string,
+    promptVersion: number,
+): Promise<AiLabelResult[] | null> {
+    if (!groqApiKey) return null;
+
+    try {
+        logWrapper.warn('[AI Route] Both Gemini tiers exhausted. Falling back to Groq Gemma 2 9B...');
+
+        const resp = await fetch(GROQ_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${groqApiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: GROQ_GEMMA_MODEL,
+                messages: [
+                    { role: 'system', content: systemInstruction },
+                    { role: 'user', content: `POSTS TO ANALYZE:\n${inputContent}` },
+                ],
+                temperature: 0,
+                max_tokens: 2048,
+            }),
+        });
+
+        if (!resp.ok) {
+            const body = await resp.text().catch(() => '');
+            logWrapper.error(`[AI Route] Groq Gemma fallback HTTP ${resp.status}: ${body.slice(0, 200)}`);
+            return null;
+        }
+
+        const data: any = await resp.json();
+        const raw = data?.choices?.[0]?.message?.content;
+        if (!raw) {
+            logWrapper.error('[AI Route] Groq Gemma returned empty content');
+            return null;
+        }
+
+        const cleaned = stripCodeFences(raw);
+
+        let parsed: any;
+        try {
+            parsed = JSON.parse(cleaned);
+        } catch (e) {
+            // Gemma sometimes wraps the array in extra text. Try to extract the
+            // first [...] block as a last resort.
+            const m = cleaned.match(/\[[\s\S]*\]/);
+            if (m) {
+                try { parsed = JSON.parse(m[0]); } catch { return null; }
+            } else {
+                logWrapper.error('[AI Route] Groq Gemma JSON parse failed');
+                return null;
+            }
+        }
+
+        // Gemma may wrap the array in an object key like { "results": [...] }
+        if (!Array.isArray(parsed)) {
+            const arrKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+            if (arrKey) parsed = parsed[arrKey];
+            else {
+                logWrapper.error('[AI Route] Groq Gemma returned non-array shape');
+                return null;
+            }
+        }
+
+        logWrapper.info(`[AI Route] Groq Gemma fallback succeeded (${parsed.length} labels)`);
+
+        return parsed.map((item: any) => ({
+            id: item.id,
+            ticker: item.ticker || 'UNKNOWN',
+            sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
+            is_manipulation: !!item.is_manipulation,
+            confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+            ai_model: `groq-${GROQ_GEMMA_MODEL}`,
+            prompt_version: promptVersion,
+        }));
+    } catch (e) {
+        logWrapper.error('[AI Route] Groq Gemma fallback exception:', e);
+        return null;
+    }
 }
 
 export async function labelSentimentAndDetectManipulation(posts: AiInput[]): Promise<AiLabelResult[] | null> {
@@ -171,10 +280,9 @@ ${inputContent}`;
                 let output = response.text;
                 if (!output) return null;
 
-                if (output.startsWith('```json')) output = output.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-                else if (output.startsWith('```')) output = output.replace(/^```\s*/, '').replace(/\s*```$/, '');
+                output = stripCodeFences(output);
 
-                const parsed = JSON.parse(output.trim());
+                const parsed = JSON.parse(output);
                 if (!Array.isArray(parsed)) return null;
 
                 return parsed.map((item: any) => ({
@@ -187,8 +295,9 @@ ${inputContent}`;
                     prompt_version: PROMPT_VERSION,
                 }));
             } catch (fallbackErr) {
-                logWrapper.error('[AI Route] Secondary fallback model also failed:', fallbackErr);
-                return null;
+                logWrapper.warn('[AI Route] Secondary Gemini fallback also failed. Trying Groq Gemma...');
+                // Third tier: Groq-hosted Gemma 2 9B. Lower quality but unlimited.
+                return await labelWithGroqGemma(systemInstruction, inputContent, PROMPT_VERSION);
             }
         } else {
             logWrapper.error('Error calling Gemini:', err);
