@@ -347,3 +347,17 @@ model WatchlistItem {
 
   @@unique([watchlistId, ticker])
 }
+
+// ── Universe of tickers the scanner sweeps for opportunities ─────────────────
+model TrackedTicker {
+  ticker       String    @id
+  name         String?   // Company name (optional, for display)
+  sector       String?
+  priority     Int       @default(0) // Higher priority = scanned more often
+  active       Boolean   @default(true)
+  lastScanned  DateTime?
+  addedAt      DateTime  @default(now())
+
+  @@index([active, priority])
+  @@index([lastScanned])
+}

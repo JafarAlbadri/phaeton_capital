@@ -486,6 +486,12 @@ export default function DashboardClient({
                     {/* Queue status */}
                     <div className="hidden md:block"><QueueStatus /></div>
 
+                    {/* Discover — auto-surfaced opportunities */}
+                    <a href="/discover"
+                       className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[rgba(212,160,23,0.06)] border border-[rgba(212,160,23,0.20)] hover:border-[rgba(212,160,23,0.40)] text-[11px] text-[#fcd97a] hover:shadow-[0_0_20px_rgba(212,160,23,0.15)] transition-all font-semibold uppercase tracking-wider">
+                        <Target className="w-3 h-3" /> Discover
+                    </a>
+
                     {/* Share signal card */}
                     {recommendationScore && (
                         <a href={`/api/og?ticker=${targetKeyword}&signal=${recommendationScore.signal}&score=${recommendationScore.composite_score?.toFixed(1)}&horizon=15`}

@@ -22,6 +22,7 @@ import { computeRecommendation } from './recommendation';
 import { computeVelocity } from './velocity';
 import { evaluateAlerts } from './alerts/evaluator';
 import { screenerQuery } from './screener';
+import { sweepUniverse } from './scanner';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -56,6 +57,12 @@ const scrapeQueue = new Queue('scrapeQueue', { connection: redisConnection });
 const scrapeWorker = new Worker('scrapeQueue', async (job: Job) => {
     if (job.name === 'process') {
         await processPosts(job.data.keyword);
+    } else if (job.name === 'sweep') {
+        await sweepUniverse(scrapeQueue, {
+            minAgeHours: job.data?.minAgeHours ?? 6,
+            maxBatch: job.data?.maxBatch ?? 30,
+            enqueueSpacingMs: job.data?.spacingMs ?? 750,
+        });
     }
 }, { connection: redisConnection, concurrency: 1 });
 
@@ -603,6 +610,37 @@ async function start() {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
                 });
             }
+            // ── Universe scanner trigger (manual sweep) ─────────────────────────────
+            if (url.pathname === '/scan-universe' && req.method === 'POST') {
+                const workerSecret = process.env.WORKER_SECRET;
+                if (workerSecret) {
+                    const auth = req.headers.get('Authorization');
+                    if (auth !== `Bearer ${workerSecret}`) {
+                        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                            status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                        });
+                    }
+                }
+
+                let minAgeHours = 6;
+                let maxBatch = 30;
+                try {
+                    const body = await req.clone().json();
+                    if (typeof body?.minAgeHours === 'number') minAgeHours = body.minAgeHours;
+                    if (typeof body?.maxBatch === 'number') maxBatch = body.maxBatch;
+                } catch {}
+
+                scrapeQueue.add('sweep', { minAgeHours, maxBatch, spacingMs: 750 }, {
+                    jobId: `sweep_${Math.floor(Date.now() / 60000)}`,
+                    removeOnComplete: true,
+                    removeOnFail: 1000,
+                }).catch(e => logWrapper.error('Sweep enqueue error:', e));
+
+                return new Response(JSON.stringify({ status: 'sweep_queued', minAgeHours, maxBatch }), {
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
             // ── Epic 3: Screener ─────────────────────────────────────────────────────
             if (url.pathname === '/screener' && req.method === 'GET') {
                 try {
@@ -666,6 +704,18 @@ async function start() {
         { pattern: '*/15 * * * *' },
         { name: 'process', data: { keyword: targetKeyword }, opts: { removeOnComplete: true, removeOnFail: 1000 } },
     ).catch(logWrapper.error);
+
+    // Universe sweep — every 6 hours, picks tickers stale > 6h, max 30 per sweep.
+    // Combined with the per-job 750ms enqueue spacing, this keeps the worker
+    // happily chewing through the universe without melting yfinance/Gemini quotas.
+    if (process.env.UNIVERSE_SWEEP_ENABLED !== 'false') {
+        scrapeQueue.upsertJobScheduler(
+            'universe_sweep',
+            { pattern: '0 */6 * * *' },
+            { name: 'sweep', data: { minAgeHours: 6, maxBatch: 30, spacingMs: 750 }, opts: { removeOnComplete: true, removeOnFail: 1000 } },
+        ).catch(logWrapper.error);
+        logWrapper.info('Universe sweep scheduled (every 6h, max 30 tickers/sweep).');
+    }
 }
 
 start().catch(logWrapper.error);
