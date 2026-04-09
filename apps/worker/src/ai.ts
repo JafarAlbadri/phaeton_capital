@@ -9,13 +9,36 @@ if (!apiKey) {
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const aiModel = process.env.AI_MODEL || 'gemini-2.5-flash';
 
-// Groq-hosted Gemma 2 9B as third-tier fallback (free, fast, unlimited-ish)
-// when both Gemini Flash models return 429.
-const groqApiKey = process.env.GROQ_API_KEY;
-const GROQ_GEMMA_MODEL = 'gemma2-9b-it';
-const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-if (!groqApiKey) {
-    logWrapper.warn('GROQ_API_KEY is not set. Gemma fallback disabled — only Gemini tiers available.');
+// Third-tier fallback (free, fast, unlimited-ish) when both Gemini Flash models return 429.
+// Auto-adapts based on whether you supply OPENROUTER_API_KEY, TOGETHER_API_KEY, or GROQ_API_KEY.
+const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.TOGETHER_API_KEY || process.env.GROQ_API_KEY;
+
+let FALLBACK_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
+// Multiple model candidates tried in order — if one is upstream-throttled,
+// the function falls through to the next. For single-model providers (Groq,
+// Together) the array has one entry.
+let FALLBACK_MODELS: string[] = ['gemma2-9b-it'];
+let fallbackProviderName = 'Groq';
+
+if (process.env.OPENROUTER_API_KEY) {
+    FALLBACK_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+    // Free OpenRouter chain. All three respond well on JSON sentiment classification.
+    // Gemma 4 31B is highest quality; gpt-oss-120b is fastest; Gemma 4 MoE is the
+    // backup if both upstream Google pools throttle simultaneously.
+    FALLBACK_MODELS = [
+        'google/gemma-4-31b-it:free',
+        'openai/gpt-oss-120b:free',
+        'google/gemma-4-26b-a4b-it:free',
+    ];
+    fallbackProviderName = 'OpenRouter';
+} else if (process.env.TOGETHER_API_KEY) {
+    FALLBACK_ENDPOINT = 'https://api.together.xyz/v1/chat/completions';
+    FALLBACK_MODELS = ['google/gemma-2-9b-it'];
+    fallbackProviderName = 'Together AI';
+}
+
+if (!fallbackApiKey) {
+    logWrapper.warn('No fallback API key (OPENROUTER_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY) set. Gemma fallback disabled — only Gemini tiers available.');
 }
 
 export interface AiInput {
@@ -100,92 +123,112 @@ function stripCodeFences(s: string): string {
 }
 
 /**
- * Third-tier fallback: Groq-hosted Gemma 2 9B IT.
- * Used only when both Gemini 2.5 Flash AND Gemini 2.0 Flash return 429.
- * Quality is meaningfully lower than Flash, but degraded labels beat no labels.
+ * Third-tier fallback: an open-weight Gemma model hosted on OpenRouter,
+ * Together, or Groq. Selected by which API key is set in the env. Used only
+ * when both Gemini 2.5 Flash AND Gemini 2.0 Flash return 429. On OpenRouter
+ * this is Gemma 4 31B IT, which is quality-competitive with Gemini Flash.
  */
-async function labelWithGroqGemma(
+async function labelWithFallbackModel(
     systemInstruction: string,
     inputContent: string,
     promptVersion: number,
 ): Promise<AiLabelResult[] | null> {
-    if (!groqApiKey) return null;
+    if (!fallbackApiKey) return null;
 
-    try {
-        logWrapper.warn('[AI Route] Both Gemini tiers exhausted. Falling back to Groq Gemma 2 9B...');
+    logWrapper.warn(`[AI Route] Both Gemini tiers exhausted. Falling back to ${fallbackProviderName}...`);
 
-        const resp = await fetch(GROQ_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${groqApiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: GROQ_GEMMA_MODEL,
-                messages: [
-                    { role: 'system', content: systemInstruction },
-                    { role: 'user', content: `POSTS TO ANALYZE:\n${inputContent}` },
-                ],
-                temperature: 0,
-                max_tokens: 2048,
-            }),
-        });
-
-        if (!resp.ok) {
-            const body = await resp.text().catch(() => '');
-            logWrapper.error(`[AI Route] Groq Gemma fallback HTTP ${resp.status}: ${body.slice(0, 200)}`);
-            return null;
-        }
-
-        const data: any = await resp.json();
-        const raw = data?.choices?.[0]?.message?.content;
-        if (!raw) {
-            logWrapper.error('[AI Route] Groq Gemma returned empty content');
-            return null;
-        }
-
-        const cleaned = stripCodeFences(raw);
-
-        let parsed: any;
+    // Try each candidate model in order. A 429 / upstream-throttle on one
+    // model rolls over to the next. Only return null if all candidates fail.
+    for (let i = 0; i < FALLBACK_MODELS.length; i++) {
+        const model = FALLBACK_MODELS[i];
         try {
-            parsed = JSON.parse(cleaned);
+            const resp = await fetch(FALLBACK_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${fallbackApiKey}`,
+                    'Content-Type': 'application/json',
+                    // Optional headers for OpenRouter analytics, harmlessly ignored elsewhere
+                    'HTTP-Referer': 'https://github.com/phaeton-capital',
+                    'X-Title': 'Phaeton Capital',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: systemInstruction },
+                        { role: 'user', content: `POSTS TO ANALYZE:\n${inputContent}` },
+                    ],
+                    temperature: 0,
+                    max_tokens: 2048,
+                }),
+            });
+
+            if (!resp.ok) {
+                const body = await resp.text().catch(() => '');
+                // 429 / upstream throttle on this specific model — try the next one
+                if (resp.status === 429 || body.includes('rate-limited') || body.includes('temporarily')) {
+                    logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} throttled (${resp.status}). Trying next candidate...`);
+                    continue;
+                }
+                logWrapper.error(`[AI Route] ${fallbackProviderName} ${model} HTTP ${resp.status}: ${body.slice(0, 200)}`);
+                continue;
+            }
+
+            const data: any = await resp.json();
+            const raw = data?.choices?.[0]?.message?.content;
+            if (!raw) {
+                logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} returned empty content. Trying next...`);
+                continue;
+            }
+
+            const cleaned = stripCodeFences(raw);
+
+            let parsed: any;
+            try {
+                parsed = JSON.parse(cleaned);
+            } catch {
+                // Open models sometimes wrap the array in extra prose. Extract the
+                // first [...] block as a last resort.
+                const m = cleaned.match(/\[[\s\S]*\]/);
+                if (m) {
+                    try { parsed = JSON.parse(m[0]); } catch {
+                        logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} JSON parse failed. Trying next...`);
+                        continue;
+                    }
+                } else {
+                    logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} no JSON array found. Trying next...`);
+                    continue;
+                }
+            }
+
+            // Open models may wrap the array in an object key like { "results": [...] }
+            if (!Array.isArray(parsed)) {
+                const arrKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+                if (arrKey) parsed = parsed[arrKey];
+                else {
+                    logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} returned non-array shape. Trying next...`);
+                    continue;
+                }
+            }
+
+            logWrapper.info(`[AI Route] ${fallbackProviderName} ${model} succeeded (${parsed.length} labels)`);
+
+            return parsed.map((item: any) => ({
+                id: item.id,
+                ticker: item.ticker || 'UNKNOWN',
+                sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
+                is_manipulation: !!item.is_manipulation,
+                confidence: typeof item.confidence === 'number' ? item.confidence : 0,
+                ai_model: `${fallbackProviderName.toLowerCase().replace(' ', '-')}-${model}`,
+                prompt_version: promptVersion,
+            }));
         } catch (e) {
-            // Gemma sometimes wraps the array in extra text. Try to extract the
-            // first [...] block as a last resort.
-            const m = cleaned.match(/\[[\s\S]*\]/);
-            if (m) {
-                try { parsed = JSON.parse(m[0]); } catch { return null; }
-            } else {
-                logWrapper.error('[AI Route] Groq Gemma JSON parse failed');
-                return null;
-            }
+            logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} exception. Trying next...`, e);
+            continue;
         }
-
-        // Gemma may wrap the array in an object key like { "results": [...] }
-        if (!Array.isArray(parsed)) {
-            const arrKey = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
-            if (arrKey) parsed = parsed[arrKey];
-            else {
-                logWrapper.error('[AI Route] Groq Gemma returned non-array shape');
-                return null;
-            }
-        }
-
-        logWrapper.info(`[AI Route] Groq Gemma fallback succeeded (${parsed.length} labels)`);
-
-        return parsed.map((item: any) => ({
-            id: item.id,
-            ticker: item.ticker || 'UNKNOWN',
-            sentiment: typeof item.sentiment === 'number' ? item.sentiment : 0,
-            is_manipulation: !!item.is_manipulation,
-            confidence: typeof item.confidence === 'number' ? item.confidence : 0,
-            ai_model: `groq-${GROQ_GEMMA_MODEL}`,
-            prompt_version: promptVersion,
-        }));
-    } catch (e) {
-        logWrapper.error('[AI Route] Groq Gemma fallback exception:', e);
-        return null;
     }
+
+    logWrapper.error(`[AI Route] All ${fallbackProviderName} fallback models exhausted`);
+    return null;
 }
 
 export async function labelSentimentAndDetectManipulation(posts: AiInput[]): Promise<AiLabelResult[] | null> {
@@ -295,9 +338,9 @@ ${inputContent}`;
                     prompt_version: PROMPT_VERSION,
                 }));
             } catch (fallbackErr) {
-                logWrapper.warn('[AI Route] Secondary Gemini fallback also failed. Trying Groq Gemma...');
-                // Third tier: Groq-hosted Gemma 2 9B. Lower quality but unlimited.
-                return await labelWithGroqGemma(systemInstruction, inputContent, PROMPT_VERSION);
+                logWrapper.warn(`[AI Route] Secondary Gemini fallback also failed. Trying ${fallbackProviderName || 'fallback'}...`);
+                // Third tier: Fallback aggregator endpoint (OpenRouter/Together/Groq)
+                return await labelWithFallbackModel(systemInstruction, inputContent, PROMPT_VERSION);
             }
         } else {
             logWrapper.error('Error calling Gemini:', err);
