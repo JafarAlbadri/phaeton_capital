@@ -556,19 +556,25 @@ async function start() {
                 let streamController: ReadableStreamDefaultController<Uint8Array>;
                 const encoder = new TextEncoder();
                 let client: SseClient;
+                let heartbeat: ReturnType<typeof setInterval> | null = null;
                 const stream = new ReadableStream<Uint8Array>({
                     start(controller) { streamController = controller; },
-                    cancel() { sseClients.delete(client); }
+                    cancel() {
+                        if (heartbeat) clearInterval(heartbeat);
+                        sseClients.delete(client);
+                    }
                 });
                 client = {
                     write: (data: string) => { try { streamController.enqueue(encoder.encode(data)); } catch {} },
-                    close: () => { try { streamController.close(); } catch {} sseClients.delete(client); }
+                    close: () => {
+                        if (heartbeat) clearInterval(heartbeat);
+                        try { streamController.close(); } catch {}
+                        sseClients.delete(client);
+                    }
                 };
                 sseClients.add(client);
                 client.write(`: heartbeat\n\n`);
-                const heartbeat = setInterval(() => client.write(`: heartbeat\n\n`), 25000);
-                // Clean up heartbeat when stream closes
-                stream.pipeTo(new WritableStream({ close() { clearInterval(heartbeat); } })).catch(() => clearInterval(heartbeat));
+                heartbeat = setInterval(() => client.write(`: heartbeat\n\n`), 25000);
                 return new Response(stream, {
                     headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }
                 });

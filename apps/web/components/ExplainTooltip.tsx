@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle } from "lucide-react";
 
 // ── Explanation data ────────────────────────────────────────────────────────────
@@ -329,107 +330,105 @@ const EXPLANATIONS: Record<string, ExplanationEntry> = {
   },
 };
 
-// ── Hook: outside click + escape ───────────────────────────────────────────────
+// ── ExplainModal (portal) ──────────────────────────────────────────────────────
 
-function useOutsideClick(
-  ref: React.RefObject<HTMLElement | null>,
-  handler: () => void,
-  enabled: boolean
-) {
-  useEffect(() => {
-    if (!enabled) return;
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        handler();
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handler();
-    };
-
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [ref, handler, enabled]);
-}
-
-// ── TooltipPanel ───────────────────────────────────────────────────────────────
-
-interface PanelProps {
+interface ModalProps {
   entry: ExplanationEntry;
   onClose: () => void;
-  above: boolean;
 }
 
-function TooltipPanel({ entry, onClose, above }: PanelProps) {
-  return (
+function ExplainModal({ entry, onClose }: ModalProps) {
+  // ESC to close + lock body scroll while open
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
     <div
-      className={[
-        "absolute z-[200] w-72",
-        "bg-[#09091f] border border-[#d4a017]/30 rounded-[12px]",
-        "shadow-[0_8px_40px_rgba(0,0,0,0.7)] backdrop-blur-md",
-        "p-4 flex flex-col gap-3",
-        above ? "bottom-full mb-2" : "top-full mt-2",
-        "left-1/2 -translate-x-1/2",
-      ].join(" ")}
-      // prevent the mousedown-outside handler from firing when clicking inside
-      onMouseDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[1000] flex items-center justify-center px-4 py-8 bg-black/70 backdrop-blur-sm animate-[fadeIn_0.15s_ease-out]"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={entry.title}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[#fcd97a] font-bold text-[13px] leading-snug">
-          {entry.title}
-        </p>
-        <button
-          onClick={onClose}
-          className="text-[#5d5d8a] hover:text-[#9898c0] transition-colors flex-shrink-0 mt-px"
-          aria-label="Close explanation"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M1 1l10 10M11 1L1 11"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {/* Divider */}
-      <div className="h-px bg-[#1e1e3a]" />
-
-      {/* Explanation */}
-      <p className="text-[#9898c0] text-[12px] leading-relaxed">
-        {entry.explain}
-      </p>
-
-      {/* Why it matters */}
-      <div>
-        <p className="text-[#f0efff] text-[11px] font-bold tracking-[0.05em] uppercase mb-1">
-          Why it matters
-        </p>
-        <p className="text-[#9898c0] text-[12px] leading-relaxed">
-          {entry.whyMatters}
-        </p>
-      </div>
-
-      {/* Normal range */}
-      {entry.range && (
-        <div className="bg-[#0c0c24] border border-[#1a1a3a] rounded-[8px] px-3 py-2">
-          <p className="text-[#5d5d8a] text-[10px] font-bold tracking-[0.08em] uppercase mb-1">
-            Normal range
+      <div
+        className={[
+          "relative w-full max-w-lg max-h-[85vh] overflow-y-auto",
+          "bg-[#09091f] border border-[#d4a017]/40 rounded-[14px]",
+          "shadow-[0_20px_60px_rgba(0,0,0,0.85)]",
+          "p-6 flex flex-col gap-4",
+        ].join(" ")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 pr-1">
+          <p className="text-[#fcd97a] font-bold text-[16px] leading-snug">
+            {entry.title}
           </p>
-          <p className="text-[#fcd97a] font-mono text-[11px] leading-relaxed">
-            {entry.range}
+          <button
+            onClick={onClose}
+            className="text-[#7878a0] hover:text-[#fcd97a] transition-colors flex-shrink-0 -mt-1 -mr-1 p-1 rounded-md hover:bg-white/5"
+            aria-label="Close explanation"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M2 2l12 12M14 2L2 14"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-gradient-to-r from-transparent via-[#d4a017]/30 to-transparent" />
+
+        {/* Explanation */}
+        <p className="text-[#c8c8e0] text-[13.5px] leading-relaxed">
+          {entry.explain}
+        </p>
+
+        {/* Why it matters */}
+        <div>
+          <p className="text-[#f0efff] text-[11px] font-bold tracking-[0.08em] uppercase mb-1.5">
+            Why it matters
+          </p>
+          <p className="text-[#c8c8e0] text-[13.5px] leading-relaxed">
+            {entry.whyMatters}
           </p>
         </div>
-      )}
-    </div>
+
+        {/* Normal range */}
+        {entry.range && (
+          <div className="bg-[#0c0c24] border border-[#1a1a3a] rounded-[10px] px-4 py-3">
+            <p className="text-[#7878a0] text-[10px] font-bold tracking-[0.10em] uppercase mb-1.5">
+              Normal range
+            </p>
+            <p className="text-[#fcd97a] font-mono text-[12px] leading-relaxed">
+              {entry.range}
+            </p>
+          </div>
+        )}
+
+        {/* Footer hint */}
+        <p className="text-[10px] text-[#5d5d8a] text-center pt-1">
+          Press <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono">Esc</kbd> or click outside to close
+        </p>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -442,39 +441,30 @@ export interface ExplainTooltipProps {
 
 export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
   const [open, setOpen] = useState(false);
-  const [above, setAbove] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const entry = EXPLANATIONS[topic];
 
   const close = useCallback(() => setOpen(false), []);
-  useOutsideClick(containerRef, close, open);
-
-  const handleToggle = () => {
-    if (!open && containerRef.current) {
-      // Determine whether to show the panel above or below
-      const rect = containerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setAbove(spaceBelow < 280);
-    }
-    setOpen((v) => !v);
-  };
 
   if (!entry) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className={["relative inline-flex items-center", className].filter(Boolean).join(" ")}
+    <span
+      className={["inline-flex items-center", className].filter(Boolean).join(" ")}
     >
       <button
-        onClick={handleToggle}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setOpen(true);
+        }}
         aria-label={`Explain ${topic}`}
         className={[
           "inline-flex items-center justify-center",
-          "text-[#5d5d8a] hover:text-[#9898c0]",
+          "text-[#5d5d8a] hover:text-[#fcd97a]",
           "transition-colors duration-150",
-          open && "text-[#fcd97a] hover:text-[#fcd97a]",
+          open && "text-[#fcd97a]",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -482,10 +472,8 @@ export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
         <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
       </button>
 
-      {open && (
-        <TooltipPanel entry={entry} onClose={close} above={above} />
-      )}
-    </div>
+      {open && <ExplainModal entry={entry} onClose={close} />}
+    </span>
   );
 }
 
