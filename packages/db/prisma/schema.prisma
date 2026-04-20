@@ -202,6 +202,11 @@ model RecommendationScore {
   confidence        Float?
   risk_override     Boolean  @default(false)
   narrative         String?
+  // Recommended price target
+  recommended_price Float?   // Weighted synthesis of all models
+  price_target_low  Float?   // Conservative bound (P25 / bear case)
+  price_target_high Float?   // Optimistic bound (P75 / bull case)
+  price_method      String?  // Description of which models contributed
   updatedAt         DateTime @updatedAt
 
   @@unique([ticker, horizon])

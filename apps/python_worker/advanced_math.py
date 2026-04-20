@@ -87,12 +87,15 @@ def process_quant(payload):
                 except Exception:
                     pass
 
-            # --- Granger Causality ---
+            # --- Granger Causality (multi-lag: test lags 1-5) ---
             if len(merged_df) > 10:
                 try:
                     gc_data = merged_df[['return', 'sentiment']].values
-                    gc_res = grangercausalitytests(gc_data, maxlag=[1], verbose=False)
-                    granger_p = gc_res[1][0]['ssr_ftest'][1]
+                    max_lag = min(5, len(gc_data) // 3)  # need 3x obs per lag
+                    if max_lag >= 1:
+                        gc_res = grangercausalitytests(gc_data, maxlag=max_lag, verbose=False)
+                        # Use the most significant p-value across all tested lags
+                        granger_p = min(gc_res[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1))
                 except Exception:
                     pass
 
@@ -166,7 +169,7 @@ def process_quant(payload):
         # --- Kelly Criterion ---
         kelly_fraction = None
         if len(returns) > 20:
-            tx_cost = 0.0005 # Subtract estimated transaction costs
+            tx_cost = 0.002 # 20bps round-trip (spread + slippage)
             mean_ret = np.mean(returns) - tx_cost
             var_ret = np.var(returns)
             if var_ret > 0:
@@ -303,7 +306,7 @@ def process_quant(payload):
             spy = yf.Ticker("SPY")
             spy_hist = spy.history(period="3mo")
             if spy_hist.index.tz is not None:
-                spy_hist = spy_hist.tz_localize(None)
+                spy_hist.index = spy_hist.index.tz_localize(None)
             spy_hist.index = spy_hist.index.normalize()
             spy_returns = spy_hist['Close'].pct_change().dropna()
 
@@ -433,27 +436,48 @@ def process_quant(payload):
                 pass
 
         # --- Transfer Entropy (Information-theoretic) ---
+        # TE(sentiment → returns) = H(ret_t | ret_{t-1}) - H(ret_t | ret_{t-1}, sent_{t-1})
         transfer_entropy = None
-        if len(merged_df) > 10:
+        if len(merged_df) > 15:
             try:
                 from scipy.stats import entropy
 
                 sent_vals = merged_df['sentiment'].values
                 ret_vals = merged_df['return'].values
+                n = len(ret_vals)
 
-                n_bins = 3
-                sent_bins = pd.cut(sent_vals, bins=n_bins, labels=False)
-                ret_bins = pd.cut(ret_vals, bins=n_bins, labels=False)
-                ret_next = np.roll(ret_bins, -1)
+                n_bins = 5  # 5 bins for finer granularity
+                sent_bins = pd.cut(sent_vals, bins=n_bins, labels=False).astype(float)
+                ret_bins = pd.cut(ret_vals, bins=n_bins, labels=False).astype(float)
 
-                joint = pd.crosstab(pd.Series(ret_bins[:-1]), pd.Series(ret_next[:-1]))
-                joint_sent = pd.crosstab(pd.Series(sent_bins[:-1]), pd.Series(ret_next[:-1]))
+                # Drop NaN bins from pd.cut edge cases
+                mask = ~(np.isnan(sent_bins) | np.isnan(ret_bins))
+                sent_bins = sent_bins[mask].astype(int)
+                ret_bins = ret_bins[mask].astype(int)
 
-                h_ret_given_ret = entropy(joint.values.flatten() + 1e-10)
-                h_ret_given_ret_sent = entropy(joint_sent.values.flatten() + 1e-10)
+                if len(ret_bins) > 10:
+                    # Build joint distributions using tuple counts
+                    from collections import Counter
+                    # P(ret_t, ret_{t-1})
+                    joint_rr = Counter(zip(ret_bins[:-1], ret_bins[1:]))
+                    # P(ret_t, ret_{t-1}, sent_{t-1})
+                    joint_rrs = Counter(zip(ret_bins[:-1], ret_bins[1:], sent_bins[:-1]))
+                    # P(ret_{t-1})
+                    marginal_r = Counter(ret_bins[:-1])
+                    # P(ret_{t-1}, sent_{t-1})
+                    joint_rs = Counter(zip(ret_bins[:-1], sent_bins[:-1]))
 
-                te = max(0.0, float(h_ret_given_ret - h_ret_given_ret_sent))
-                transfer_entropy = te
+                    total = len(ret_bins) - 1
+                    te = 0.0
+                    for (r_prev, r_curr, s_prev), count_rrs in joint_rrs.items():
+                        p_rrs = count_rrs / total
+                        p_rr = joint_rr.get((r_prev, r_curr), 0) / total
+                        p_rs = joint_rs.get((r_prev, s_prev), 0) / total
+                        p_r = marginal_r.get(r_prev, 0) / total
+                        if p_rrs > 0 and p_rs > 0 and p_rr > 0 and p_r > 0:
+                            te += p_rrs * np.log2((p_rrs * p_r) / (p_rr * p_rs + 1e-15))
+
+                    transfer_entropy = max(0.0, float(te))
             except Exception:
                 pass
 

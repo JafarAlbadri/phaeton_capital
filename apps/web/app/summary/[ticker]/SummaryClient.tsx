@@ -21,6 +21,10 @@ interface Horizon {
     signal: string;
     composite_score: number;
     confidence: number;
+    recommended_price?: number | null;
+    price_target_low?: number | null;
+    price_target_high?: number | null;
+    price_method?: string | null;
     drivers: Driver[];
 }
 
@@ -181,8 +185,8 @@ export default function SummaryClient({
                     icon={Target} variant={trackRecord.hitRate != null && trackRecord.hitRate >= 55 ? "bull" : "gold"} />
                 <StatCard label="Correct" value={String(trackRecord.correct)} icon={TrendingUp} variant="bull" />
                 <StatCard label="Incorrect" value={String(trackRecord.incorrect)} icon={TrendingDown} variant="bear" />
-                <StatCard label="Risk" value={riskRating != null ? `${riskRating}/10` : "–"} icon={Shield}
-                    variant={riskRating != null && riskRating <= 3 ? "bull" : riskRating != null && riskRating >= 7 ? "bear" : "gold"} />
+                <StatCard label="Risk" value={riskRating != null ? `${riskRating}/5` : "–"} icon={Shield}
+                    variant={riskRating != null && riskRating <= 2 ? "bull" : riskRating != null && riskRating >= 4 ? "bear" : "gold"} />
             </div>
 
             {/* ── Score Sparkline ──────────────────────────────────────── */}
@@ -226,6 +230,26 @@ export default function SummaryClient({
                                     </div>
                                     <div className="font-mono text-lg font-bold" style={{ color: hs.color }}>{h.composite_score.toFixed(1)}</div>
                                     <div className="text-[11px] text-[#7878a0]">{h.confidence}% conf</div>
+                                    {h.recommended_price != null && (
+                                        <div className="mt-2 pt-2 border-t border-white/5">
+                                            <div className="text-[10px] text-[#7878a0] uppercase tracking-wider">Target</div>
+                                            <div className="font-mono text-sm font-bold" style={{
+                                                color: price != null && h.recommended_price > price ? '#0ecf8a' : price != null && h.recommended_price < price ? '#f5495a' : hs.color
+                                            }}>
+                                                ${h.recommended_price.toFixed(2)}
+                                                {price != null && price > 0 && (
+                                                    <span className="text-[10px] ml-1 opacity-70">
+                                                        ({h.recommended_price > price ? '+' : ''}{(((h.recommended_price - price) / price) * 100).toFixed(1)}%)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {h.price_target_low != null && h.price_target_high != null && (
+                                                <div className="text-[10px] text-[#5d5d8a] font-mono mt-0.5">
+                                                    ${h.price_target_low.toFixed(2)} – ${h.price_target_high.toFixed(2)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

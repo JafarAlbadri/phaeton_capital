@@ -1,5 +1,4 @@
 import { logWrapper } from './logger';
-import * as cheerio from 'cheerio';
 
 export interface FundamentalHistoryNode {
     year: number;

@@ -28,7 +28,7 @@ function signalFromScore(score: number): string {
 
 function selectRegimeWeights(hmmState: number | null | undefined, vix: number | null | undefined): Weights {
     if (vix != null && vix > 30) return WEIGHTS_CRISIS;
-    if (hmmState === 2) return WEIGHTS_BULL;
+    if (hmmState === 1) return WEIGHTS_BULL;    // Python HMM: 1=Bull, 0=Bear, -1=Neutral
     if (hmmState === 0) return WEIGHTS_BEAR;
     return WEIGHTS_NEUTRAL;
 }
@@ -230,7 +230,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         let quantScore = 50;
         if (quant) {
             let qScore = 50;
-            if (quant.hmm_state === 2) qScore += 15;
+            if (quant.hmm_state === 1) qScore += 15;   // Python HMM: 1=Bull, 0=Bear, -1=Neutral
             else if (quant.hmm_state === 0) qScore -= 15;
             if (quant.kelly_fraction != null) qScore += Math.min(quant.kelly_fraction * 25, 15);
             if (quant.monte_carlo_mean != null && fundamental?.current_price) {
@@ -365,7 +365,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             }));
         }
 
-        logWrapper.info(`Recommendation for ${ticker} [${horizon}d]: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%, regime=${macro?.vix != null && macro.vix > 30 ? 'CRISIS' : quant?.hmm_state === 2 ? 'BULL' : quant?.hmm_state === 0 ? 'BEAR' : 'NEUTRAL'})`);
+        logWrapper.info(`Recommendation for ${ticker} [${horizon}d]: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%, regime=${macro?.vix != null && macro.vix > 30 ? 'CRISIS' : quant?.hmm_state === 1 ? 'BULL' : quant?.hmm_state === 0 ? 'BEAR' : 'NEUTRAL'})`);
 
         // Generate narrative async — non-blocking (only for 15d horizon)
         if (horizon === 15) {

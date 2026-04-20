@@ -6,20 +6,20 @@ const TICKER_RE = /^[A-Z0-9\-.]{1,10}$/;
 
 const DRIVER_LABELS: Record<string, string> = {
     sentiment: 'Sentiment',
-    technical: 'Teknisk analys',
+    technical: 'Technical',
     fundamental: 'Fundamental',
-    quant: 'Kvantitativ',
-    insider: 'Insiderhandel',
-    macro: 'Makroekonomi',
+    quant: 'Quantitative',
+    insider: 'Insider Activity',
+    macro: 'Macro',
 };
 
 function describeDriver(key: string, score: number): string {
     const label = DRIVER_LABELS[key] || key;
-    if (score >= 70) return `${label} starkt positiv (${score.toFixed(0)})`;
-    if (score >= 55) return `${label} positiv (${score.toFixed(0)})`;
+    if (score >= 70) return `${label} strongly positive (${score.toFixed(0)})`;
+    if (score >= 55) return `${label} positive (${score.toFixed(0)})`;
     if (score >= 45) return `${label} neutral (${score.toFixed(0)})`;
-    if (score >= 30) return `${label} negativ (${score.toFixed(0)})`;
-    return `${label} starkt negativ (${score.toFixed(0)})`;
+    if (score >= 30) return `${label} negative (${score.toFixed(0)})`;
+    return `${label} strongly negative (${score.toFixed(0)})`;
 }
 
 export async function GET(
@@ -81,6 +81,10 @@ export async function GET(
                 composite_score: Math.round((rec.composite_score ?? 0) * 10) / 10,
                 confidence: Math.round((rec.confidence ?? 0) * 100),
                 risk_override: rec.risk_override ?? false,
+                recommended_price: rec.recommended_price ?? null,
+                price_target_low: rec.price_target_low ?? null,
+                price_target_high: rec.price_target_high ?? null,
+                price_method: rec.price_method ?? null,
                 drivers,
             };
         });
@@ -93,12 +97,19 @@ export async function GET(
         // Primary signal = 15d horizon
         const primary = horizons.find((h: any) => h.horizon_days === 15) || horizons[0];
 
+        // Find the primary rec for price target data
+        const primaryRec = recs.find((r: any) => r.horizon === 15) || recs[0];
+
         const response = {
             ticker,
             signal: primary.signal,
             composite_score: primary.composite_score,
             confidence_pct: primary.confidence,
             risk_rating: risk?.overall_risk_rating ?? null,
+            recommended_price: primaryRec?.recommended_price ?? null,
+            price_target_low: primaryRec?.price_target_low ?? null,
+            price_target_high: primaryRec?.price_target_high ?? null,
+            price_method: primaryRec?.price_method ?? null,
             track_record: {
                 hit_rate_pct: hitRate,
                 total_predictions: totalResolved,

@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-const WORKER_URL = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8080';
+const WORKER_URL = process.env.WORKER_URL || process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8080';
 const TICKER_RE = /^[A-Z]{1,5}$/;
 const VALID_HORIZONS = new Set(['15', '30', '90']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -3,7 +3,7 @@ import prisma from '@sentiment-crowd/db';
 interface PipelineData {
     compositeScore?: number | null;
     signal?: string | null;
-    hmmState?: number | null;       // 0 = bear, 1 = neutral, 2 = bull
+    hmmState?: number | null;       // 1 = bull, 0 = bear, -1 = neutral (from Python HMM)
     prevHmmState?: number | null;
     sentimentDelta?: number | null; // recent velocity (6h)
 }
@@ -68,7 +68,7 @@ export async function evaluateAlerts(ticker: string, data: PipelineData): Promis
                 case 'REGIME_CHANGE': {
                     if (data.hmmState == null || data.prevHmmState == null) break;
                     if (data.hmmState !== data.prevHmmState) {
-                        const labels: Record<number, string> = { 0: 'Bear', 1: 'Neutral', 2: 'Bull' };
+                        const labels: Record<number, string> = { 0: 'Bear', 1: 'Bull', [-1]: 'Neutral' };
                         fired = true;
                         reason = `HMM regime changed: ${labels[data.prevHmmState] ?? data.prevHmmState} → ${labels[data.hmmState] ?? data.hmmState}`;
                     }
