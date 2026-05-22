@@ -76,20 +76,6 @@ function getSignal(s?: string | null) {
     return SIGNAL_STYLES[s ?? ''] ?? SIGNAL_STYLES['HOLD'];
 }
 
-/** Derive signal from price-change percentage (recommended vs current). */
-function signalFromPct(pct: number): string {
-    if (pct > 10) return 'STRONG_BUY';
-    if (pct > 2)  return 'BUY';
-    if (pct >= -2) return 'HOLD';
-    if (pct >= -10) return 'SELL';
-    return 'STRONG_SELL';
-}
-
-/** Format analyst recommendation string: "strong_buy" → "Strong Buy" */
-function formatRecommendation(rec: string): string {
-    return rec.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
 // ─── Stat Tile ────────────────────────────────────────────────────────────────
 function Tile({ label, value, sub, variant = 'gold', icon: Icon }: any) {
     const vClass = variant === 'bull' ? 'text-emerald-400 border-emerald-500/15 bg-emerald-500/10' :
@@ -326,19 +312,7 @@ export default function DashboardClient({
     const activeRec = recommendationScores
         ? (selectedHorizon === 15 ? recommendationScores.h15 : selectedHorizon === 30 ? recommendationScores.h30 : recommendationScores.h90) ?? recommendationScore
         : recommendationScore;
-
-    // Derive signal from recommended price vs current price when both are available.
-    // This prevents showing "BUY" when the recommended price is actually below current.
-    const derivedSignal = (() => {
-        const recPrice = activeRec?.recommended_price;
-        const curPrice = fundamentalData?.current_price;
-        if (recPrice != null && curPrice != null && curPrice > 0) {
-            const pct = ((recPrice - curPrice) / curPrice) * 100;
-            return signalFromPct(pct);
-        }
-        return activeRec?.signal ?? null;
-    })();
-    const sig = getSignal(derivedSignal);
+    const sig = getSignal(activeRec?.signal);
 
     const insiderStats = useMemo(() => {
         if (!insiderTrades?.length) return { buyVolume: 0, sellVolume: 0, netVolume: 0, chartData: [], filteredTrades: [] };
@@ -807,7 +781,7 @@ export default function DashboardClient({
                             <Tile label="Price Target" value={fundamentalData.target_price ? `$${fundamentalData.target_price.toFixed(2)}` : '—'} variant="gold" icon={Target} />
                             <Tile label="52W High" value={fundamentalData.high_52_week ? `$${fundamentalData.high_52_week.toFixed(2)}` : '—'} variant="bull" icon={ChevronUp} />
                             <Tile label="52W Low" value={fundamentalData.low_52_week ? `$${fundamentalData.low_52_week.toFixed(2)}` : '—'} variant="bear" icon={ChevronDown} />
-                            <Tile label="Analyst View" value={fundamentalData.recommendation ? formatRecommendation(fundamentalData.recommendation) : '—'} variant={fundamentalData.recommendation?.toLowerCase().includes('buy') ? 'bull' : fundamentalData.recommendation?.toLowerCase().includes('sell') ? 'bear' : 'gold'} icon={Award} />
+                            <Tile label="Analyst View" value={fundamentalData.recommendation || '—'} variant={fundamentalData.recommendation?.includes('buy') ? 'bull' : 'gold'} icon={Award} />
                             
                             {fundamentalData.target_low_price && fundamentalData.target_high_price && (
                                 <div className="col-span-2 card p-5 flex flex-col justify-center relative overflow-hidden group" data-animate-child>
@@ -1423,7 +1397,7 @@ export default function DashboardClient({
                         </div>
 
                         {(() => {
-                            const signal = derivedSignal ?? 'HOLD';
+                            const signal = activeRec?.signal ?? recommendationScore?.signal ?? 'HOLD';
                             const score  = activeRec?.composite_score ?? recommendationScore?.composite_score ?? 50;
                             const conf   = ((activeRec?.confidence ?? recommendationScore?.confidence ?? 0.5) * 100);
                             const ticker = (targetKeyword || 'aktien').toUpperCase();
@@ -1434,10 +1408,10 @@ export default function DashboardClient({
                                 const pe    = fundamentalData.pe_ratio;
                                 const price = fundamentalData.current_price;
                                 const cap   = fundamentalData.market_cap;
-                                const cons  = fundamentalData.recommendation;
-                                const low   = fundamentalData.target_low_price;
-                                const high  = fundamentalData.target_high_price;
-                                const mean  = fundamentalData.target_price;
+                                const cons  = fundamentalData.analyst_consensus;
+                                const low   = fundamentalData.target_price_low;
+                                const high  = fundamentalData.target_price_high;
+                                const mean  = fundamentalData.target_price_mean;
 
                                 const peText = pe
                                     ? pe > 35  ? `P/E of ${pe.toFixed(1)}x indicates a high valuation vs. historical averages, requiring sustained earnings growth to justify the price.`
@@ -1448,7 +1422,7 @@ export default function DashboardClient({
                                     ? `Market cap is $${(Number(cap)/1e9).toFixed(1)}B, placing the company in the ${Number(cap)>200e9 ? 'megacap' : Number(cap)>10e9 ? 'large-cap' : 'mid-cap'} category.`
                                     : '';
                                 const analystText = cons
-                                    ? `Analyst consensus points to ${formatRecommendation(cons)}${mean ? ` with a price target of $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (range $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
+                                    ? `Analyst consensus points to ${cons}${mean ? ` with a mean price target of $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (range $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
                                     : '';
                                 fundamentalText = [peText, capText, analystText].filter(Boolean).join(' ');
                             }
