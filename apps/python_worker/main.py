@@ -79,8 +79,7 @@ async def options_endpoint(ticker: str):
                     cp = float(((s - calls['strike']) * calls['openInterest'].fillna(0)).clip(lower=0).sum())
                     pp = float(((puts['strike'] - s) * puts['openInterest'].fillna(0)).clip(lower=0).sum())
                     pain.append(cp + pp)
-                min_idx = int(np.argmin(pain))
-                max_pain_price = round(all_strikes[min_idx], 2)
+                max_pain_price = round(all_strikes[pain.index(min(pain))], 2)
         except Exception:
             pass
 
@@ -143,7 +142,6 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
         equity    = [100.0]
         eq        = 100.0
         start_idx = 200
-        TX_COST   = 0.001  # 10bps per trade (spread + slippage)
 
         for i in range(start_idx, len(close) - h_int, h_int):
             ep   = float(close.iloc[i])
@@ -162,10 +160,10 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
 
             if score > 60:
                 direction = "BUY"
-                ret = (xp - ep) / ep - TX_COST  # deduct transaction cost
+                ret = (xp - ep) / ep
             elif score < 40:
                 direction = "SELL"
-                ret = (ep - xp) / ep - TX_COST  # deduct transaction cost
+                ret = (ep - xp) / ep
             else:
                 continue
 
@@ -195,38 +193,20 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
         bh_start  = float(close.iloc[start_idx])
         bh        = float((close.iloc[-1] - bh_start) / bh_start) * 100
 
-        strategy_return = eq - 100
-
-        # Normalize SPY and stock indices to tz-naive for reliable comparison
-        spy_close_naive = spy_close.copy()
-        spy_close_naive.index = spy_close_naive.index.tz_localize(None) if spy_close_naive.index.tz else spy_close_naive.index
-        close_naive = close.copy()
-        close_naive.index = close_naive.index.tz_localize(None) if close_naive.index.tz else close_naive.index
-
-        spy_start = float(spy_close_naive.iloc[min(start_idx, len(spy_close_naive) - 1)]) if len(spy_close_naive) > 0 else 1.0
-        spy_return = float((spy_close_naive.iloc[-1] - spy_start) / spy_start) * 100 if spy_start > 0 else 0.0
-        alpha = strategy_return - spy_return
-
+        spy_start = float(spy_close.iloc[min(start_idx, len(spy_close) - 1)]) if len(spy_close) > 0 else 1.0
         step = max(1, len(equity) // 80)
         curve = []
         for i in range(0, len(equity), step):
             trade_idx = min(i, len(trades) - 1)
             d = trades[trade_idx]["date"]
             spy_val = None
-            bh_val = None
             try:
-                matched = spy_close_naive[spy_close_naive.index >= pd.Timestamp(d)]
+                matched = spy_close[spy_close.index >= pd.Timestamp(d)]
                 if len(matched) > 0 and spy_start > 0:
                     spy_val = round(float(matched.iloc[0]) / spy_start * 100, 4)
             except Exception:
                 pass
-            try:
-                matched_bh = close_naive[close_naive.index >= pd.Timestamp(d)]
-                if len(matched_bh) > 0 and bh_start > 0:
-                    bh_val = round(float(matched_bh.iloc[0]) / bh_start * 100, 4)
-            except Exception:
-                pass
-            curve.append({"date": d, "equity": equity[i], "spy": spy_val, "buyhold": bh_val})
+            curve.append({"date": d, "equity": equity[i], "spy": spy_val})
 
         signal_markers = [
             {"date": t["date"], "direction": t["direction"], "score": t["score"]}
@@ -237,11 +217,7 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
             "ticker": t, "horizon": h_int, "years_tested": years, "total_trades": len(trades),
             "hit_rate": round(hit_rate, 4), "avg_return_pct": round(avg_ret * 100, 4),
             "sharpe_ratio": round(sharpe, 4), "max_drawdown_pct": round(max_dd * 100, 4),
-            "final_equity": round(eq, 4),
-            "strategy_return_pct": round(strategy_return, 4),
-            "benchmark_return_pct": round(bh, 4),
-            "spy_return_pct": round(spy_return, 4),
-            "alpha_vs_spy_pct": round(alpha, 4),
+            "final_equity": round(eq, 4), "benchmark_return_pct": round(bh, 4),
             "equity_curve": curve, "signal_markers": signal_markers, "recent_trades": trades[-15:],
         }
     except Exception as e:
@@ -307,8 +283,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
         returns = close.pct_change().dropna()
 
         # HMM regime detection (rolling 252-day windows)
-        # States match advanced_math.py: 1=Bull, 0=Bear, -1=Neutral
-        hmm_states = pd.Series(-1, index=close.index)  # default neutral
+        hmm_states = pd.Series(1, index=close.index)  # default neutral
         if len(returns) > 300:
             try:
                 model = hmmlib.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
@@ -324,11 +299,11 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
                         model.fit(window)
                         state = model.predict(window[-1:].reshape(1, -1))[0]
                         if state == bull_idx:
-                            hmm_states.iloc[i+1] = 1   # Bull
+                            hmm_states.iloc[i+1] = 2
                         elif state == bear_idx:
-                            hmm_states.iloc[i+1] = 0   # Bear
+                            hmm_states.iloc[i+1] = 0
                         else:
-                            hmm_states.iloc[i+1] = -1  # Neutral
+                            hmm_states.iloc[i+1] = 1
                     except Exception:
                         pass
             except Exception:
@@ -363,11 +338,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
         analyst_sb = info.get("numberOfAnalystOpinions", 0)
 
         # ── Weights (mirrors recommendation.ts WEIGHTS_NEUTRAL) ──
-        # Fundamental weight reduced to 0.10 because backtest uses CURRENT
-        # target_price throughout — a lookahead bias. Technical and quant
-        # are computed from historical data at each bar so they are unbiased.
-        W = {"technical": 0.40, "fundamental": 0.10, "quant": 0.35, "baseline": 0.15}
-        TX_COST = 0.001  # 10bps per trade (spread + slippage)
+        W = {"technical": 0.35, "fundamental": 0.20, "quant": 0.30, "baseline": 0.15}
 
         # ── Walk-forward simulation ──
         h = int(horizon)
@@ -375,7 +346,6 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
         trades = []
         equity = [100.0]
         eq = 100.0
-        _cached_hurst = 0.5  # default until first computation
 
         for i in range(start_idx, len(close) - h, h):
             price = float(close.iloc[i])
@@ -423,16 +393,14 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
 
             # === Quant Score ===
             quant = 50.0
-            hmm_s = int(hmm_states.iloc[i]) if i < len(hmm_states) else -1
-            if hmm_s == 1:    # Bull
+            hmm_s = int(hmm_states.iloc[i]) if i < len(hmm_states) else 1
+            if hmm_s == 2:
                 quant += 15
-            elif hmm_s == 0:  # Bear
+            elif hmm_s == 0:
                 quant -= 15
 
-            # Hurst (recompute every 5 steps to avoid O(n²) DFA cost)
-            if i == start_idx or (i - start_idx) % (h * 5) == 0:
-                _cached_hurst = rolling_hurst(close.values[:i+1])
-            hurst = _cached_hurst
+            # Hurst
+            hurst = rolling_hurst(close.values[:i+1])
             if hurst > 0.6:
                 quant += 5
             elif hurst < 0.4:
@@ -461,10 +429,10 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
             # Signal
             if composite > 55:
                 direction = "BUY"
-                ret = (exit_price - price) / price - TX_COST
+                ret = (exit_price - price) / price
             elif composite < 45:
                 direction = "SELL"
-                ret = (price - exit_price) / price - TX_COST
+                ret = (price - exit_price) / price
             else:
                 continue
 
@@ -501,15 +469,9 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
         bh_return = float((close.iloc[-1] - bh_start) / bh_start) * 100
         strategy_return = (eq - 100)
 
-        # Normalize indices to tz-naive for reliable comparison
-        spy_close_naive = spy_close.copy()
-        spy_close_naive.index = spy_close_naive.index.tz_localize(None) if spy_close_naive.index.tz else spy_close_naive.index
-        close_naive = close.copy()
-        close_naive.index = close_naive.index.tz_localize(None) if close_naive.index.tz else close_naive.index
-
         # SPY benchmark
-        spy_start = float(spy_close_naive.iloc[min(start_idx, len(spy_close_naive) - 1)]) if len(spy_close_naive) > 0 else 1.0
-        spy_return = float((spy_close_naive.iloc[-1] - spy_start) / spy_start) * 100 if spy_start > 0 else 0.0
+        spy_start = float(spy_close.iloc[min(start_idx, len(spy_close) - 1)]) if len(spy_close) > 0 else 1.0
+        spy_return = float((spy_close.iloc[-1] - spy_start) / spy_start) * 100 if spy_start > 0 else 0.0
         alpha = strategy_return - spy_return
 
         # Equity curve (downsampled for chart)
@@ -519,27 +481,20 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
             trade_idx = min(i, len(trades) - 1)
             d = trades[trade_idx]["date"]
             spy_val = None
-            bh_val = None
             try:
-                matched = spy_close_naive[spy_close_naive.index >= pd.Timestamp(d)]
+                matched = spy_close[spy_close.index >= pd.Timestamp(d)]
                 if len(matched) > 0 and spy_start > 0:
                     spy_val = round(float(matched.iloc[0]) / spy_start * 100, 4)
             except Exception:
                 pass
-            try:
-                matched_bh = close_naive[close_naive.index >= pd.Timestamp(d)]
-                if len(matched_bh) > 0 and bh_start > 0:
-                    bh_val = round(float(matched_bh.iloc[0]) / bh_start * 100, 4)
-            except Exception:
-                pass
-            curve.append({"date": d, "equity": equity[i], "spy": spy_val, "buyhold": bh_val})
+            curve.append({"date": d, "equity": equity[i], "spy": spy_val})
 
         # Win/loss stats
         wins = [r for r in rets if r > 0]
         losses = [r for r in rets if r <= 0]
         avg_win = float(np.mean(wins)) * 100 if wins else 0
         avg_loss = float(np.mean(losses)) * 100 if losses else 0
-        profit_factor = abs(sum(wins) / sum(losses)) if losses and sum(losses) != 0 else (99.99 if wins else 0.0)
+        profit_factor = abs(sum(wins) / sum(losses)) if losses and sum(losses) != 0 else float('inf')
 
         return {
             "ticker": t,
@@ -556,7 +511,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
             "benchmark_return_pct": round(bh_return, 4),
             "spy_return_pct": round(spy_return, 4),
             "alpha_vs_spy_pct": round(alpha, 4),
-            "profit_factor": round(profit_factor, 4),
+            "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else None,
             "avg_win_pct": round(avg_win, 4),
             "avg_loss_pct": round(avg_loss, 4),
             "equity_curve": curve,
@@ -600,26 +555,26 @@ async def contrarian_endpoint(ticker: str):
         contrarian_type = None
         confidence = 0.0
 
-        # Reversal Long: RSI oversold + MACD turning up or price capitulation
+        # Reversal Long: RSI oversold + MACD turning up
         if rsi < 30:
             reasons.append(f"RSI extremely oversold: {rsi:.1f}")
             confidence += 0.4
-            contrarian_type = "REVERSAL_LONG"
             if macd_cross_up:
                 reasons.append("MACD crossing above signal — momentum turning")
                 confidence += 0.3
+                contrarian_type = "REVERSAL_LONG"
             if price_5d_ret < -0.08:
                 reasons.append(f"Price down {price_5d_ret*100:.1f}% in 5 days — potential capitulation")
                 confidence += 0.2
 
-        # Reversal Short: RSI overbought + MACD turning down or price exhaustion
+        # Reversal Short: RSI overbought + MACD turning down
         elif rsi > 70:
             reasons.append(f"RSI extremely overbought: {rsi:.1f}")
             confidence += 0.4
-            contrarian_type = "REVERSAL_SHORT"
             if macd_cross_dn:
                 reasons.append("MACD crossing below signal — momentum fading")
                 confidence += 0.3
+                contrarian_type = "REVERSAL_SHORT"
             if price_5d_ret > 0.08:
                 reasons.append(f"Price up {price_5d_ret*100:.1f}% in 5 days — potential exhaustion")
                 confidence += 0.2
@@ -725,7 +680,7 @@ async def trends_endpoint(ticker: str):
         pytrends = TrendReq(hl='en-US', tz=360)
         kw = f"{ticker.upper()} stock"
         pytrends.build_payload([kw], timeframe='today 3-m', geo='US')
-        await asyncio.sleep(2)  # brief rate-limit courtesy (was 10s — too aggressive)
+        await asyncio.sleep(10)
         df = pytrends.interest_over_time()
 
         if df is None or df.empty or kw not in df.columns:

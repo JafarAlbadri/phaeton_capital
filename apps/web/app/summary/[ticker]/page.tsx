@@ -86,10 +86,6 @@ export default async function SummaryPage(
             signal: rec.signal as string,
             composite_score: Math.round((rec.composite_score ?? 0) * 10) / 10,
             confidence: Math.round((rec.confidence ?? 0) * 100),
-            recommended_price: rec.recommended_price ?? null,
-            price_target_low: rec.price_target_low ?? null,
-            price_target_high: rec.price_target_high ?? null,
-            price_method: rec.price_method ?? null,
             drivers,
         };
     });

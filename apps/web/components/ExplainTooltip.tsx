@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle } from "lucide-react";
 
 // ── Explanation data ────────────────────────────────────────────────────────────
@@ -337,54 +338,61 @@ interface ModalProps {
 }
 
 function ExplainModal({ entry, onClose }: ModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
+  // ESC closes the box. Lock body scroll while open so the page underneath
+  // can't move while the user is reading.
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    // .showModal() places the element in the browser's TOP LAYER —
-    // this is above ALL z-indexes and stacking contexts by spec.
-    if (!dialog.open) dialog.showModal();
-
-    const handleClose = () => onClose();
-    dialog.addEventListener("close", handleClose);
-    return () => dialog.removeEventListener("close", handleClose);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
-  return (
-    <dialog
-      ref={dialogRef}
-      onCancel={onClose}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        width: "100vw",
-        height: "100vh",
-        maxWidth: "100vw",
-        maxHeight: "100vh",
-        margin: 0,
-        padding: 0,
-        border: "none",
-        background: "#060614",
-        color: "#f0efff",
-      }}
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
+    <div
+      // Full-viewport dim layer. Very dark + heavy blur so the page behind
+      // visibly recedes — this is what makes the box read as a "separate box"
+      // rather than text painted onto the website.
+      className="fixed inset-0 z-[2147483647] flex items-center justify-center px-4 py-8 bg-black/85 backdrop-blur-md"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={entry.title}
     >
-      <div className="flex flex-col h-full" onClick={(e) => e.stopPropagation()}>
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a] bg-[#0a0a1e] shrink-0">
+      {/* The floating box. Generous size, strong shadow + ring + gold border
+          so it visually pops off the dimmed page behind it. */}
+      <div
+        className={[
+          "relative w-full max-w-xl max-h-[85vh] overflow-hidden",
+          "bg-[#0a0a1c] rounded-2xl",
+          "border border-[#d4a017]/60 ring-1 ring-[#d4a017]/20",
+          "shadow-[0_30px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(212,160,23,0.15)]",
+          "flex flex-col",
+        ].join(" ")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title bar — visually distinct from body so the box reads like
+            a window with chrome. */}
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#d4a017]/25 bg-gradient-to-b from-[#12122a] to-[#0a0a1c]">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#fcd97a] shadow-[0_0_10px_rgba(252,217,122,0.5)] shrink-0" />
-            <p className="text-[#fcd97a] font-bold text-[17px] leading-snug truncate">
+            <div className="w-2 h-2 rounded-full bg-[#fcd97a] shadow-[0_0_8px_rgba(252,217,122,0.6)] flex-shrink-0" />
+            <p className="text-[#fcd97a] font-bold text-[15px] leading-snug truncate">
               {entry.title}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-[#9898c0] hover:text-[#fcd97a] transition-colors p-2 rounded-lg border border-[#2a2a4a] hover:border-[#d4a017]/50 hover:bg-white/5"
+            className="text-[#9898c0] hover:text-[#fcd97a] hover:bg-white/5 transition-colors flex-shrink-0 p-1.5 rounded-md border border-[#2a2a4a] hover:border-[#d4a017]/50"
             aria-label="Close"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
                 d="M2.5 2.5l11 11M13.5 2.5l-11 11"
                 stroke="currentColor"
@@ -395,52 +403,46 @@ function ExplainModal({ entry, onClose }: ModalProps) {
           </button>
         </div>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col gap-6">
-            <div className="rounded-xl border border-[#1a1a3a] bg-[#0a0a1e] p-6">
-              <p className="text-[#fcd97a] text-[10px] font-bold tracking-[0.12em] uppercase mb-3">
-                What it is
-              </p>
-              <p className="text-[#d8d8ee] text-[15px] leading-[1.75]">
-                {entry.explain}
-              </p>
-            </div>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-6 py-5 flex flex-col gap-4">
+          <p className="text-[#d8d8ee] text-[14px] leading-[1.65]">
+            {entry.explain}
+          </p>
 
-            <div className="rounded-xl border border-[#1a1a3a] bg-[#0a0a1e] p-6">
-              <p className="text-[#fcd97a] text-[10px] font-bold tracking-[0.12em] uppercase mb-3">
-                Why it matters
-              </p>
-              <p className="text-[#c8c8e0] text-[15px] leading-[1.75]">
-                {entry.whyMatters}
-              </p>
-            </div>
-
-            {entry.range && (
-              <div className="rounded-xl border border-[#d4a017]/20 bg-[#0a0a1e] p-6">
-                <p className="text-[#fcd97a] text-[10px] font-bold tracking-[0.12em] uppercase mb-3">
-                  Normal range
-                </p>
-                <p className="text-[#fcd97a] font-mono text-[14px] leading-[1.75]">
-                  {entry.range}
-                </p>
-              </div>
-            )}
+          <div>
+            <p className="text-[#fcd97a] text-[10.5px] font-bold tracking-[0.10em] uppercase mb-2">
+              Why it matters
+            </p>
+            <p className="text-[#c8c8e0] text-[14px] leading-[1.65]">
+              {entry.whyMatters}
+            </p>
           </div>
+
+          {entry.range && (
+            <div className="bg-[#05051a] border border-[#1a1a3a] rounded-[10px] px-4 py-3 mt-1">
+              <p className="text-[#7878a0] text-[10px] font-bold tracking-[0.10em] uppercase mb-1.5">
+                Normal range
+              </p>
+              <p className="text-[#fcd97a] font-mono text-[12px] leading-relaxed">
+                {entry.range}
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Bottom bar */}
-        <div className="px-6 py-3 border-t border-[#1a1a3a] bg-[#0a0a1e] text-center shrink-0">
-          <p className="text-[11px] text-[#7878a0]">
+        {/* Footer hint */}
+        <div className="px-6 py-3 border-t border-[#1a1a3a] bg-[#05051a]/60 text-center">
+          <p className="text-[10px] text-[#7878a0]">
             Press{" "}
-            <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono text-[10px] border border-[#2a2a4a]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono border border-[#2a2a4a]">
               Esc
             </kbd>{" "}
             or click outside to close
           </p>
         </div>
       </div>
-    </dialog>
+    </div>,
+    document.body
   );
 }
 

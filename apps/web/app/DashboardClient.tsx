@@ -654,60 +654,6 @@ export default function DashboardClient({
                                         <div className="text-[15px] font-700 text-white font-mono tracking-tight">{fundamentalData?.market_cap ? `${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—'}</div>
                                     </div>
                                 </div>
-
-                                {/* Recommended Price Target */}
-                                {activeRec?.recommended_price != null && (
-                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08]">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] font-600">
-                                                Recommended Price ({selectedHorizon}d)
-                                            </div>
-                                            {activeRec.price_method && (
-                                                <span className="text-[9px] text-[#5d5d8a] font-mono">{activeRec.price_method}</span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-baseline gap-3">
-                                            <span className="text-[22px] font-800 font-mono tracking-tight" style={{
-                                                color: activeRec.recommended_price > (fundamentalData?.current_price ?? 0) ? '#0ecf8a' : activeRec.recommended_price < (fundamentalData?.current_price ?? 0) ? '#f5495a' : '#fcd97a'
-                                            }}>
-                                                ${activeRec.recommended_price.toFixed(2)}
-                                            </span>
-                                            {fundamentalData?.current_price != null && fundamentalData.current_price > 0 && (
-                                                <span className="text-[12px] font-mono" style={{
-                                                    color: activeRec.recommended_price > fundamentalData.current_price ? '#0ecf8a' : '#f5495a'
-                                                }}>
-                                                    {activeRec.recommended_price > fundamentalData.current_price ? '+' : ''}
-                                                    {(((activeRec.recommended_price - fundamentalData.current_price) / fundamentalData.current_price) * 100).toFixed(1)}%
-                                                </span>
-                                            )}
-                                        </div>
-                                        {activeRec.price_target_low != null && activeRec.price_target_high != null && (
-                                            <div className="mt-2">
-                                                <div className="flex items-center justify-between text-[10px] text-[#7878a0] font-mono mb-1">
-                                                    <span>${activeRec.price_target_low.toFixed(2)}</span>
-                                                    <span>Range</span>
-                                                    <span>${activeRec.price_target_high.toFixed(2)}</span>
-                                                </div>
-                                                <div className="relative h-[6px] rounded-full bg-[#12122e] overflow-hidden">
-                                                    {(() => {
-                                                        const lo = activeRec.price_target_low;
-                                                        const hi = activeRec.price_target_high;
-                                                        const cur = fundamentalData?.current_price ?? lo;
-                                                        const range = hi - lo;
-                                                        if (range <= 0) return null;
-                                                        const pct = Math.max(0, Math.min(100, ((cur - lo) / range) * 100));
-                                                        const tgtPct = Math.max(0, Math.min(100, ((activeRec.recommended_price - lo) / range) * 100));
-                                                        return (<>
-                                                            <div className="absolute h-full rounded-full bg-gradient-to-r from-red-500/40 via-amber-500/40 to-emerald-500/40" style={{ left: 0, right: 0 }} />
-                                                            <div className="absolute top-[-2px] w-[2px] h-[10px] bg-white/70 rounded-full" style={{ left: `${pct}%` }} title={`Current: $${cur.toFixed(2)}`} />
-                                                            <div className="absolute top-[-2px] w-[3px] h-[10px] rounded-full" style={{ left: `${tgtPct}%`, background: '#fcd97a' }} title={`Target: $${activeRec.recommended_price.toFixed(2)}`} />
-                                                        </>);
-                                                    })()}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                                 
                                 <div className="flex-1 flex items-center justify-center">
                                     {activeRec?.confidence != null && (
@@ -750,18 +696,18 @@ export default function DashboardClient({
                     </section>
 
                     {/* Score Weights Panel */}
-                    {(activeRec || recommendationScore) && (
+                    {recommendationScore && (
                         <ScoreWeightsPanel
                             scores={{
-                                sentiment: (activeRec ?? recommendationScore).sentiment_score,
-                                technical: (activeRec ?? recommendationScore).technical_score,
-                                fundamental: (activeRec ?? recommendationScore).fundamental_score,
-                                quant: (activeRec ?? recommendationScore).quant_score,
-                                insider: (activeRec ?? recommendationScore).insider_score,
-                                macro: (activeRec ?? recommendationScore).macro_score,
-                                risk: (activeRec ?? recommendationScore).risk_score,
+                                sentiment: recommendationScore.sentiment_score,
+                                technical: recommendationScore.technical_score,
+                                fundamental: recommendationScore.fundamental_score,
+                                quant: recommendationScore.quant_score,
+                                insider: recommendationScore.insider_score,
+                                macro: recommendationScore.macro_score,
+                                risk: recommendationScore.risk_score,
                             }}
-                            baseComposite={(activeRec ?? recommendationScore).composite_score}
+                            baseComposite={recommendationScore.composite_score}
                         />
                     )}
                 </>)}
@@ -1095,14 +1041,12 @@ export default function DashboardClient({
                                 )}
                                 {btData && (
                                     <>
-                                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-5">
+                                        <div className="grid grid-cols-4 gap-3 mb-5">
                                             {[
-                                                { label: 'Strategy',   value: `${btData.strategy_return_pct != null ? (btData.strategy_return_pct > 0 ? '+' : '') + btData.strategy_return_pct.toFixed(1) + '%' : '—'}`, color: (btData.strategy_return_pct ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
-                                                { label: 'Buy & Hold', value: `${btData.benchmark_return_pct != null ? (btData.benchmark_return_pct > 0 ? '+' : '') + btData.benchmark_return_pct.toFixed(1) + '%' : '—'}`, color: (btData.benchmark_return_pct ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
                                                 { label: 'Win Rate',   value: `${(btData.hit_rate * 100).toFixed(1)}%`,    color: btData.hit_rate > 0.55 ? 'text-emerald-400' : 'text-amber-400' },
+                                                { label: 'Avg Return', value: `${btData.avg_return_pct?.toFixed(2)}%`,     color: btData.avg_return_pct > 0 ? 'text-emerald-400' : 'text-red-400' },
                                                 { label: 'Sharpe',     value: btData.sharpe_ratio?.toFixed(2),             color: btData.sharpe_ratio > 1 ? 'text-emerald-400' : 'text-amber-400' },
                                                 { label: 'Max DD',     value: `${btData.max_drawdown_pct?.toFixed(1)}%`,   color: 'text-red-400' },
-                                                { label: 'Alpha (SPY)', value: `${btData.alpha_vs_spy_pct != null ? (btData.alpha_vs_spy_pct > 0 ? '+' : '') + btData.alpha_vs_spy_pct.toFixed(1) + '%' : '—'}`, color: (btData.alpha_vs_spy_pct ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400' },
                                             ].map(s => (
                                                 <div key={s.label} className="bg-[#0c0c24] rounded-xl border border-[#1e1e3a] p-3 text-center">
                                                     <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">{s.label}</div>
@@ -1124,15 +1068,13 @@ export default function DashboardClient({
                                                     <Tooltip content={<CustomTooltip />} />
                                                     <ReferenceLine y={100} stroke="#2a2a5a" strokeDasharray="4 4" />
                                                     <Area type="monotone" dataKey="equity" name="Strategy" stroke="#f59e0b" fill="url(#btGrad)" strokeWidth={1.5} dot={false} />
-                                                    <Line type="monotone" dataKey="buyhold" name="Buy & Hold" stroke="#0ecf8a" strokeWidth={1} strokeDasharray="3 3" dot={false} />
                                                     <Line type="monotone" dataKey="spy" name="SPY" stroke="#6366f1" strokeWidth={1} strokeDasharray="5 3" dot={false} />
                                                 </ComposedChart>
                                             </ResponsiveContainer>
                                         </div>
                                         <div className="flex justify-center gap-6 mt-2">
                                             <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Strategy</span>
-                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-emerald-400 inline-block rounded" style={{borderTop: '1px dashed #0ecf8a'}} /> Buy &amp; Hold</span>
-                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #6366f1'}} /> SPY</span>
+                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #6366f1'}} /> SPY Benchmark</span>
                                         </div>
                                     </>
                                 )}
@@ -1397,9 +1339,9 @@ export default function DashboardClient({
                         </div>
 
                         {(() => {
-                            const signal = activeRec?.signal ?? recommendationScore?.signal ?? 'HOLD';
-                            const score  = activeRec?.composite_score ?? recommendationScore?.composite_score ?? 50;
-                            const conf   = ((activeRec?.confidence ?? recommendationScore?.confidence ?? 0.5) * 100);
+                            const signal = recommendationScore?.signal ?? 'HOLD';
+                            const score  = recommendationScore?.composite_score ?? 50;
+                            const conf   = (recommendationScore?.confidence ?? 0.5) * 100;
                             const ticker = (targetKeyword || 'aktien').toUpperCase();
 
                             // ── Fundamental analysis text ──────────────────────────
@@ -1792,87 +1734,60 @@ export default function DashboardClient({
                         {/* Block A: IC / IR / T-Stat / Causal Lead KPIs */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                             {/* IC */}
-                            <div className="card rounded-xl p-5 flex flex-col gap-2" data-animate-child>
-                                <div className="text-[10px] tracking-[0.1em] uppercase text-[#9898c0] font-600">Information Coefficient</div>
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Information Coefficient</div>
                                 <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ic === null ? 'text-[#9898c0]' : signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                                     {signalAttribution.ic !== null ? signalAttribution.ic.toFixed(3) : '—'}
                                 </div>
-                                <div className="text-[11px] text-[#7878a0]">rank-corr(score, return)</div>
-                                {signalAttribution.ic !== null && (() => {
-                                    const isGood = signalAttribution.ic > 0.1;
-                                    const isWeak = signalAttribution.ic > 0;
-                                    const label = isGood ? '✓ Strong predictive power' : isWeak ? '~ Weak signal' : '✗ Negative signal';
-                                    const clr = isGood ? '#0ecf8a' : isWeak ? '#f59e0b' : '#f5495a';
-                                    return (
-                                        <div className="mt-auto rounded-lg px-3 py-1.5 text-[10px] font-700 border" style={{ background: `${clr}10`, borderColor: `${clr}30`, color: clr }}>
-                                            {label}
-                                        </div>
-                                    );
-                                })()}
+                                <div className="text-[11px] text-[#9090b8] mt-1">rank-corr(score, return)</div>
+                                {signalAttribution.ic !== null && (
+                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {signalAttribution.ic > 0.1 ? '✓ Strong predictive power' : signalAttribution.ic > 0 ? '~ Weak signal' : '✗ Negative signal'}
+                                    </div>
+                                )}
                             </div>
 
                             {/* IR */}
-                            <div className="card rounded-xl p-5 flex flex-col gap-2" data-animate-child>
-                                <div className="text-[10px] tracking-[0.1em] uppercase text-[#9898c0] font-600">Information Ratio</div>
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Information Ratio</div>
                                 <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#9898c0]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                                     {signalAttribution.ir !== null ? signalAttribution.ir.toFixed(2) : '—'}
                                 </div>
-                                <div className="text-[11px] text-[#7878a0]">IC / σ(IC) · rolling 10</div>
-                                {signalAttribution.ir !== null && (() => {
-                                    const isGood = signalAttribution.ir > 1.5;
-                                    const isWeak = signalAttribution.ir > 0.5;
-                                    const label = isGood ? '✓ Institutional grade' : isWeak ? '~ Developing edge' : '✗ Inconsistent';
-                                    const clr = isGood ? '#0ecf8a' : isWeak ? '#f59e0b' : '#f5495a';
-                                    return (
-                                        <div className="mt-auto rounded-lg px-3 py-1.5 text-[10px] font-700 border" style={{ background: `${clr}10`, borderColor: `${clr}30`, color: clr }}>
-                                            {label}
-                                        </div>
-                                    );
-                                })()}
+                                <div className="text-[11px] text-[#9090b8] mt-1">IC / σ(IC) · rolling 10</div>
+                                {signalAttribution.ir !== null && (
+                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {signalAttribution.ir > 1.5 ? '✓ Institutional grade' : signalAttribution.ir > 0.5 ? '~ Developing edge' : '✗ Inconsistent'}
+                                    </div>
+                                )}
                             </div>
 
                             {/* T-Stat */}
-                            <div className="card rounded-xl p-5 flex flex-col gap-2" data-animate-child>
-                                <div className="text-[10px] tracking-[0.1em] uppercase text-[#9898c0] font-600">T-Statistic</div>
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">T-Statistic</div>
                                 <div className={`font-mono text-[28px] font-700 leading-none flex items-baseline gap-1.5 ${signalAttribution.tStat === null ? 'text-[#9898c0]' : Math.abs(signalAttribution.tStat) > 1.96 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                     {signalAttribution.tStat !== null ? Math.abs(signalAttribution.tStat).toFixed(2) : '—'}
                                     {signalAttribution.isSignificant && <span className="text-[16px] text-emerald-400">★</span>}
                                 </div>
-                                <div className="text-[11px] text-[#7878a0]">
+                                <div className="text-[11px] text-[#9090b8] mt-1">
                                     {signalAttribution.pValue !== null ? `p = ${signalAttribution.pValue.toFixed(3)}` : 'insufficient data'}
                                 </div>
-                                {(() => {
-                                    const isGood = signalAttribution.isSignificant;
-                                    const label = isGood ? '✓ Statistically significant' : '~ Not yet significant';
-                                    const clr = isGood ? '#0ecf8a' : '#f59e0b';
-                                    return (
-                                        <div className="mt-auto rounded-lg px-3 py-1.5 text-[10px] font-700 border" style={{ background: `${clr}10`, borderColor: `${clr}30`, color: clr }}>
-                                            {label}
-                                        </div>
-                                    );
-                                })()}
+                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.isSignificant ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.isSignificant ? '✓ Statistically significant' : '~ Not yet significant'}
+                                </div>
                             </div>
 
                             {/* Causal Lead / Granger */}
-                            <div className="card rounded-xl p-5 flex flex-col gap-2" data-animate-child>
-                                <div className="text-[10px] tracking-[0.1em] uppercase text-[#9898c0] font-600">Causal Signal</div>
+                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
+                                <div className="section-title mb-0.5">Causal Signal</div>
                                 <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.grangerP === null ? 'text-[#9898c0]' : signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                     {signalAttribution.grangerP !== null ? (signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)) : '—'}
                                 </div>
-                                <div className="text-[11px] text-[#7878a0]">Granger p-value</div>
-                                {(() => {
-                                    const hasData = signalAttribution.grangerP !== null;
-                                    const isGood = hasData && signalAttribution.grangerP < 0.05;
-                                    const label = hasData
-                                        ? isGood ? '✓ Sentiment Granger-causes price' : '~ Correlation, not causation'
-                                        : 'Run quant scan for data';
-                                    const clr = isGood ? '#0ecf8a' : '#f59e0b';
-                                    return (
-                                        <div className="mt-auto rounded-lg px-3 py-1.5 text-[10px] font-700 border" style={{ background: `${clr}10`, borderColor: `${clr}30`, color: clr }}>
-                                            {label}
-                                        </div>
-                                    );
-                                })()}
+                                <div className="text-[11px] text-[#9090b8] mt-1">Granger p-value</div>
+                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.grangerP !== null && signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {signalAttribution.grangerP !== null
+                                        ? signalAttribution.grangerP < 0.05 ? '✓ Sentiment Granger-causes price' : '~ Correlation, not causation'
+                                        : 'Run quant scan for data'}
+                                </div>
                             </div>
                         </div>
 

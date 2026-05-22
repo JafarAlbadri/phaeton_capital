@@ -23,7 +23,6 @@ import { computeVelocity } from './velocity';
 import { evaluateAlerts } from './alerts/evaluator';
 import { screenerQuery } from './screener';
 import { sweepUniverse } from './scanner';
-import { computeRecommendedPrice } from './recommendedPrice';
 import prisma from '@sentiment-crowd/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -289,33 +288,26 @@ async function processPosts(keywordOverride?: string) {
     const newPosts: ScrapedPost[] = [];
     const postHashes: Record<string, string> = {};
 
-    // 2. Filter: Batch duplicate detection (single query instead of N+1)
-    const allHashes: Record<string, string> = {}; // hash → post.id
     for (const post of posts) {
-        const hash = generateDuplicateHash(post.content);
-        allHashes[hash] = post.id;
-    }
+        // 2. Filter: Duplicate Detection
+        const duplicateHash = generateDuplicateHash(post.content);
 
-    try {
-        const existingRows = await prisma.sentiment.findMany({
-            where: { duplicate_hash: { in: Object.keys(allHashes) } },
-            select: { duplicate_hash: true },
-        });
-        const existingHashes = new Set(existingRows.map(r => r.duplicate_hash));
+        // Check if duplicate exists via DB
+        try {
+            const existing = await prisma.sentiment.findUnique({
+                where: { duplicate_hash: duplicateHash }
+            });
 
-        for (const post of posts) {
-            const hash = generateDuplicateHash(post.content);
-            if (existingHashes.has(hash)) continue;
+            if (existing) {
+                logWrapper.info(`Duplicate detected for hash ${duplicateHash}. Skipping.`);
+                continue;
+            }
             newPosts.push(post);
-            postHashes[post.id] = hash;
+            postHashes[post.id] = duplicateHash;
+        } catch (dbErr) {
+            logWrapper.error('Database connection might not be ready.', dbErr);
+            return;
         }
-
-        if (existingHashes.size > 0) {
-            logWrapper.info(`Duplicate detection: ${existingHashes.size} duplicates skipped in batch.`);
-        }
-    } catch (dbErr) {
-        logWrapper.error('Database connection might not be ready.', dbErr);
-        return;
     }
 
     if (newPosts.length === 0) {
@@ -442,33 +434,12 @@ async function processPosts(keywordOverride?: string) {
         computeRecommendation(currentKeyword, 90),
     ]);
 
-    // Compute recommended price targets for all horizons
-    await Promise.allSettled(
-        ([15, 30, 90] as const).map(async (h) => {
-            const priceTarget = await computeRecommendedPrice(currentKeyword, h);
-            if (priceTarget) {
-                await (prisma.recommendationScore as any).update({
-                    where: { ticker_horizon: { ticker: currentKeyword, horizon: h } },
-                    data: {
-                        recommended_price: priceTarget.price,
-                        price_target_low: priceTarget.low,
-                        price_target_high: priceTarget.high,
-                        price_method: priceTarget.method,
-                    },
-                }).catch(() => {});
-            }
-        })
-    );
-
     // Broadcast final recommendation to all SSE clients
     try {
         const rec = await (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } } });
         if (rec) broadcastSSE('recommendation', {
             ticker: currentKeyword, signal: rec.signal, score: rec.composite_score,
             confidence: rec.confidence, narrative: (rec as any).narrative ?? null,
-            recommended_price: rec.recommended_price ?? null,
-            price_target_low: rec.price_target_low ?? null,
-            price_target_high: rec.price_target_high ?? null,
             timestamp: new Date().toISOString()
         });
     } catch (_e) { /* non-critical */ }

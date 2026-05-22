@@ -83,7 +83,7 @@ Signal: ${input.signal} (score: ${input.composite_score.toFixed(1)}/100, confide
 Scores — Sentiment:${input.sentiment_score.toFixed(0)} Technical:${input.technical_score.toFixed(0)} Fundamental:${input.fundamental_score.toFixed(0)} Quant:${input.quant_score.toFixed(0)} Macro:${input.macro_score.toFixed(0)} Insider:${input.insider_score.toFixed(0)}
 ${input.rsi != null ? `RSI(14): ${input.rsi.toFixed(1)} (${input.rsi < 30 ? 'oversold' : input.rsi > 70 ? 'overbought' : 'neutral'})` : ''}
 ${input.macd_histogram != null ? `MACD: ${input.macd_histogram > 0 ? 'positive momentum' : 'negative momentum'}` : ''}
-${input.hmm_state != null ? `Market regime: ${input.hmm_state === 1 ? 'Bull' : input.hmm_state === 0 ? 'Bear' : 'Neutral'}` : ''}
+${input.hmm_state != null ? `Market regime: ${input.hmm_state === 2 ? 'Bull' : input.hmm_state === 0 ? 'Bear' : 'Neutral'}` : ''}
 ${input.vix != null ? `VIX: ${input.vix.toFixed(1)} (${input.vix > 30 ? 'high fear' : input.vix < 15 ? 'complacency' : 'normal'})` : ''}
 ${upside != null ? `Analyst target implies ${upside}% upside` : ''}
 ${input.hurst != null ? `Hurst: ${input.hurst.toFixed(2)} (${input.hurst > 0.6 ? 'trending' : input.hurst < 0.4 ? 'mean-reverting' : 'random'})` : ''}
@@ -94,7 +94,7 @@ ${input.risk_rating != null ? `Risk: ${input.risk_rating}/5` : ''}`;
         const response = await ai.models.generateContent({
             model: aiModel,
             contents: prompt,
-            config: { temperature: 0.3, maxOutputTokens: 400 },
+            config: { temperature: 0.3, maxOutputTokens: 200 },
         });
         return response.text?.trim() || null;
     } catch {
