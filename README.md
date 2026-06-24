@@ -1,41 +1,65 @@
-# SentimentCrowd
+# Phaeton Capital
 
-100% Bun-Native Trading Intelligence Pipeline.
-Sentiment analysis system identifying genuine market sentiment by scraping Reddit, filtering social media slop, and labeling with Gemini AI.
+**Sentiment-driven quantitative trading-intelligence platform.**
+Phaeton Capital scrapes market discussion from social media, labels sentiment with an LLM, fuses it with live market data, and runs a 20+ model quantitative engine to surface trading signals on a real-time dashboard.
+
+> ⚠️ Educational project — not financial advice.
+
+<!-- Add a dashboard screenshot here — single highest-impact thing for anyone viewing this repo: -->
+![Dashboard](docs/screenshot.png)
+
+## What it does
+
+1. **Scrape** — a Bun-native worker continuously scrapes Reddit (and other social sources) for ticker discussion.
+2. **Label** — each post is classified for genuine market sentiment using Google Gemini, with social-media noise filtered out.
+3. **Store** — sentiment and market data are persisted in PostgreSQL via Prisma.
+4. **Analyze** — a Python engine fuses sentiment with live price data and computes a battery of quantitative models.
+5. **Surface** — results appear as signals, backtests, screeners and risk metrics on a Next.js dashboard.
+
+## Quantitative engine
+
+The Python engine (`apps/python_worker`) implements 20+ models:
+
+| Category | Models |
+|---|---|
+| **Forecasting** | Monte Carlo simulation (Student-t / fat-tailed), multi-day price cones |
+| **Volatility** | GARCH(1,1), EWMA fallback |
+| **Regime detection** | Gaussian Hidden Markov Model (bull / bear / range) |
+| **Risk** | Sharpe, Sortino, Calmar, VaR & CVaR (95/99%), max drawdown, rolling beta vs SPY |
+| **Position sizing** | Fractional Kelly criterion (with transaction costs) |
+| **Time-series / causality** | Granger causality, transfer entropy, Ornstein-Uhlenbeck, ADF stationarity, Hurst exponent (DFA), FFT cycle detection |
+| **Sentiment statistics** | Bayesian (Normal-Normal) aggregation, Beta-distribution fit, KDE, z-scores |
 
 ## Architecture
 
-- **Web:** Next.js 15 App router dashboard.
-- **Worker:** Bun-native web scraper and AI pipeline.
-- **DB:** PostgreSQL with Prisma ORM.
+A monorepo orchestrated with Docker Compose:
 
-## Quick Start
+- `apps/web` — Next.js 15 dashboard (TypeScript, Tailwind)
+- `apps/worker` — Bun-native scraping + AI sentiment pipeline (TypeScript)
+- `apps/python_worker` — quantitative engine (Python: NumPy, pandas, SciPy, statsmodels, hmmlearn, arch)
+- `packages/db` — PostgreSQL schema via Prisma
 
-### 1. Configure Environment Variables
-Copy the template to your actual `.env` file:
+## Quick start
+
+Everything is containerized — no local Node/Bun/Python required.
+
 ```bash
-cp .env.example .env
-```
-Open `.env` and configure your `GEMINI_API_KEY`. (Required for Sentiment AI to work).
-
-### 2. Start the Environment
-Everything is containerized and runs via Docker Compose. No local Bun or Node.js installations are required on your host!
-```bash
+cp .env.example .env        # then set your GEMINI_API_KEY
 docker-compose up --build
 ```
-This will automatically:
-- Stand up PostgreSQL and initialize the database schema via Prisma.
-- Start the backend worker pipeline that scrapes and analyzes text.
-- Start the Next.js frontend web dashboard.
 
-### 3. View the Dashboard
-Go to your browser:
-**http://localhost:3000**
+Open <http://localhost:3000>.
 
-### 4. Manual Scrape / Scan
-The worker scrapes Reddit automatically every 15 minutes. To trigger a manual scan immediately, use the dashboard button or run this command in your terminal:
+Trigger a manual scrape:
 
 ```bash
 curl -X POST http://localhost:3000/api/scrape
 ```
-*Note: This contacts the web server which proxies the request cleanly into the worker across the secure internal docker network.*
+
+## Tech stack
+
+Next.js 15 · TypeScript · Bun · Python · PostgreSQL · Prisma · Docker · Google Gemini
+
+## Author
+
+Built by **Jafar Al-Badri** — [GitHub](https://github.com/JafarAlbadri) · [LinkedIn](https://www.linkedin.com/in/jafar-albadri-209670355/)
