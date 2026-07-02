@@ -2,34 +2,30 @@
 
 import { useTransition, useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine, Cell, ReferenceArea,
-    ComposedChart, Line, Scatter, ScatterChart
-} from 'recharts';
-import {
-    Activity, AlertTriangle, RefreshCw, BarChart2, TrendingUp, TrendingDown,
-    Bot, DollarSign, Target, Briefcase, Info, Search, ListPlus,
-    Shield, Globe, Award, Zap, ChevronUp, ChevronDown, Minus,
-    Calendar, ArrowUpRight, ArrowDownRight, Command, LayoutGrid, Radio, Hexagon,
-    Star, Flame, RotateCcw, ChevronRight
-} from 'lucide-react';
+import { Star } from 'lucide-react';
 import ScreenerGrid from '../components/ScreenerGrid';
-import { InlineExplain, ExplainTooltip } from '../components/ExplainTooltip';
 import PeerComparison from '../components/PeerComparison';
 import ScoreWeightsPanel from '../components/ScoreWeightsPanel';
-import QueueStatus from '../components/QueueStatus';
-
 import { useScrollAnimation } from '../components/dashboard/useScrollAnimation';
-import { AnimatedNumber } from '../components/dashboard/AnimatedNumber';
-import { SIGNAL_STYLES, getSignal } from '../components/dashboard/signalStyles';
-import { Tile } from '../components/dashboard/Tile';
-import { ScoreBar } from '../components/dashboard/ScoreBar';
-import { ConfidenceGauge } from '../components/dashboard/ConfidenceGauge';
-import { CustomTooltip } from '../components/dashboard/CustomTooltip';
+import { getSignal } from '../components/dashboard/signalStyles';
+import { LoadingOverlay } from '../components/dashboard/LoadingOverlay';
+import { CommandPalette, TickerSearchResult } from '../components/dashboard/CommandPalette';
+import { TopBar } from '../components/dashboard/TopBar';
+import { SideNav } from '../components/dashboard/SideNav';
+import { EmptyState, HeroSection } from '../components/dashboard/HeroSection';
+import { FundamentalsSection } from '../components/dashboard/FundamentalsSection';
+import { EarningsSetupSection } from '../components/dashboard/EarningsSetupSection';
+import { SqueezeSection } from '../components/dashboard/SqueezeSection';
+import { TechnicalSection } from '../components/dashboard/TechnicalSection';
+import { QuantSection } from '../components/dashboard/QuantSection';
+import { BacktestSection } from '../components/dashboard/BacktestSection';
+import { MacroSection } from '../components/dashboard/MacroSection';
+import { SentimentCharts } from '../components/dashboard/SentimentCharts';
+import { InsiderSection } from '../components/dashboard/InsiderSection';
+import { AnalysisSection } from '../components/dashboard/AnalysisSection';
+import { PredictionAuditSection } from '../components/dashboard/PredictionAuditSection';
+import { AlphaAttributionSection } from '../components/dashboard/AlphaAttributionSection';
 
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function DashboardClient({
     recentSentiments, manipulationStats, targetKeyword,
     fundamentalData, financialHistory, usdSekRate, gaussianData,
@@ -42,36 +38,28 @@ export default function DashboardClient({
     const [isPending, startTransition] = useTransition();
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState(targetKeyword || '');
-    const [searchResults, setSearchResults] = useState<{symbol: string; shortname: string; exchange: string}[]>([]);
+    const [searchResults, setSearchResults] = useState<TickerSearchResult[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [tradeFilter, setTradeFilter] = useState<'all' | 'buy' | 'sell'>('all');
     const [isCommandOpen, setIsCommandOpen] = useState(false);
     const [selectedHorizon, setSelectedHorizon] = useState<15 | 30 | 90>(15);
-    const [btData, setBtData] = useState<any>(null);
-    const [btLoading, setBtLoading] = useState(false);
-    const [btHorizon, setBtHorizon] = useState<15 | 30 | 90>(15);
-    const [btOpen, setBtOpen] = useState(false);
     const [sseConnected, setSseConnected] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [squeezeData, setSqueezeData] = useState<any>(null);
     const router = useRouter();
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const btAbortRef = useRef<AbortController | null>(null);
-    
+
     useScrollAnimation();
 
-    // Reset backtest panel + refetch squeeze when the viewed ticker changes
+    // Refetch squeeze data when the viewed ticker changes
     useEffect(() => {
-        setBtData(null);
-        setBtOpen(false);
         setSqueezeData(null);
-        if (btAbortRef.current) { btAbortRef.current.abort(); btAbortRef.current = null; }
-        // Fetch short squeeze data
         fetch(`/api/squeeze/${targetKeyword}`).then(r => r.json()).then(d => {
             if (!d.error) setSqueezeData(d);
         }).catch(() => {});
     }, [targetKeyword]);
 
+    // SSE live updates with exponential-backoff reconnect
     useEffect(() => {
         let es: EventSource | null = null;
         let retryDelay = 1000;
@@ -209,416 +197,70 @@ export default function DashboardClient({
             .catch(() => setLoading(false));
     };
 
-    const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-
     return (
         <div className="min-h-screen relative text-[#f0efff]">
 
-            {/* ── LOADING OVERLAY ─────────────────────────────────────────── */}
-            {(loading || isPending) && (
-                <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#05050f]/90 backdrop-blur-md">
-                    <div className="flex flex-col items-center gap-6">
-                        {/* Spinning rings */}
-                        <div className="relative w-20 h-20">
-                            <div className="absolute inset-0 rounded-full border-2 border-[#1e1e42]" />
-                            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-400 animate-spin" />
-                            <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-[#f0b429] animate-spin" style={{ animationDuration: '1.4s', animationDirection: 'reverse' }} />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
-                            </div>
-                        </div>
-                        {/* Label */}
-                        <div className="flex flex-col items-center gap-1.5">
-                            <span className="font-mono text-[13px] font-700 tracking-[0.2em] uppercase text-[#f0efff]">
-                                {loading ? `Scanning ${searchQuery.toUpperCase()}` : 'Loading Data'}
-                            </span>
-                            <span className="text-[11px] text-[#9090b8] tracking-wider">Fetching market intelligence...</span>
-                        </div>
-                        {/* Animated dots progress */}
-                        <div className="flex items-center gap-1.5">
-                            {[0, 1, 2, 3, 4].map(i => (
-                                <div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-400/40 animate-pulse"
-                                     style={{ animationDelay: `${i * 150}ms` }} />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {(loading || isPending) && <LoadingOverlay scanning={loading} label={searchQuery} />}
 
-            {/* ── COMMAND PALETTE ─────────────────────────────────────────── */}
             {isCommandOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20" onClick={() => setIsCommandOpen(false)}>
-                    <div className="w-full max-w-2xl bg-[#0d0d24] rounded-2xl border border-[#2d3050] shadow-[0_25px_80px_rgba(0,0,0,0.6)] overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center px-4 border-b border-[#1a1a3a]">
-                            <Search className="w-5 h-5 text-[#8080aa]" />
-                            <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') triggerScrape(); }}
-                                placeholder="Search ticker or company name..."
-                                className="w-full h-14 bg-transparent border-none outline-none px-4 text-lg text-[#f0efff] placeholder:text-[#8080aa] uppercase" />
-                            <div className="flex items-center gap-1">
-                                <kbd className="px-2 py-1 bg-[#12122e] rounded text-[10px] text-[#8080aa] font-mono border border-[#1a1a3a]">ESC</kbd>
-                            </div>
-                        </div>
-                        {/* Search results dropdown */}
-                        {searchResults.length > 0 && (
-                            <div className="border-b border-[#1a1a3a]">
-                                {searchResults.map((r) => (
-                                    <button key={r.symbol} onClick={() => triggerScrape(r.symbol)}
-                                        className="w-full flex items-center gap-4 px-5 py-3 hover:bg-[#12122e] transition-colors text-left group">
-                                        <span className="font-mono text-[14px] font-700 text-[#f0efff] w-20 shrink-0">{r.symbol}</span>
-                                        <span className="text-[13px] text-[#9898c0] flex-1 truncate group-hover:text-[#f0efff] transition-colors">{r.shortname}</span>
-                                        <span className="text-[10px] font-mono text-[#8080aa] border border-[#1a1a3a] px-2 py-0.5 rounded shrink-0">{r.exchange}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        {searchLoading && (
-                            <div className="px-5 py-3 text-[12px] text-[#9898c0]">Searching...</div>
-                        )}
-                        {!searchLoading && searchResults.length === 0 && searchQuery.trim().length > 0 && (
-                            <div className="px-5 py-3 text-[12px] text-[#9898c0]">No results — try a ticker symbol or full company name</div>
-                        )}
-
-                        {/* Popular fallback when no query */}
-                        {searchQuery.trim().length === 0 && (
-                            <div className="p-4">
-                                <div className="section-title mb-3">Popular Tickers</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {['AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'GME'].map(t => (
-                                        <button key={t} onClick={() => triggerScrape(t)}
-                                            className="px-3 py-1.5 rounded-lg bg-[#12122e] border border-[#1a1a3a] hover:border-indigo-500/50 hover:bg-indigo-500/10 text-sm font-mono tracking-wider transition-colors">
-                                            {t}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <CommandPalette
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    searchResults={searchResults}
+                    searchLoading={searchLoading}
+                    onClose={() => setIsCommandOpen(false)}
+                    onTrigger={triggerScrape}
+                />
             )}
 
-            {/* ── TOP BAR ─────────────────────────────────────────────────── */}
-            <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-[#080818]/80 backdrop-blur-xl border-b border-[#1a1a3a] flex items-center justify-between px-4 xl:px-6">
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col">
-                        <span className="font-display font-800 tracking-[0.15em] text-gradient-gold text-lg leading-none">PHAETON</span>
-                        <span className="text-[10px] tracking-[0.3em] text-[#8080aa] font-600">CAPITAL</span>
-                    </div>
-                </div>
-                
-                <div className="flex-1 max-w-lg mx-8 hidden md:block">
-                    <button onClick={() => setIsCommandOpen(true)} className="w-full flex items-center gap-3 px-4 h-9 rounded-xl bg-white/[0.03] border border-[#1e1e42] hover:bg-white/[0.05] transition-colors group">
-                        <Search className="w-4 h-4 text-[#8080aa] group-hover:text-[#9898c0]" />
-                        <span className="text-sm text-[#8080aa] flex-1 text-left uppercase tracking-widest font-mono">
-                            {targetKeyword || 'Search...'}
-                        </span>
-                        <div className="flex items-center gap-1">
-                            <Command className="w-3 h-3 text-[#8080aa]" />
-                            <span className="text-[10px] font-mono text-[#8080aa]">K</span>
-                        </div>
-                    </button>
-                </div>
+            <TopBar
+                targetKeyword={targetKeyword}
+                sseConnected={sseConnected}
+                lastUpdated={lastUpdated}
+                recommendationScore={recommendationScore}
+                loading={loading}
+                onOpenCommand={() => setIsCommandOpen(true)}
+                onScan={() => triggerScrape()}
+            />
 
-                <div className="flex items-center gap-3">
-                    {/* SSE connectivity + last updated */}
-                    <div className="hidden sm:flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-emerald-400' : 'bg-[#5d5d8a] animate-pulse'}`} title={sseConnected ? 'Live' : 'Reconnecting…'} />
-                        {lastUpdated && (
-                            <span className="text-[10px] text-[#5d5d8a] font-mono">
-                                {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        )}
-                    </div>
+            <SideNav />
 
-                    {/* Queue status */}
-                    <div className="hidden md:block"><QueueStatus /></div>
-
-                    {/* Discover — auto-surfaced opportunities */}
-                    <a href="/discover"
-                       className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[rgba(212,160,23,0.06)] border border-[rgba(212,160,23,0.20)] hover:border-[rgba(212,160,23,0.40)] text-[11px] text-[#fcd97a] hover:shadow-[0_0_20px_rgba(212,160,23,0.15)] transition-all font-semibold uppercase tracking-wider">
-                        <Target className="w-3 h-3" /> Discover
-                    </a>
-
-                    {/* Share signal card */}
-                    {recommendationScore && (
-                        <a href={`/api/og?ticker=${targetKeyword}&signal=${recommendationScore.signal}&score=${recommendationScore.composite_score?.toFixed(1)}&horizon=15`}
-                           target="_blank" rel="noopener noreferrer"
-                           className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0c0c24] border border-[#1e1e3a] hover:border-[#2a2a5a] text-[11px] text-[#9898c0] hover:text-[#f0efff] transition-all">
-                            <ArrowUpRight className="w-3 h-3" /> Share
-                        </a>
-                    )}
-
-                    <button onClick={() => triggerScrape()} disabled={loading}
-                        className="flex items-center gap-2 px-4 h-9 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-600 text-white hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all disabled:opacity-50">
-                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        {loading ? 'SCANNING' : 'SCAN'}
-                    </button>
-                </div>
-            </div>
-
-            {/* ── SIDEBAR ─────────────────────────────────────────────────── */}
-            <div className="fixed left-0 top-14 bottom-0 w-16 xl:w-64 border-r border-[#1a1a3a] bg-[#05050f]/50 backdrop-blur-md z-40 flex flex-col py-6 overflow-hidden hover:w-64 transition-all duration-300 group">
-                <nav className="flex flex-col gap-2 px-3">
-                    {[
-                        { icon: Radio, label: 'Signals', id: '#hero' },
-                        { icon: DollarSign, label: 'Fundamentals', id: '#fundamentals' },
-                        { icon: BarChart2, label: 'Technicals', id: '#technical' },
-                        { icon: Globe, label: 'Macro Environment', id: '#macro' },
-                        { icon: LayoutGrid, label: 'Quant Models', id: '#quant' },
-                        { icon: Shield, label: 'Risk Analysis', id: '#risk' },
-                        { icon: TrendingUp, label: 'Sentiment Flow', id: '#sentiment' },
-                        { icon: Briefcase, label: 'Insider Flow', id: '#insider' },
-                        { icon: Award, label: 'Full Analysis', id: '#helhetsanalys' },
-                        { icon: Calendar, label: 'Predictions', id: '#predictions' },
-                        { icon: Activity, label: 'Alpha Attribution', id: '#alpha' },
-                        { icon: Zap, label: 'Squeeze', id: '#squeeze' },
-                    ].map((item, i) => (
-                        <a key={i} href={item.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors whitespace-nowrap relative">
-                            <item.icon className="w-4 h-4 shrink-0" />
-                            <span className="text-[13px] font-500 opacity-0 xl:opacity-100 group-hover:opacity-100 transition-opacity">{item.label}</span>
-                        </a>
-                    ))}
-                </nav>
-            </div>
-
-            {/* ── MOBILE BOTTOM NAV ────────────────────────────────── */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#080818]/90 backdrop-blur-xl border-t border-[#1a1a3a] flex items-center justify-around px-2 py-2">
-                {[
-                    { icon: Radio, label: 'Signals', id: '#hero' },
-                    { icon: DollarSign, label: 'Fundamentals', id: '#fundamentals' },
-                    { icon: BarChart2, label: 'Technicals', id: '#technical' },
-                    { icon: Bot, label: 'Quant', id: '#quant' },
-                    { icon: TrendingUp, label: 'Sentiment', id: '#sentiment' },
-                ].map((item, i) => (
-                    <a key={i} href={item.id} className="flex flex-col items-center gap-1 px-3 py-1 rounded-xl text-[#9898c0] hover:text-[#f0efff] hover:bg-[#12122e] transition-colors">
-                        <item.icon className="w-4 h-4" />
-                        <span className="text-[9px] font-500 tracking-wide">{item.label}</span>
-                    </a>
-                ))}
-            </nav>
-
-            {/* ── MAIN CONTENT ────────────────────────────────────────────── */}
             <main className="ml-16 xl:ml-64 pt-14 max-w-[1600px] mx-auto p-4 xl:p-8 space-y-8">
-                
-                {/* ── HERO SECTION ────────────────────────────────────────────── */}
-                {!recommendationScore && !loading && (
-                    <div className="col-span-12 h-[60vh] flex flex-col items-center justify-center relative overflown-hidden">
-                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] blur-[100px] pointer-events-none">
-                            <div className="w-[600px] h-[600px] bg-indigo-500 rounded-full animate-orbit" />
-                        </div>
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 shadow-[0_0_60px_rgba(99,102,241,0.5)]">
-                            <Hexagon className="w-10 h-10 text-white" />
-                        </div>
-                        <h1 className="font-display text-[42px] font-800 tracking-tight text-white mb-2">Intelligence Awaits.</h1>
-                        <p className="text-[#9898c0] text-[15px] mb-8 max-w-md text-center">Press <kbd className="px-2 py-1 mx-1 rounded bg-[#12122e] border border-[#1a1a3a] text-xs font-mono">⌘K</kbd> or use the search bar to scan a ticker and generate a precision audit.</p>
-                        <div className="flex gap-3">
-                            {['AAPL', 'NVDA', 'TSLA'].map(t => (
-                                <button key={t} onClick={() => triggerScrape(t)} className="px-5 py-2.5 rounded-xl border border-[#1e1e42] bg-[#0d0d24] hover:border-indigo-500/50 hover:bg-slate-800 transition-all font-mono font-600 text-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] text-white">
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+
+                {!recommendationScore && !loading && <EmptyState onTrigger={triggerScrape} />}
 
                 {recommendationScore && (<>
-                    <section id="hero" className={`col-span-12 rounded-[20px] overflow-hidden relative min-h-[280px] xl:min-h-[320px] bg-gradient-to-br border border-[#1e1e42] shadow-[0_20px_60px_rgba(0,0,0,0.6)] animate-in transition-all duration-500 ${sig.bgHero}`}
-                             style={{backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`}}>
-                        
-                        <div className="absolute top-0 left-0 w-full h-full bg-[url('/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 h-full">
-                            {/* Left Col */}
-                            <div className="p-8 xl:p-10 flex flex-col justify-center gap-4 relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] font-mono text-[13px] font-700 tracking-[0.15em] text-white backdrop-blur-md shadow-lg">
-                                        <div className="status-live" />
-                                        {targetKeyword.toUpperCase()}
-                                    </div>
-                                    <span className="badge bg-[#12122e] border border-[#1a1a3a] text-[#9898c0]">EQT</span>
-                                </div>
-                                <div className="text-[15px] text-[#9898c0] font-500 mt-2">Composite Signal Target</div>
+                    <HeroSection
+                        targetKeyword={targetKeyword}
+                        sig={sig}
+                        activeRec={activeRec}
+                        selectedHorizon={selectedHorizon}
+                        setSelectedHorizon={setSelectedHorizon}
+                        recommendationScores={recommendationScores}
+                        fundamentalData={fundamentalData}
+                        predictionCount={predictionCount}
+                        predictionAccuracy={predictionAccuracy}
+                        scoreHistory={scoreHistory}
+                    />
 
-                                {/* Horizon tab pills + mini comparison */}
-                                {recommendationScores && (
-                                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                        <div className="flex items-center gap-1.5">
-                                            {([15, 30, 90] as const).map(h => (
-                                                <button
-                                                    key={h}
-                                                    onClick={() => setSelectedHorizon(h)}
-                                                    className={`px-3 py-1 rounded-lg text-[11px] font-700 tracking-[0.08em] border transition-all ${selectedHorizon === h ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-transparent border-white/10 text-[#8080aa] hover:border-white/20 hover:text-[#9898c0]'}`}
-                                                >{h}D</button>
-                                            ))}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[10px] font-mono text-[#8080aa]">
-                                            {(['h15', 'h30', 'h90'] as const).map((k, i) => {
-                                                const r = recommendationScores[k];
-                                                const s = getSignal(r?.signal);
-                                                return r ? (
-                                                    <span key={k} className="flex items-center gap-1">
-                                                        <span className="text-[#3d3d6a]">{[15,30,90][i]}d</span>
-                                                        <span style={{ color: s.shadow.replace('0.5)', '1)').replace('0.6)', '1)') }}>{r.composite_score?.toFixed(0)}</span>
-                                                    </span>
-                                                ) : null;
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                <div className={`font-display text-[64px] xl:text-[80px] font-800 leading-[0.9] tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent animate-hero-enter`} 
-                                     style={{textShadow: `0 0 40px ${sig.shadow}`}}>
-                                    {sig.word}
-                                </div>
-                                <div className="text-[12px] font-600 tracking-[0.12em] uppercase text-[#9898c0] mt-1">{selectedHorizon}-Day Outlook</div>
-
-                                <div className="flex items-center gap-4 mt-2">
-                                    <span className="badge badge-gold">Score: {activeRec?.composite_score?.toFixed(1)}/100 · {selectedHorizon}d</span>
-                                    {predictionCount > 0 && predictionAccuracy != null && (
-                                        <span className="font-mono text-[12px] text-[#9898c0]">Model Acc: {(predictionAccuracy * 100).toFixed(1)}%</span>
-                                    )}
-                                </div>
-                                {activeRec?.narrative && (
-                                    <p className="text-[13px] leading-[1.7] text-[#9898c0] mt-2 max-w-[480px] italic border-l-2 border-white/10 pl-3">
-                                        {activeRec.narrative}
-                                    </p>
-                                )}
-                            </div>
-                            
-                            {/* Right Col */}
-                            <div className="p-8 xl:p-10 border-t md:border-t-0 md:border-l border-white/[0.06] flex flex-col gap-6 relative z-10 bg-black/10 backdrop-blur-sm">
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">Price</div>
-                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">${fundamentalData?.current_price?.toFixed(2) || '—'}</div>
-                                    </div>
-                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">P/E Ratio</div>
-                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">{fundamentalData?.pe_ratio?.toFixed(1) || '—'}</div>
-                                    </div>
-                                    <div className="bg-black/40 backdrop-blur-md rounded-xl p-4 border border-white/[0.08] flex flex-col justify-center">
-                                        <div className="text-[10px] tracking-[0.12em] uppercase text-[#9898c0] mb-1 font-600">Mkt Cap</div>
-                                        <div className="text-[15px] font-700 text-white font-mono tracking-tight">{fundamentalData?.market_cap ? `${(Number(fundamentalData.market_cap)/1e9).toFixed(1)}B` : '—'}</div>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex-1 flex items-center justify-center">
-                                    {activeRec?.confidence != null && (
-                                        <ConfidenceGauge value={activeRec.confidence * 100} colors={sig.gauge} />
-                                    )}
-                                </div>
-
-                                {/* Score history sparkline */}
-                                {scoreHistory?.length > 1 && (() => {
-                                    const scores = scoreHistory.map((h: any) => h.score).filter(Boolean);
-                                    const min = Math.min(...scores), max = Math.max(...scores);
-                                    const range = max - min || 1;
-                                    const W = 200, H = 32;
-                                    const pts = scores.map((s: number, i: number) =>
-                                        `${(i / (scores.length - 1)) * W},${H - ((s - min) / range) * H}`
-                                    ).join(' ');
-                                    const last = scores[scores.length - 1];
-                                    const prev = scores[scores.length - 2];
-                                    const trend = last > prev ? '#0ecf8a' : last < prev ? '#f5495a' : '#f59e0b';
-                                    return (
-                                        <div className="border-t border-white/[0.06] pt-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a]">Score History</span>
-                                                <ExplainTooltip topic="composite_score" />
-                                            </div>
-                                            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-8 overflow-visible">
-                                                <defs>
-                                                    <linearGradient id="scoreHistGrad" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="0%" stopColor={trend} stopOpacity={0.2} />
-                                                        <stop offset="100%" stopColor={trend} stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <polyline points={pts} fill="none" stroke={trend} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Score Weights Panel */}
-                    {recommendationScore && (
-                        <ScoreWeightsPanel
-                            scores={{
-                                sentiment: recommendationScore.sentiment_score,
-                                technical: recommendationScore.technical_score,
-                                fundamental: recommendationScore.fundamental_score,
-                                quant: recommendationScore.quant_score,
-                                insider: recommendationScore.insider_score,
-                                macro: recommendationScore.macro_score,
-                                risk: recommendationScore.risk_score,
-                            }}
-                            baseComposite={recommendationScore.composite_score}
-                        />
-                    )}
+                    <ScoreWeightsPanel
+                        scores={{
+                            sentiment: recommendationScore.sentiment_score,
+                            technical: recommendationScore.technical_score,
+                            fundamental: recommendationScore.fundamental_score,
+                            quant: recommendationScore.quant_score,
+                            insider: recommendationScore.insider_score,
+                            macro: recommendationScore.macro_score,
+                            risk: recommendationScore.risk_score,
+                        }}
+                        baseComposite={recommendationScore.composite_score}
+                    />
                 </>)}
 
-                {/* ── FUNDAMENTALS ────────────────────────────────────────────── */}
                 {fundamentalData && (
-                    <section id="fundamentals" className="col-span-12 scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                <DollarSign className="w-3.5 h-3.5 text-indigo-400" />
-                            </div>
-                            <InlineExplain topic="fundamental_score"><span className="section-title">Fundamental Data</span></InlineExplain>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5 mb-5">
-                            <Tile label="Price Target" value={fundamentalData.target_price ? `$${fundamentalData.target_price.toFixed(2)}` : '—'} variant="gold" icon={Target} />
-                            <Tile label="52W High" value={fundamentalData.high_52_week ? `$${fundamentalData.high_52_week.toFixed(2)}` : '—'} variant="bull" icon={ChevronUp} />
-                            <Tile label="52W Low" value={fundamentalData.low_52_week ? `$${fundamentalData.low_52_week.toFixed(2)}` : '—'} variant="bear" icon={ChevronDown} />
-                            <Tile label="Analyst View" value={fundamentalData.recommendation || '—'} variant={fundamentalData.recommendation?.includes('buy') ? 'bull' : 'gold'} icon={Award} />
-                            
-                            {fundamentalData.target_low_price && fundamentalData.target_high_price && (
-                                <div className="col-span-2 card p-5 flex flex-col justify-center relative overflow-hidden group" data-animate-child>
-                                    <div className="section-title mb-4">Analyst Target Range</div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="font-mono text-[13px] text-[#9898c0]">${fundamentalData.target_low_price.toFixed(2)}</span>
-                                        <div className="flex-1 h-2 rounded-full bg-[#12122e] relative border border-[#1a1a3a]">
-                                            <div className="absolute top-0 bottom-0 left-1/4 right-1/4 bg-indigo-500/20 rounded-full" />
-                                            {fundamentalData.target_price && fundamentalData.current_price && (
-                                                <>
-                                                    {/* Mean line */}
-                                                    <div className="absolute top-[-4px] bottom-[-4px] w-0.5 bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)] z-10" 
-                                                         style={{left: `${(fundamentalData.target_price - fundamentalData.target_low_price) / (fundamentalData.target_high_price - fundamentalData.target_low_price) * 100}%`}} />
-                                                    {/* Current Price Dot */}
-                                                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.15)] z-20"
-                                                         style={{left: `${Math.max(0, Math.min(100, (fundamentalData.current_price - fundamentalData.target_low_price) / (fundamentalData.target_high_price - fundamentalData.target_low_price) * 100))}%`}} />
-                                                </>
-                                            )}
-                                        </div>
-                                        <span className="font-mono text-[13px] text-[#fcd97a]">${fundamentalData.target_high_price.toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* V2: ADR Cross-Listing Gap Alert */}
-                        {crossListingData && Math.abs(crossListingData.gap_pct ?? 0) > 0.5 && (
-                            <div className={`mt-4 flex items-start gap-3 p-4 rounded-xl border ${crossListingData.gap_pct > 0 ? 'bg-amber-500/[0.05] border-amber-500/20' : 'bg-blue-500/[0.05] border-blue-500/20'}`}>
-                                <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${crossListingData.gap_pct > 0 ? 'text-amber-400' : 'text-blue-400'}`} />
-                                <div>
-                                    <div className="text-[12px] font-700 text-[#e2e8f0] mb-0.5">
-                                        ADR / Cross-Listing Gap · {crossListingData.gap_pct > 0 ? '▲' : '▼'} {Math.abs(crossListingData.gap_pct).toFixed(2)}%
-                                    </div>
-                                    <div className="text-[11px] text-[#9898c0]">
-                                        US price <span className="font-mono text-white">${crossListingData.adr_price?.toFixed(2)}</span> vs home market ({crossListingData.home_exchange}) <span className="font-mono text-white">${crossListingData.home_price_usd?.toFixed(2)}</span>.
-                                        {crossListingData.gap_pct > 0 ? ' US ADR trading at a premium — possible arbitrage or delayed sentiment.' : ' Home listing at premium — capital may rotate toward US ADR.'}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </section>
+                    <FundamentalsSection fundamentalData={fundamentalData} crossListingData={crossListingData} />
                 )}
 
-                {/* ── PEER COMPARISON ─────────────────────────────────────────── */}
                 {peerTickers?.length > 0 && recommendationScore && (
                     <PeerComparison
                         currentTicker={targetKeyword}
@@ -627,821 +269,51 @@ export default function DashboardClient({
                     />
                 )}
 
-                {/* ── PRE-EARNINGS SETUP ──────────────────────────────────────── */}
                 {earningsSetup?.daysToEarnings != null && earningsSetup.daysToEarnings >= 0 && earningsSetup.daysToEarnings <= 30 && (
-                    <section className="scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
-                                <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                            </div>
-                            <InlineExplain topic="pre_earnings"><span className="section-title">Pre-Earnings Setup</span></InlineExplain>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className={`px-3 py-1 rounded-lg text-[11px] font-700 border ${earningsSetup.daysToEarnings <= 7 ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
-                                {earningsSetup.daysToEarnings === 0 ? 'TODAY' : `${earningsSetup.daysToEarnings}d away`}
-                            </span>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="card p-4 text-center">
-                                <div className="section-title mb-2">Earnings Date</div>
-                                <div className="font-mono text-[14px] font-700 text-amber-400">{earningsSetup.nextEarningsDate}</div>
-                            </div>
-                            <div className="card p-4 text-center">
-                                <div className="section-title mb-2 flex items-center justify-center gap-1">
-                                    IV Percentile <ExplainTooltip topic="pre_earnings" />
-                                </div>
-                                <div className={`font-mono text-[14px] font-700 ${earningsSetup.ivPercentile != null ? (earningsSetup.ivPercentile > 70 ? 'text-red-400' : earningsSetup.ivPercentile > 40 ? 'text-amber-400' : 'text-emerald-400') : 'text-[#5d5d8a]'}`}>
-                                    {earningsSetup.ivPercentile != null ? `${earningsSetup.ivPercentile.toFixed(1)}%` : '—'}
-                                </div>
-                                <div className="text-[10px] text-[#5d5d8a] mt-1">
-                                    {earningsSetup.ivPercentile != null ? (earningsSetup.ivPercentile > 70 ? 'Options expensive' : earningsSetup.ivPercentile < 30 ? 'Options cheap' : 'Normal IV') : ''}
-                                </div>
-                            </div>
-                            <div className="card p-4 text-center">
-                                <div className="section-title mb-2">Put/Call Ratio</div>
-                                <div className={`font-mono text-[14px] font-700 ${earningsSetup.putCallRatio != null ? (earningsSetup.putCallRatio > 1.2 ? 'text-red-400' : earningsSetup.putCallRatio < 0.8 ? 'text-emerald-400' : 'text-amber-400') : 'text-[#5d5d8a]'}`}>
-                                    {earningsSetup.putCallRatio != null ? earningsSetup.putCallRatio.toFixed(2) : '—'}
-                                </div>
-                                <div className="text-[10px] text-[#5d5d8a] mt-1">
-                                    {earningsSetup.putCallRatio != null ? (earningsSetup.putCallRatio > 1.2 ? 'Bearish skew' : earningsSetup.putCallRatio < 0.8 ? 'Bullish skew' : 'Neutral') : ''}
-                                </div>
-                            </div>
-                            <div className="card p-4 text-center">
-                                <div className="section-title mb-2">Max Pain</div>
-                                <div className="font-mono text-[14px] font-700 text-[#9898c0]">
-                                    {earningsSetup.maxPainPrice != null ? `$${earningsSetup.maxPainPrice.toFixed(2)}` : '—'}
-                                </div>
-                                <div className="text-[10px] text-[#5d5d8a] mt-1">Options max pain price</div>
-                            </div>
-                        </div>
-                    </section>
+                    <EarningsSetupSection earningsSetup={earningsSetup} />
                 )}
 
-                {/* ── SHORT SQUEEZE INDICATOR ──────────────────────────────────── */}
-                {squeezeData && (
-                    <section id="squeeze" className="scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-red-500/15 flex items-center justify-center border border-red-500/20">
-                                <Zap className="w-3.5 h-3.5 text-red-400" />
-                            </div>
-                            <InlineExplain topic="squeeze"><span className="section-title">Short Squeeze Pressure</span></InlineExplain>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className={`px-3 py-1 rounded-lg text-[11px] font-700 border ${
-                                squeezeData.level === 'EXTREME' ? 'bg-red-500/20 border-red-500/40 text-red-300' :
-                                squeezeData.level === 'HIGH'    ? 'bg-orange-500/20 border-orange-500/40 text-orange-300' :
-                                squeezeData.level === 'MODERATE'? 'bg-amber-500/20 border-amber-500/40 text-amber-300' :
-                                'bg-[#0c0c24] border-[#1e1e3a] text-[#5d5d8a]'
-                            }`}>{squeezeData.level}</span>
-                        </div>
-                        <div className="card p-5">
-                            <div className="flex items-center gap-6 mb-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[11px] text-[#5d5d8a]">Pressure</span>
-                                        <span className="font-mono text-[13px] font-700 text-red-400">{squeezeData.pressure_score?.toFixed(1)}/100</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-[#12122e] border border-[#1a1a3a]">
-                                        <div className="h-full rounded-full transition-all" style={{
-                                            width: `${squeezeData.pressure_score}%`,
-                                            background: squeezeData.pressure_score >= 70 ? '#f5495a' : squeezeData.pressure_score >= 50 ? '#f97316' : squeezeData.pressure_score >= 30 ? '#f59e0b' : '#5d5d8a'
-                                        }} />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
-                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Short Float</div>
-                                    <div className="font-mono text-[14px] font-700 text-red-400">{squeezeData.short_float_pct?.toFixed(1)}%</div>
-                                </div>
-                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
-                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Days to Cover</div>
-                                    <div className="font-mono text-[14px] font-700 text-amber-400">{squeezeData.days_to_cover?.toFixed(1) ?? '—'}</div>
-                                </div>
-                                <div className="bg-[#0c0c24] rounded-xl border border-[#1a1a3a] p-3 text-center">
-                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">Shares Short</div>
-                                    <div className="font-mono text-[14px] font-700 text-[#9898c0]">{squeezeData.shares_short ? `${(squeezeData.shares_short / 1e6).toFixed(1)}M` : '—'}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                )}
+                {squeezeData && <SqueezeSection squeezeData={squeezeData} />}
 
-                {/* ── TECHNICAL ANALYSIS ──────────────────────────────────────── */}
-                {technicalIndicators && (
-                    <section id="technical" className="col-span-12 scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
-                            </div>
-                            <InlineExplain topic="technical_score"><span className="section-title">Technical Analysis</span></InlineExplain>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            {technicalIndicators.technical_signal && (
-                                <span className={`badge ${technicalIndicators.technical_signal==='BULLISH' ? 'badge-bull' : 'badge-bear'}`}>
-                                    {technicalIndicators.technical_signal}
-                                </span>
-                            )}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5 mb-5">
-                            <Tile label="RSI (14)" value={technicalIndicators.rsi_14?.toFixed(1) || '—'} variant={technicalIndicators.rsi_14 < 30 ? 'bull' : technicalIndicators.rsi_14 > 70 ? 'bear' : 'gold'} icon={Activity} />
-                            <Tile label="MACD" value={technicalIndicators.macd?.toFixed(3) || '—'} variant={(technicalIndicators.macd || 0) > 0 ? 'bull' : 'bear'} icon={TrendingUp} />
-                            <Tile label="SMA 50" value={technicalIndicators.sma_50 ? `$${technicalIndicators.sma_50.toFixed(2)}` : '—'} variant="gold" icon={ArrowUpRight} />
-                            <Tile label="SMA 200" value={technicalIndicators.sma_200 ? `$${technicalIndicators.sma_200.toFixed(2)}` : '—'} variant="gold" icon={ArrowUpRight} />
-                            <Tile label="EMA 12" value={technicalIndicators.ema_12 ? `$${technicalIndicators.ema_12.toFixed(2)}` : '—'} variant="gold" />
-                            <Tile label="ATR (14)" value={technicalIndicators.atr_14 ? `$${technicalIndicators.atr_14.toFixed(2)}` : '—'} variant="gold" />
-                        </div>
-                    </section>
-                )}
+                {technicalIndicators && <TechnicalSection technicalIndicators={technicalIndicators} />}
 
-                {/* ── MACRO & QUANTITATIVE ────────────────────────────────────── */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                    {/* QUANT */}
-                    {quantMetrics && (
-                        <section id="quant" className="scroll-mt-20" data-animate>
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                    <Bot className="w-3.5 h-3.5 text-indigo-400" />
-                                </div>
-                                <InlineExplain topic="quant_score"><span className="section-title">Quantitative Models</span></InlineExplain>
-                                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            </div>
-                            <div className="card p-6 flex flex-col gap-2">
-                                <ScoreBar label="Hurst Exponent" value={quantMetrics.hurst_exponent} variant={(quantMetrics.hurst_exponent||0)>0.5 ? 'bull' : 'gold'} thick />
-                                <ScoreBar label="Kelly Allocation (%)" value={quantMetrics.kelly_fraction != null ? Math.max(-100, Math.min(100, quantMetrics.kelly_fraction * 100)) : null} variant={quantMetrics.kelly_fraction != null && quantMetrics.kelly_fraction < 0 ? 'bear' : 'gold'} thick />
-                                <ScoreBar label="Granger p-value (x100)" value={quantMetrics.granger_p_value ? quantMetrics.granger_p_value*100 : null} variant={quantMetrics.granger_p_value < 0.05 ? 'bull' : 'bear'} thick />
-                                <ScoreBar label="Sent ↔ Price ρ (x100)" value={quantMetrics.sentiment_price_corr ? quantMetrics.sentiment_price_corr*100 : null} variant="gold" thick />
-                                
-                                <div className="mt-4 pt-4 border-t border-[#1a1a3a] grid grid-cols-2 gap-4">
-                                    <div>
-                                        <div className="section-title mb-1 flex items-center gap-1">HMM Regime <ExplainTooltip topic="hmm" /></div>
-                                        <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 2 ? 'text-emerald-400' : quantMetrics.hmm_state === 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                                            {quantMetrics.hmm_state === 2 ? 'Bull' : quantMetrics.hmm_state === 0 ? 'Bear' : quantMetrics.hmm_state === 1 ? 'Neutral' : '—'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="section-title mb-1">Stationarity</div>
-                                        <div className={`font-mono text-xl font-700 ${quantMetrics.adf_stationary ? 'text-emerald-400' : 'text-red-400'}`}>{quantMetrics.adf_stationary ? 'Stationary' : 'Non-Stationary'}</div>
-                                    </div>
-                                </div>
+                    {quantMetrics && <QuantSection quantMetrics={quantMetrics} trendsHistory={trendsHistory} />}
 
-                                {/* V2: Google Trends sparkline */}
-                                {quantMetrics.trends_score != null && (
-                                    <div className="mt-4 pt-4 border-t border-[#1a1a3a]">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="section-title">Google Trends Signal</div>
-                                            <span className={`text-[12px] font-mono font-700 ${quantMetrics.trends_score > 60 ? 'text-emerald-400' : quantMetrics.trends_score < 40 ? 'text-red-400' : 'text-amber-400'}`}>
-                                                {quantMetrics.trends_score.toFixed(0)} / 100
-                                            </span>
-                                        </div>
-                                        {trendsHistory && trendsHistory.length > 1 && (() => {
-                                            const sorted = [...trendsHistory].sort((a: any, b: any) => new Date(a.week_start).getTime() - new Date(b.week_start).getTime());
-                                            const values = sorted.map((w: any) => w.interest);
-                                            const min = Math.min(...values), max = Math.max(...values);
-                                            const range = max - min || 1;
-                                            const W = 240, H = 40;
-                                            const pts = values.map((v: number, i: number) =>
-                                                `${(i / (values.length - 1)) * W},${H - ((v - min) / range) * H}`
-                                            ).join(' ');
-                                            return (
-                                                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10 overflow-visible">
-                                                    <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                    <polyline points={`0,${H} ${pts} ${W},${H}`} fill="url(#trendsGrad)" stroke="none" />
-                                                    <defs>
-                                                        <linearGradient id="trendsGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
-                                                            <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                </svg>
-                                            );
-                                        })()}
-                                    </div>
-                                )}
-                                <div className="mt-4 flex gap-2">
-                                    {quantMetrics.contrarian_signal?.isContrarian && (
-                                        <span className="badge badge-gold">
-                                            Contrarian: {quantMetrics.contrarian_signal.type ?? 'SIGNAL'}
-                                            {quantMetrics.contrarian_signal.confidence != null && ` (${(quantMetrics.contrarian_signal.confidence * 100).toFixed(0)}%)`}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </section>
-                    )}
+                    {/* key={ticker} resets the panel state when the viewed ticker changes */}
+                    <BacktestSection key={targetKeyword} targetKeyword={targetKeyword} />
 
-                    {/* ── Epic 1: Backtest Chart ──────────────────────────────── */}
-                    <section id="backtest" className="scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
-                                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                            </div>
-                            <span className="section-title">Signal Backtest</span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <button onClick={() => {
-                                const opening = !btOpen;
-                                setBtOpen(opening);
-                                if (opening && !btData) {
-                                    if (btAbortRef.current) btAbortRef.current.abort();
-                                    const ctrl = new AbortController();
-                                    btAbortRef.current = ctrl;
-                                    setBtLoading(true);
-                                    fetch(`/api/backtest/${targetKeyword}?horizon=${btHorizon}&years=2`, { signal: ctrl.signal })
-                                        .then(r => r.json()).then(d => { if (!d.error) setBtData(d); })
-                                        .catch(e => { if (e?.name !== 'AbortError') setBtData(null); })
-                                        .finally(() => setBtLoading(false));
-                                }
-                            }} className="px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-700 hover:bg-amber-500/20 transition-all">
-                                {btOpen ? 'Collapse' : 'View Backtest'}
-                            </button>
-                        </div>
-                        {btOpen && (
-                            <div className="card p-5">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <span className="text-[11px] text-[#9090b8]">Horizon:</span>
-                                    {([15, 30, 90] as const).map(h => (
-                                        <button key={h} onClick={() => { setBtHorizon(h); setBtData(null); }}
-                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-700 transition-all ${
-                                                btHorizon === h ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300' : 'bg-[#0c0c24] border border-[#1e1e3a] text-[#5d5d8a] hover:text-[#9898c0]'
-                                            }`}>{h}D</button>
-                                    ))}
-                                    <button onClick={() => {
-                                        if (btAbortRef.current) btAbortRef.current.abort();
-                                        const ctrl = new AbortController();
-                                        btAbortRef.current = ctrl;
-                                        setBtLoading(true);
-                                        setBtData(null);
-                                        fetch(`/api/backtest/${targetKeyword}?horizon=${btHorizon}&years=2`, { signal: ctrl.signal })
-                                            .then(r => r.json()).then(d => { if (!d.error) setBtData(d); })
-                                            .catch(e => { if (e?.name !== 'AbortError') setBtData(null); })
-                                            .finally(() => setBtLoading(false));
-                                    }} disabled={btLoading}
-                                        className="ml-auto px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[11px] font-700 hover:bg-indigo-500/20 transition-all">
-                                        {btLoading ? 'Loading…' : 'Run'}
-                                    </button>
-                                </div>
-                                {btLoading && !btData && (
-                                    <div className="h-48 flex items-center justify-center">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
-                                            <span className="text-[12px] text-[#5d5d8a]">Running backtest…</span>
-                                        </div>
-                                    </div>
-                                )}
-                                {btData && (
-                                    <>
-                                        <div className="grid grid-cols-4 gap-3 mb-5">
-                                            {[
-                                                { label: 'Win Rate',   value: `${(btData.hit_rate * 100).toFixed(1)}%`,    color: btData.hit_rate > 0.55 ? 'text-emerald-400' : 'text-amber-400' },
-                                                { label: 'Avg Return', value: `${btData.avg_return_pct?.toFixed(2)}%`,     color: btData.avg_return_pct > 0 ? 'text-emerald-400' : 'text-red-400' },
-                                                { label: 'Sharpe',     value: btData.sharpe_ratio?.toFixed(2),             color: btData.sharpe_ratio > 1 ? 'text-emerald-400' : 'text-amber-400' },
-                                                { label: 'Max DD',     value: `${btData.max_drawdown_pct?.toFixed(1)}%`,   color: 'text-red-400' },
-                                            ].map(s => (
-                                                <div key={s.label} className="bg-[#0c0c24] rounded-xl border border-[#1e1e3a] p-3 text-center">
-                                                    <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-1">{s.label}</div>
-                                                    <div className={`font-mono text-[15px] font-700 ${s.color}`}>{s.value}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="h-52">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <ComposedChart data={btData.equity_curve} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                                                    <defs>
-                                                        <linearGradient id="btGrad" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                                                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <XAxis dataKey="date" hide />
-                                                    <YAxis domain={['auto', 'auto']} hide />
-                                                    <Tooltip content={<CustomTooltip />} />
-                                                    <ReferenceLine y={100} stroke="#2a2a5a" strokeDasharray="4 4" />
-                                                    <Area type="monotone" dataKey="equity" name="Strategy" stroke="#f59e0b" fill="url(#btGrad)" strokeWidth={1.5} dot={false} />
-                                                    <Line type="monotone" dataKey="spy" name="SPY" stroke="#6366f1" strokeWidth={1} strokeDasharray="5 3" dot={false} />
-                                                </ComposedChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        <div className="flex justify-center gap-6 mt-2">
-                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Strategy</span>
-                                            <span className="flex items-center gap-1.5 text-[11px] text-[#9898c0]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #6366f1'}} /> SPY Benchmark</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-                    </section>
-
-                    {/* MACRO */}
-                    {macroIndicators && (
-                        <section id="macro" className="scroll-mt-20" data-animate>
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                                </div>
-                                <span className="section-title">Macro Environment</span>
-                                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <Tile label="VIX Index" value={macroIndicators.vix?.toFixed(2) || '—'} variant={macroIndicators.vix > 30 ? 'bear' : macroIndicators.vix < 15 ? 'bull' : 'gold'} />
-                                <Tile label="10Y Yield" value={macroIndicators.ten_year_yield ? `${macroIndicators.ten_year_yield.toFixed(2)}%` : '—'} variant="gold" />
-                                <Tile label="Fear & Greed" value={macroIndicators.fear_greed_index?.toFixed(0) || '—'} variant={macroIndicators.fear_greed_index > 60 ? 'bull' : macroIndicators.fear_greed_index < 40 ? 'bear' : 'gold'} />
-                                <Tile label="1M ETF Return" value={macroIndicators.sector_etf_momentum_1m ? `${(macroIndicators.sector_etf_momentum_1m*100).toFixed(1)}%` : '—'} variant={macroIndicators.sector_etf_momentum_1m >= 0 ? 'bull' : 'bear'} />
-                            </div>
-
-                            {/* V2: Cultural Context Card */}
-                            {(() => {
-                                const cp = macroIndicators.cultural_profile ? (() => { try { return JSON.parse(macroIndicators.cultural_profile); } catch { return null; } })() : null;
-                                if (!cp) return null;
-                                const dims = [
-                                    { key: 'uai', label: 'Uncertainty Avoidance', color: '#f59e0b' },
-                                    { key: 'idv', label: 'Individualism', color: '#6366f1' },
-                                    { key: 'lto', label: 'Long-Term Orientation', color: '#0ecf8a' },
-                                    { key: 'pdi', label: 'Power Distance', color: '#f87171' },
-                                ];
-                                const implications = cp.implications ?? [];
-                                return (
-                                    <div className="mt-4 rounded-xl border border-[#1e1e3a] bg-[#09091f] p-4">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                                            <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Cultural Market Context · {cp.country}</span>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 mb-3">
-                                            {dims.map(d => (
-                                                <div key={d.key}>
-                                                    <div className="flex justify-between text-[10px] text-[#8080aa] mb-1">
-                                                        <span>{d.label}</span><span className="font-mono">{cp[d.key]}</span>
-                                                    </div>
-                                                    <div className="h-1.5 rounded-full bg-[#12122e] overflow-hidden">
-                                                        <div className="h-full rounded-full transition-all" style={{ width: `${cp[d.key]}%`, background: d.color, opacity: 0.8 }} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        {implications.slice(1, 3).map((imp: string, i: number) => (
-                                            <p key={i} className="text-[10px] text-[#8080aa] leading-relaxed mb-1">{imp}</p>
-                                        ))}
-                                    </div>
-                                );
-                            })()}
-                        </section>
-                    )}
+                    {macroIndicators && <MacroSection macroIndicators={macroIndicators} />}
                 </div>
 
-                {/* ── CHARTS ──────────────────────────────────────────────────── */}
-                <section id="sentiment" className="col-span-12 scroll-mt-20" data-animate>
+                <SentimentCharts
+                    recentSentiments={recentSentiments}
+                    gaussianData={gaussianData}
+                    quantMetrics={quantMetrics}
+                    regionalSentiment={regionalSentiment}
+                />
 
-                    {/* V2: Regional Sentiment Divergence */}
-                    {regionalSentiment && regionalSentiment.length >= 2 && (() => {
-                        const regionMap: Record<string, string> = { US: '🇺🇸 US', AU: '🇦🇺 AU', UK: '🇬🇧 UK', EU: '🇪🇺 EU' };
-                        const means = regionalSentiment.map((r: any) => r.mean_sentiment);
-                        const divergence = Math.max(...means) - Math.min(...means);
-                        return (
-                            <div className={`mb-6 rounded-xl border p-4 ${divergence > 0.3 ? 'border-amber-500/20 bg-amber-500/[0.04]' : 'border-[#1e1e3a] bg-[#09091f]'}`}>
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                                        <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Regional Sentiment Divergence</span>
-                                    </div>
-                                    {divergence > 0.3 && (
-                                        <div className="flex items-center gap-1.5 text-amber-400 text-[10px] font-700">
-                                            <AlertTriangle className="w-3 h-3" /> Divergence detected · {divergence.toFixed(2)}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex items-end gap-4">
-                                    {regionalSentiment.map((r: any) => (
-                                        <div key={r.region} className="flex flex-col items-center gap-1.5 flex-1">
-                                            <div className="w-full rounded-md overflow-hidden bg-[#12122e]" style={{ height: 48 }}>
-                                                <div className="rounded-md transition-all"
-                                                     style={{ height: `${Math.max(4, Math.abs(r.mean_sentiment) * 48)}px`, marginTop: r.mean_sentiment > 0 ? 0 : 'auto', background: r.mean_sentiment > 0.1 ? '#0ecf8a' : r.mean_sentiment < -0.1 ? '#f5495a' : '#f59e0b', opacity: 0.75 }} />
-                                            </div>
-                                            <span className="text-[10px] text-[#8080aa]">{regionMap[r.region] ?? r.region}</span>
-                                            <span className={`text-[10px] font-700 font-mono ${r.mean_sentiment > 0.1 ? 'text-emerald-400' : r.mean_sentiment < -0.1 ? 'text-red-400' : 'text-amber-400'}`}>{r.mean_sentiment.toFixed(2)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        {/* Sentiment timeline */}
-                        <div className="card card-accent relative overflow-hidden p-0 w-full" data-animate-child>
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
-                                <div>
-                                    <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Sentiment Timeline</h3>
-                                    <p className="text-[11px] text-[#9090b8] mt-0.5">Real-time aggregate scoring</p>
-                                </div>
-                                <div className="badge badge-gold"><div className="status-live mr-1" /> LIVE</div>
-                            </div>
-                            <div className="px-4 pb-4 pt-6 h-[260px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart data={recentSentiments} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%"   stopColor="#f59e0b" stopOpacity={0.35} />
-                                                <stop offset="40%"  stopColor="#f59e0b" stopOpacity={0.12} />
-                                                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="1 8" stroke="#1e1e42" vertical={false} />
-                                        <XAxis dataKey="timeLabel" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} tickMargin={8} />
-                                        <YAxis yAxisId="left" dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} width={35} domain={[-1,1]} />
-                                        <YAxis yAxisId="right" dataKey="price" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#6366f1', fontSize: 11 }} domain={['auto', 'auto']} tickFormatter={(v) => `$${v.toFixed(0)}`} />
-                                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#f59e0b', strokeWidth: 1, strokeOpacity: 0.3 }} />
-                                        <ReferenceArea yAxisId="left" y1={0.6} y2={1.0} fill="#0ecf8a" fillOpacity={0.04} />
-                                        <ReferenceArea yAxisId="left" y1={-1.0} y2={-0.6} fill="#f5495a" fillOpacity={0.04} />
-                                        <ReferenceLine yAxisId="left" y={0.6} stroke="#0ecf8a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopLeft', style: { fill: '#0ecf8a', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                        <ReferenceLine yAxisId="left" y={-0.6} stroke="#f5495a" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomLeft', style: { fill: '#f5495a', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                        <Area yAxisId="left" type="monotone" dataKey="sentiment" stroke="#f59e0b" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#f59e0b', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
-                                        <Line yAxisId="right" type="monotone" dataKey="price" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#6366f1', stroke: '#05050f', strokeWidth: 2 }} isAnimationActive={true} />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* Distribution chart */}
-                        {gaussianData && (
-                            <div className="card card-accent relative overflow-hidden p-0 w-full" data-animate-child>
-                                <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a3a]">
-                                    <div>
-                                        <h3 className="text-[13px] font-600 text-[#e2e8f0] tracking-[0.02em] uppercase">Opinion Distribution</h3>
-                                        <p className="text-[11px] text-[#9090b8] mt-0.5">Gaussian vs KDE</p>
-                                    </div>
-                                    <div className={`badge ${gaussianData.mean > 0 ? 'badge-bull' : 'badge-bear'}`}>
-                                        μ {gaussianData.mean.toFixed(2)}
-                                    </div>
-                                </div>
-                                <div className="px-4 pb-4 pt-6 h-[260px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={gaussianData.curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="distrGrad" x1="0" y1="0" x2="1" y2="0">
-                                                    <stop offset="0%" stopColor="#f5495a" />
-                                                    <stop offset="50%" stopColor="#f59e0b" />
-                                                    <stop offset="100%" stopColor="#0ecf8a" />
-                                                </linearGradient>
-                                                <linearGradient id="distrVGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                                                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="1 8" stroke="#1e1e42" vertical={false} />
-                                            <XAxis dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 11 }} tickMargin={8} domain={[-1,1]} type="number" />
-                                            <YAxis hide />
-                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
-                                            <ReferenceLine x={gaussianData.mean} stroke={gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a'} strokeWidth={2} label={{ value: 'μ', position: 'top', style: { fill: gaussianData.mean > 0 ? '#0ecf8a' : '#f5495a', fontSize: 12, fontWeight: 'bold' } }} />
-                                            {/* Standard Deviation Area */}
-                                            <ReferenceArea x1={gaussianData.mean - gaussianData.stdDev} x2={gaussianData.mean + gaussianData.stdDev} fill="#f59e0b" fillOpacity={0.06} />
-                                            {/* 95% Confidence Interval Area (Bootstrap or Bayesian) */}
-                                            {gaussianData.lowerBound != null && gaussianData.upperBound != null && (
-                                                <ReferenceArea x1={gaussianData.lowerBound} x2={gaussianData.upperBound} fill="#818cf8" fillOpacity={0.15} />
-                                            )}
-                                            <Area type="monotone" dataKey="density" stroke="url(#distrGrad)" strokeWidth={2.5} fill="url(#distrVGrad)" dot={false} isAnimationActive={true} />
-                                            {/* KDE if available */}
-                                            {quantMetrics?.kde_data && (
-                                              <Area type="monotone" data={quantMetrics.kde_data} dataKey="density" stroke="#6366f1" strokeWidth={1} fill="none" dot={false} strokeDasharray="4 4" />
-                                            )}
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </section>
-
-                {/* ── INSIDER TABLE ───────────────────────────────────────────── */}
                 {insiderTrades?.length > 0 && (
-                    <section id="insider" className="col-span-12 scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
-                            </div>
-                            <span className="section-title">Insider Flow</span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                        </div>
-                        
-                        <div className="bg-[#0d0d24] rounded-2xl border border-[#1e1e42] overflow-hidden shadow-card" data-animate-child>
-                            <div className="px-6 py-4 flex items-center justify-between border-b border-[#1a1a3a] bg-[#08081a]">
-                                <h3 className="section-title">Recent Transactions</h3>
-                                <div className="flex gap-2">
-                                    {(['all', 'buy', 'sell'] as const).map((f) => (
-                                        <button key={f} onClick={() => setTradeFilter(f)}
-                                            className={`px-4 py-1.5 text-[11px] font-600 rounded-lg uppercase tracking-wider transition-all ${tradeFilter === f ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' : 'text-[#8080aa] hover:text-[#9898c0] border border-transparent'}`}>
-                                            {f}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left data-table">
-                                    <thead className="bg-[#0a0b12] border-b border-[#1a1a3a]">
-                                        <tr>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Insider</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Type</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Shares</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Value</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.04]">
-                                        {insiderStats.filteredTrades.slice(0, 10).map((trade: any, idx: number) => {
-                                            const isBuy = trade.transaction?.toLowerCase().includes('buy') || trade.transaction?.toLowerCase().includes('purchase');
-                                            return (
-                                                <tr key={trade.id} className={idx % 2 === 0 ? 'bg-[#0d0d24]' : 'bg-[#0a0b10]'}>
-                                                    <td className="px-6 py-4">
-                                                        <div className="text-[#e2e8f0] font-500 text-[13px]">{trade.insider_name}</div>
-                                                        <div className="text-[11px] text-[#9090b8] truncate max-w-[200px] mt-0.5">{trade.position || '—'}</div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`badge ${isBuy ? 'badge-bull' : 'badge-bear'}`}>{trade.transaction}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#9898c0]">
-                                                        {trade.shares?.toLocaleString() || '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#fcd97a]">
-                                                        {trade.value ? fmt.format(trade.value) : '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#9898c0]">
-                                                        {new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </section>
+                    <InsiderSection insiderStats={insiderStats} tradeFilter={tradeFilter} setTradeFilter={setTradeFilter} />
                 )}
 
-                {/* ── HELHETSANALYS ──────────────────────────────────────────── */}
                 {(recommendationScore || fundamentalData || technicalIndicators) && (
-                    <section id="helhetsanalys" className="col-span-12 scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
-                                <Award className="w-3.5 h-3.5 text-amber-400" />
-                            </div>
-                            <span className="section-title">Comprehensive Analysis</span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className="badge badge-gold">Composite Assessment</span>
-                        </div>
-
-                        {(() => {
-                            const signal = recommendationScore?.signal ?? 'HOLD';
-                            const score  = recommendationScore?.composite_score ?? 50;
-                            const conf   = (recommendationScore?.confidence ?? 0.5) * 100;
-                            const ticker = (targetKeyword || 'aktien').toUpperCase();
-
-                            // ── Fundamental analysis text ──────────────────────────
-                            let fundamentalText = '';
-                            if (fundamentalData) {
-                                const pe    = fundamentalData.pe_ratio;
-                                const price = fundamentalData.current_price;
-                                const cap   = fundamentalData.market_cap;
-                                const cons  = fundamentalData.analyst_consensus;
-                                const low   = fundamentalData.target_price_low;
-                                const high  = fundamentalData.target_price_high;
-                                const mean  = fundamentalData.target_price_mean;
-
-                                const peText = pe
-                                    ? pe > 35  ? `P/E of ${pe.toFixed(1)}x indicates a high valuation vs. historical averages, requiring sustained earnings growth to justify the price.`
-                                    : pe < 12  ? `P/E of ${pe.toFixed(1)}x is low and may signal undervaluation or uncertainty around future earnings.`
-                                    : `P/E of ${pe.toFixed(1)}x falls within a reasonable range relative to the sector.`
-                                    : '';
-                                const capText = cap
-                                    ? `Market cap is $${(Number(cap)/1e9).toFixed(1)}B, placing the company in the ${Number(cap)>200e9 ? 'megacap' : Number(cap)>10e9 ? 'large-cap' : 'mid-cap'} category.`
-                                    : '';
-                                const analystText = cons
-                                    ? `Analyst consensus points to ${cons}${mean ? ` with a mean price target of $${Number(mean).toFixed(2)}` : ''}${low && high ? ` (range $${Number(low).toFixed(0)}–$${Number(high).toFixed(0)})` : ''}.`
-                                    : '';
-                                fundamentalText = [peText, capText, analystText].filter(Boolean).join(' ');
-                            }
-                            if (!fundamentalText) fundamentalText = 'No fundamental data available for this analysis cycle.';
-
-                            // ── Technical analysis text ────────────────────────────
-                            let technicalText = '';
-                            if (technicalIndicators) {
-                                const rsi  = technicalIndicators.rsi_14;
-                                const macdHist = technicalIndicators.macd_histogram;
-                                const tech = technicalIndicators.technical_signal;
-
-                                const rsiText = rsi != null
-                                    ? rsi > 70 ? `RSI of ${rsi.toFixed(0)} is in overbought territory, increasing short-term reversal risk.`
-                                    : rsi < 30 ? `RSI of ${rsi.toFixed(0)} signals an oversold market and a potential buying opportunity.`
-                                    : `RSI of ${rsi.toFixed(0)} is neutral and provides no clear directional signal.`
-                                    : '';
-                                const macdText = macdHist != null
-                                    ? macdHist > 0 ? 'MACD histogram is positive, confirming upward momentum.' : 'MACD histogram is negative, suggesting fading momentum.'
-                                    : '';
-                                const techText = tech
-                                    ? `Overall technical signal: ${tech === 'BULLISH' ? 'BULLISH – price action supports a positive view' : tech === 'BEARISH' ? 'BEARISH – technical patterns argue for caution' : 'NEUTRAL – no clear direction emerges'}.`
-                                    : '';
-                                technicalText = [rsiText, macdText, techText].filter(Boolean).join(' ');
-                            }
-                            if (!technicalText) technicalText = 'Technical indicators are not available for this period.';
-
-                            // ── Quant analysis text ────────────────────────────────
-                            let quantText = '';
-                            if (quantMetrics) {
-                                const hurst   = quantMetrics.hurst_exponent;
-                                const kelly   = quantMetrics.kelly_fraction;
-                                const hmm     = quantMetrics.hmm_state;
-                                const corr    = quantMetrics.sentiment_price_corr;
-                                const granger = quantMetrics.granger_p_value;
-                                const adf     = quantMetrics.adf_stationary;
-
-                                const hurstText = hurst != null
-                                    ? hurst > 0.6 ? `Hurst exponent (${hurst.toFixed(2)}) indicates strong trending price dynamics — impulses tend to persist.`
-                                    : hurst < 0.45 ? `Hurst exponent (${hurst.toFixed(2)}) suggests mean-reverting behavior — price tends to return to the mean.`
-                                    : `Hurst exponent (${hurst.toFixed(2)}) is near 0.5, suggesting a random walk with no clear trend.`
-                                    : '';
-                                const kellyText = kelly != null
-                                    ? `Kelly criterion suggests an allocation of ${(kelly*100).toFixed(1)}% of capital given the current risk/reward ratio.`
-                                    : '';
-                                const hmmText  = hmm != null
-                                    ? `HMM regime detection classifies the current market as a ${hmm === 1 ? 'bull regime' : 'bear regime'}.`
-                                    : '';
-                                const corrText = corr != null && granger != null
-                                    ? `Sentiment-price correlation is ${corr.toFixed(2)} and the Granger causality test ${granger < 0.05 ? 'confirms statistical significance (p=' + granger.toFixed(3) + ')' : 'shows no significant causality (p=' + granger.toFixed(3) + ')'}.`
-                                    : '';
-                                const adfText  = adf != null
-                                    ? adf ? 'Price series is stationary, supporting statistical models.' : 'Price series is non-stationary — models should use differenced values.'
-                                    : '';
-                                quantText = [hurstText, kellyText, hmmText, corrText, adfText].filter(Boolean).join(' ');
-                            }
-                            if (!quantText) quantText = 'Quantitative model data is not available.';
-
-                            // ── Macro analysis text ────────────────────────────────
-                            let macroText = '';
-                            if (macroIndicators) {
-                                const vix    = macroIndicators.vix;
-                                const fg     = macroIndicators.fear_greed_index;
-                                const yield_ = macroIndicators.ten_year_yield;
-                                const etf    = macroIndicators.sector_etf_momentum_1m;
-
-                                const vixText = vix != null
-                                    ? vix > 30 ? `VIX of ${vix.toFixed(1)} signals elevated market fear and high volatility — risk premiums are elevated.`
-                                    : vix < 15 ? `VIX of ${vix.toFixed(1)} indicates calm market conditions with low implied volatility.`
-                                    : `VIX of ${vix.toFixed(1)} is within normal levels.`
-                                    : '';
-                                const fgText  = fg != null
-                                    ? fg > 70 ? `Fear & Greed Index at ${fg.toFixed(0)} indicates extreme greed in the market, which historically correlates with elevated correction risk.`
-                                    : fg < 30 ? `Fear & Greed Index at ${fg.toFixed(0)} shows extreme fear — contrarian analysis suggests potential buying opportunities.`
-                                    : `Fear & Greed Index at ${fg.toFixed(0)} is neutral.`
-                                    : '';
-                                const yieldText = yield_ != null
-                                    ? `The 10-year Treasury yield at ${yield_.toFixed(2)}% sets the bar for discount rates and ${yield_ > 4.5 ? 'pressures valuation models negatively' : 'offers relative support for equity valuations'}.`
-                                    : '';
-                                const etfText   = etf != null
-                                    ? `Sector ETF momentum over the past month is ${(etf*100).toFixed(1)}%, which ${etf >= 0 ? 'supports a positive sector view' : 'suggests sector rotation away from this segment'}.`
-                                    : '';
-                                macroText = [vixText, fgText, yieldText, etfText].filter(Boolean).join(' ');
-                            }
-                            if (!macroText) macroText = 'Macroeconomic indicators are not available for this analysis cycle.';
-
-                            // ── Sentiment analysis text ────────────────────────────
-                            let sentimentText = '';
-                            if (gaussianData || manipulationStats) {
-                                const mean    = gaussianData?.mean;
-                                const std     = gaussianData?.stdDev;
-                                const organic = manipulationStats?.organicCount;
-                                const blocked = manipulationStats?.manipulatedCount;
-                                const total   = manipulationStats?.totalCount;
-
-                                const meanText = mean != null
-                                    ? mean > 0.5  ? `Sentiment distribution is clearly positive (μ=${mean.toFixed(2)}) with broad consensus among analyzed posts.`
-                                    : mean < -0.5 ? `Sentiment distribution is negatively skewed (μ=${mean.toFixed(2)}), reflecting widespread pessimism on social media.`
-                                    : `Sentiment distribution is centered near neutral (μ=${mean.toFixed(2)}) with divided opinions.`
-                                    : '';
-                                const stdText  = std != null
-                                    ? std > 0.4 ? `Dispersion is high (σ=${std.toFixed(2)}), indicating diverging opinions — the market is undecided.`
-                                    : `Dispersion is low (σ=${std.toFixed(2)}), suggesting a consensus view.`
-                                    : '';
-                                const qualText = total != null && organic != null
-                                    ? `A total of ${total.toLocaleString()} posts were analyzed, of which ${((organic/total)*100).toFixed(0)}% were classified as organic signals${blocked ? ` and ${blocked} manipulative posts were filtered out` : ''}.`
-                                    : '';
-                                sentimentText = [meanText, stdText, qualText].filter(Boolean).join(' ');
-                            }
-                            if (!sentimentText) sentimentText = 'Sentiment data is not available for this analysis cycle.';
-
-                            // ── Insider analysis text ──────────────────────────────
-                            let insiderText = '';
-                            if (insiderStats.buyVolume > 0 || insiderStats.sellVolume > 0) {
-                                const net    = insiderStats.netVolume;
-                                const buy    = insiderStats.buyVolume;
-                                const sell   = insiderStats.sellVolume;
-                                const total  = buy + sell;
-                                const ratio  = total > 0 ? (buy / total * 100) : 50;
-                                const count  = insiderTrades?.length ?? 0;
-
-                                insiderText = `${count} insider transactions recorded. Buy volume is ${fmt.format(buy)} and sell volume is ${fmt.format(sell)}, giving a net flow of ${net >= 0 ? '+' : ''}${fmt.format(net)}. `
-                                    + (ratio > 65 ? `Insiders are net buyers (${ratio.toFixed(0)}% of transaction volume), which is traditionally interpreted as a positive insider signal.`
-                                    : ratio < 35 ? `Insiders are dominated by sellers (${(100-ratio).toFixed(0)}% of transaction volume). Insider selling can have many reasons but should be noted.`
-                                    : `Buy and sell volumes are relatively balanced, providing no clear direction from insider trading.`);
-                            }
-                            if (!insiderText) insiderText = 'No insider transactions have been recorded for this period.';
-
-                            // ── Risk analysis text ─────────────────────────────────
-                            let riskText = '';
-                            if (riskProfile) {
-                                const sharpe  = riskProfile.sharpe_ratio;
-                                const var_    = riskProfile.value_at_risk;
-                                const dd      = riskProfile.max_drawdown;
-                                const cvar    = riskProfile.cvar;
-                                const liq     = riskProfile.liquidity_score;
-
-                                const sharpeText = sharpe != null
-                                    ? sharpe > 1.5 ? `Sharpe ratio of ${sharpe.toFixed(2)} is excellent, indicating high risk-adjusted returns.`
-                                    : sharpe > 0.5 ? `Sharpe ratio of ${sharpe.toFixed(2)} is acceptable.`
-                                    : `Sharpe ratio of ${sharpe.toFixed(2)} is low — returns do not justify the volatility.`
-                                    : '';
-                                const varText   = var_ != null
-                                    ? `Value-at-Risk (95%) is ${(var_*100).toFixed(1)}% daily loss level.`
-                                    : '';
-                                const ddText    = dd != null
-                                    ? `Maximum drawdown is ${(Math.abs(dd)*100).toFixed(1)}%, which ${Math.abs(dd) > 0.3 ? 'is significant and should be considered in position sizing' : 'is within acceptable levels'}.`
-                                    : '';
-                                const liqText   = liq != null
-                                    ? `Liquidity score is ${liq.toFixed(2)} — ${liq > 0.7 ? 'high liquidity facilitates easy entry and exit' : liq > 0.4 ? 'liquidity is sufficient' : 'low liquidity may result in slippage on larger positions'}.`
-                                    : '';
-                                riskText = [sharpeText, varText, ddText, liqText].filter(Boolean).join(' ');
-                            }
-                            if (!riskText) riskText = 'Risk profile is not available for this analysis cycle.';
-
-                            // ── Executive summary ──────────────────────────────────
-                            const isBull = signal === 'STRONG_BUY' || signal === 'BUY';
-                            const isBear = signal === 'STRONG_SELL' || signal === 'SELL';
-                            const signalWord = signal === 'STRONG_BUY' ? 'STRONG BUY' : signal === 'BUY' ? 'BUY' : signal === 'HOLD' ? 'HOLD' : signal === 'SELL' ? 'SELL' : 'STRONG SELL';
-
-                            const execSummary = (recommendationScore
-                                ? `The composite model for ${ticker} generates a ${signalWord} signal with a composite score of ${score.toFixed(1)}/100 and a confidence of ${conf.toFixed(0)}%. `
-                                : `Composite score is not yet available for ${ticker} — scanning is still in progress. Below is a preliminary analysis based on available data. `)
-                                + (isBull
-                                    ? `The analysis shows a predominantly positive backdrop where multiple dimensions converge in a bullish direction. The combination of ${technicalIndicators?.technical_signal === 'BULLISH' ? 'positive technical patterns, ' : ''}${gaussianData?.mean > 0.3 ? 'optimistic sentiment, ' : ''}${insiderStats.netVolume > 0 ? 'net insider buying, ' : ''}and quantitative models collectively points to a favorable risk/reward profile.`
-                                    : isBear
-                                    ? `The analysis identifies a predominantly negative pattern. ${technicalIndicators?.technical_signal === 'BEARISH' ? 'Technical indicators show downward pressure. ' : ''}${gaussianData?.mean < -0.3 ? 'Sentiment is negatively skewed. ' : ''}Overall, the majority of dimensions argue for caution.`
-                                    : `The analysis shows mixed signals without a clear consensus. Positive and negative factors are balanced, and a HOLD position is justified until clearer directional signals emerge.`);
-
-                            // ── Dimension cards config ─────────────────────────────
-                            const dimensions = [
-                                { icon: DollarSign,  label: 'Fundamental Analysis',  text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(212,160,23,0.06)]',  border: 'border-[rgba(212,160,23,0.12)]' },
-                                { icon: BarChart2,   label: 'Technical Analysis',     text: technicalText,   color: 'text-indigo-400',     bg: 'bg-indigo-500/5',              border: 'border-indigo-500/15' },
-                                { icon: Bot,         label: 'Quantitative Models',    text: quantText,       color: 'text-purple-400',     bg: 'bg-purple-500/5',              border: 'border-purple-500/15' },
-                                { icon: Globe,       label: 'Macro Environment',      text: macroText,       color: 'text-cyan-400',       bg: 'bg-cyan-500/5',                border: 'border-cyan-500/15' },
-                                { icon: Activity,    label: 'Sentiment Analysis',     text: sentimentText,   color: isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400', bg: isBull ? 'bg-emerald-500/5' : isBear ? 'bg-red-500/5' : 'bg-amber-500/5', border: isBull ? 'border-emerald-500/15' : isBear ? 'border-red-500/15' : 'border-amber-500/15' },
-                                { icon: Briefcase,   label: 'Insider Flow',           text: insiderText,     color: 'text-blue-400',       bg: 'bg-blue-500/5',                border: 'border-blue-500/15' },
-                                { icon: Shield,      label: 'Risk Profile',           text: riskText,        color: 'text-orange-400',     bg: 'bg-orange-500/5',              border: 'border-orange-500/15' },
-                            ];
-
-                            return (
-                                <div className="space-y-6" data-animate-child>
-                                    {/* Executive Summary */}
-                                    <div className={`relative rounded-2xl border p-7 overflow-hidden ${isBull ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : isBear ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-[#1e1e42] bg-[#0d0d24]'}`}>
-                                        <div className={`absolute top-0 left-0 w-1 h-full rounded-l-2xl ${isBull ? 'bg-emerald-500' : isBear ? 'bg-red-500' : 'bg-amber-500'}`} />
-                                        <div className="flex items-start gap-5 pl-4">
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isBull ? 'bg-emerald-500/15 border border-emerald-500/25' : isBear ? 'bg-red-500/15 border border-red-500/25' : 'bg-amber-500/15 border border-amber-500/25'}`}>
-                                                <Zap className={`w-5 h-5 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#9898c0]">Overall Assessment</span>
-                                                    <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalWord}</span>
-                                                    <span className="font-mono text-[12px] text-[#9898c0]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
-                                                </div>
-                                                <p className="text-[15px] leading-[1.8] text-[#c8c8e0] font-400">{execSummary}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Dimension grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                        {dimensions.map(({ icon: Icon, label, text, color, bg, border }) => (
-                                            <div key={label} className={`rounded-xl border p-5 ${bg} ${border} flex flex-col gap-3`} data-animate-child>
-                                                <div className="flex items-center gap-2.5">
-                                                    <Icon className={`w-4 h-4 shrink-0 ${color}`} />
-                                                    <span className={`text-[11px] font-700 tracking-[0.1em] uppercase ${color}`}>{label}</span>
-                                                </div>
-                                                <p className="text-[13px] leading-[1.75] text-[#9898c0]">{text}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Final verdict */}
-                                    <div className="card p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-                                        <div className={`text-[42px] font-display font-800 leading-none tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent shrink-0`}>
-                                            {signalWord}
-                                        </div>
-                                        <div className="w-px h-10 bg-[#1a1a3a] hidden sm:block shrink-0" />
-                                        <div className="text-[13px] leading-[1.75] text-[#9898c0]">
-                                            Based on a composite weighting of fundamental valuation, technical patterns, quantitative models, macro factors, sentiment analysis, insider flow, and risk profile — Phaeton Capital rates <span className={`font-700 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`}>{signalWord}</span> for {ticker}. This analysis is algorithmically generated and does not constitute financial advice.
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </section>
+                    <AnalysisSection
+                        recommendationScore={recommendationScore}
+                        fundamentalData={fundamentalData}
+                        technicalIndicators={technicalIndicators}
+                        quantMetrics={quantMetrics}
+                        macroIndicators={macroIndicators}
+                        gaussianData={gaussianData}
+                        manipulationStats={manipulationStats}
+                        insiderStats={insiderStats}
+                        insiderTrades={insiderTrades}
+                        riskProfile={riskProfile}
+                        targetKeyword={targetKeyword}
+                        sig={sig}
+                    />
                 )}
 
-                {/* ── Epic 3: Watchlist & Screener ────────────────────────────────── */}
                 <section id="watchlist" className="col-span-12 scroll-mt-20" data-animate>
                     <div className="flex items-center gap-3 mb-5">
                         <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center border border-amber-500/20">
@@ -1454,319 +326,16 @@ export default function DashboardClient({
                     <ScreenerGrid showAddButton />
                 </section>
 
-                {/* ── PREDICTION AUDIT TRAIL ──────────────────────────────────── */}
                 {predictionHistory?.length > 0 && (
-                    <section id="predictions" className="col-span-12 scroll-mt-20" data-animate>
-
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                            </div>
-                            <span className="section-title">Prediction Audit Trail</span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className="badge badge-gold">25 Most Recent</span>
-                        </div>
-
-                        {/* Stats bar */}
-                        {auditStats && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                                <div className="card p-4 flex flex-col gap-1" data-animate-child>
-                                    <div className="section-title">Hit Rate</div>
-                                    <div className={`font-mono text-[28px] font-700 ${(auditStats.hitRate ?? 0) > 0.6 ? 'text-emerald-400' : (auditStats.hitRate ?? 0) < 0.4 ? 'text-red-400' : 'text-amber-400'}`}>
-                                        {auditStats.hitRate != null ? `${(auditStats.hitRate * 100).toFixed(0)}%` : '—'}
-                                    </div>
-                                    <div className="text-[11px] text-[#9090b8]">correct predictions</div>
-                                </div>
-                                <div className="card p-4 flex flex-col gap-1" data-animate-child>
-                                    <div className="section-title">Avg Return</div>
-                                    <div className={`font-mono text-[28px] font-700 ${(auditStats.avgReturn ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {auditStats.avgReturn != null ? `${(auditStats.avgReturn * 100).toFixed(2)}%` : '—'}
-                                    </div>
-                                    <div className="text-[11px] text-[#9090b8]">per 15-day trade</div>
-                                </div>
-                                <div className="card p-4 flex flex-col gap-1" data-animate-child>
-                                    <div className="section-title">Max Drawdown</div>
-                                    <div className="font-mono text-[28px] font-700 text-red-400">
-                                        {auditStats.maxDrawdown != null ? `${(auditStats.maxDrawdown * 100).toFixed(2)}%` : '—'}
-                                    </div>
-                                    <div className="text-[11px] text-[#9090b8]">worst single outcome</div>
-                                </div>
-                                <div className="card p-4 flex flex-col gap-1" data-animate-child>
-                                    <div className="section-title">Signal Sharpe</div>
-                                    <div className={`font-mono text-[28px] font-700 ${(auditStats.sharpe ?? 0) > 1 ? 'text-emerald-400' : (auditStats.sharpe ?? 0) < 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                                        {auditStats.sharpe != null ? auditStats.sharpe.toFixed(2) : '—'}
-                                    </div>
-                                    <div className="text-[11px] text-[#9090b8]">return / volatility</div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Prediction table */}
-                        <div className="bg-[#0d0d24] rounded-2xl border border-[#1e1e42] overflow-hidden shadow-card" data-animate-child>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left data-table">
-                                    <thead className="bg-[#0a0b12] border-b border-[#1a1a3a]">
-                                        <tr>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Date</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Signal</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Horizon</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Score</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Entry</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Exit</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Return</th>
-                                            <th className="px-6 py-3 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Outcome</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.04]">
-                                        {predictionHistory.map((pred: any, idx: number) => {
-                                            const ret = pred.price_at_signal && pred.price_at_resolution
-                                                ? (pred.price_at_resolution - pred.price_at_signal) / pred.price_at_signal
-                                                : null;
-                                            const isBull = pred.signal === 'STRONG_BUY' || pred.signal === 'BUY';
-                                            const isBear = pred.signal === 'STRONG_SELL' || pred.signal === 'SELL';
-                                            return (
-                                                <tr key={pred.id} className={idx % 2 === 0 ? 'bg-[#0d0d24]' : 'bg-[#0a0b10]'}>
-                                                    <td className="px-6 py-4 font-mono text-[12px] text-[#9898c0]">
-                                                        {new Date(pred.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}>{pred.signal.replace('_', ' ')}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="font-mono text-[11px] text-[#9090b8] border border-[#1a1a3a] px-2 py-0.5 rounded">{pred.horizon ?? 15}d</span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#9898c0]">
-                                                        {pred.composite_score?.toFixed(1) ?? '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#e2e8f0]">
-                                                        {pred.price_at_signal ? `$${pred.price_at_signal.toFixed(2)}` : '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-600 text-[#e2e8f0]">
-                                                        {pred.price_at_resolution ? `$${pred.price_at_resolution.toFixed(2)}` : '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right font-mono text-[13px] font-700">
-                                                        {ret != null ? (
-                                                            <span className={ret >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                                                                {ret >= 0 ? '+' : ''}{(ret * 100).toFixed(2)}%
-                                                            </span>
-                                                        ) : '—'}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`badge ${pred.outcome === 'CORRECT' ? 'badge-bull' : pred.outcome === 'INCORRECT' ? 'badge-bear' : 'badge-hold'}`}>
-                                                            {pred.outcome ?? 'PENDING'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </section>
+                    <PredictionAuditSection predictionHistory={predictionHistory} auditStats={auditStats} />
                 )}
 
-                {/* ── ALPHA ATTRIBUTION ───────────────────────────────────────── */}
                 {signalAttribution && (
-                    <section id="alpha" className="col-span-12 scroll-mt-20" data-animate>
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-500/15 flex items-center justify-center border border-indigo-500/20">
-                                <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                            </div>
-                            <InlineExplain topic="ic"><span className="section-title">Alpha Attribution</span></InlineExplain>
-                            <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
-                            <span className="badge badge-gold">Institutional Signal Quality</span>
-                        </div>
-
-                        {/* Block A: IC / IR / T-Stat / Causal Lead KPIs */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                            {/* IC */}
-                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
-                                <div className="section-title mb-0.5">Information Coefficient</div>
-                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ic === null ? 'text-[#9898c0]' : signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic < 0 ? 'text-red-400' : 'text-amber-400'}`}>
-                                    {signalAttribution.ic !== null ? signalAttribution.ic.toFixed(3) : '—'}
-                                </div>
-                                <div className="text-[11px] text-[#9090b8] mt-1">rank-corr(score, return)</div>
-                                {signalAttribution.ic !== null && (
-                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                                        {signalAttribution.ic > 0.1 ? '✓ Strong predictive power' : signalAttribution.ic > 0 ? '~ Weak signal' : '✗ Negative signal'}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* IR */}
-                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
-                                <div className="section-title mb-0.5">Information Ratio</div>
-                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#9898c0]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
-                                    {signalAttribution.ir !== null ? signalAttribution.ir.toFixed(2) : '—'}
-                                </div>
-                                <div className="text-[11px] text-[#9090b8] mt-1">IC / σ(IC) · rolling 10</div>
-                                {signalAttribution.ir !== null && (
-                                    <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
-                                        {signalAttribution.ir > 1.5 ? '✓ Institutional grade' : signalAttribution.ir > 0.5 ? '~ Developing edge' : '✗ Inconsistent'}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* T-Stat */}
-                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
-                                <div className="section-title mb-0.5">T-Statistic</div>
-                                <div className={`font-mono text-[28px] font-700 leading-none flex items-baseline gap-1.5 ${signalAttribution.tStat === null ? 'text-[#9898c0]' : Math.abs(signalAttribution.tStat) > 1.96 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {signalAttribution.tStat !== null ? Math.abs(signalAttribution.tStat).toFixed(2) : '—'}
-                                    {signalAttribution.isSignificant && <span className="text-[16px] text-emerald-400">★</span>}
-                                </div>
-                                <div className="text-[11px] text-[#9090b8] mt-1">
-                                    {signalAttribution.pValue !== null ? `p = ${signalAttribution.pValue.toFixed(3)}` : 'insufficient data'}
-                                </div>
-                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.isSignificant ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {signalAttribution.isSignificant ? '✓ Statistically significant' : '~ Not yet significant'}
-                                </div>
-                            </div>
-
-                            {/* Causal Lead / Granger */}
-                            <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
-                                <div className="section-title mb-0.5">Causal Signal</div>
-                                <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.grangerP === null ? 'text-[#9898c0]' : signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {signalAttribution.grangerP !== null ? (signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)) : '—'}
-                                </div>
-                                <div className="text-[11px] text-[#9090b8] mt-1">Granger p-value</div>
-                                <div className={`text-[10px] font-700 mt-1 ${signalAttribution.grangerP !== null && signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {signalAttribution.grangerP !== null
-                                        ? signalAttribution.grangerP < 0.05 ? '✓ Sentiment Granger-causes price' : '~ Correlation, not causation'
-                                        : 'Run quant scan for data'}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
-                            {/* Block B: Component Score Breakdown */}
-                            {recommendationScore && (
-                                <div className="card p-6" data-animate-child>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="section-title">Component Signal Breakdown</div>
-                                        <span className="text-[10px] font-mono text-[#8080aa]">{targetKeyword?.toUpperCase()} · Current Tick</span>
-                                    </div>
-                                    <div className="flex flex-col gap-0.5">
-                                        {[
-                                            { label: 'Sentiment', key: 'sentiment_score' },
-                                            { label: 'Technical', key: 'technical_score' },
-                                            { label: 'Fundamental', key: 'fundamental_score' },
-                                            { label: 'Quant Models', key: 'quant_score' },
-                                            { label: 'Insider Flow', key: 'insider_score' },
-                                            { label: 'Macro Env', key: 'macro_score' },
-                                        ].map(({ label, key }) => {
-                                            const val = recommendationScore[key];
-                                            const variant = val > 60 ? 'bull' : val < 40 ? 'bear' : 'gold';
-                                            return <ScoreBar key={key} label={label} value={val ?? null} variant={variant} thick />;
-                                        })}
-                                    </div>
-                                    {signalAttribution.sentimentPriceCorr !== null && (
-                                        <div className="mt-4 pt-4 border-t border-[#1a1a3a] flex items-center gap-3">
-                                            <div className="text-[11px] text-[#9090b8]">Sentiment ↔ Price Correlation</div>
-                                            <div className={`font-mono text-[13px] font-700 ml-auto ${Math.abs(signalAttribution.sentimentPriceCorr) > 0.3 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                                {signalAttribution.sentimentPriceCorr.toFixed(3)}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Block C: Win Rate by Signal Type */}
-                            {signalAttribution.bySignalType?.length > 0 && (
-                                <div className="card p-6" data-animate-child>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="section-title">Win Rate by Signal Type</div>
-                                        <span className="text-[10px] font-mono text-[#8080aa]">{signalAttribution.n} resolved predictions</span>
-                                    </div>
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="border-b border-[#1a1a3a]">
-                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">Signal</th>
-                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-center">Calls</th>
-                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Hit Rate</th>
-                                                <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#9898c0] text-right">Avg Return</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/[0.04]">
-                                            {(['STRONG_BUY','BUY','HOLD','SELL','STRONG_SELL'] as const).map(sig => {
-                                                const row = signalAttribution.bySignalType.find((r: any) => r.signal === sig);
-                                                if (!row) return null;
-                                                const isBull = sig === 'STRONG_BUY' || sig === 'BUY';
-                                                const isBear = sig === 'SELL' || sig === 'STRONG_SELL';
-                                                const hrColor = row.hitRate > 0.6 ? 'text-emerald-400' : row.hitRate < 0.4 ? 'text-red-400' : 'text-amber-400';
-                                                const retColor = row.avgReturn >= 0 ? 'text-emerald-400' : 'text-red-400';
-                                                return (
-                                                    <tr key={sig} className="py-2">
-                                                        <td className="py-2.5">
-                                                            <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}>
-                                                                {sig.replace('_', ' ')}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-2.5 text-center font-mono text-[13px] text-[#9898c0]">{row.calls}</td>
-                                                        <td className={`py-2.5 text-right font-mono text-[13px] font-700 ${hrColor}`}>
-                                                            {row.hitRate !== null ? `${(row.hitRate * 100).toFixed(0)}%` : '—'}
-                                                        </td>
-                                                        <td className={`py-2.5 text-right font-mono text-[13px] font-700 ${retColor}`}>
-                                                            {row.avgReturn !== null ? `${row.avgReturn >= 0 ? '+' : ''}${(row.avgReturn * 100).toFixed(2)}%` : '—'}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Block D: Transfer Entropy + Granger causality explainer */}
-                        {(signalAttribution.transferEntropy !== null || signalAttribution.grangerP !== null) && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5" data-animate-child>
-                                {signalAttribution.transferEntropy !== null && (
-                                    <div className="card p-5 flex flex-col gap-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Zap className="w-3.5 h-3.5 text-amber-400" />
-                                            <div className="section-title">Transfer Entropy</div>
-                                            <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.transferEntropy > 0.02 ? 'text-emerald-400' : signalAttribution.transferEntropy > 0.01 ? 'text-amber-400' : 'text-[#9898c0]'}`}>
-                                                {signalAttribution.transferEntropy.toFixed(4)} bits
-                                            </span>
-                                        </div>
-                                        <p className="text-[12px] text-[#9090b8] leading-relaxed">
-                                            {signalAttribution.transferEntropy > 0.02
-                                                ? 'Sentiment flow carries meaningful directional information about future price movement — signal has causal information content above noise threshold.'
-                                                : signalAttribution.transferEntropy > 0.01
-                                                ? 'Moderate information transfer detected. Sentiment provides some predictive content, but signal-to-noise ratio is below institutional threshold.'
-                                                : 'Low information transfer. Sentiment and price are largely independent — treat with caution.'}
-                                        </p>
-                                        <div className="mt-1 h-1.5 rounded-full bg-[#12122e] overflow-hidden">
-                                            <div className="h-full rounded-full score-bar-fill score-bar-gold" style={{ width: `${Math.min(100, signalAttribution.transferEntropy * 2500)}%` }} />
-                                        </div>
-                                    </div>
-                                )}
-                                {signalAttribution.grangerP !== null && (
-                                    <div className="card p-5 flex flex-col gap-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400" />
-                                            <div className="section-title">Granger Causality</div>
-                                            <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : signalAttribution.grangerP < 0.1 ? 'text-amber-400' : 'text-red-400'}`}>
-                                                p = {signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)}
-                                            </span>
-                                        </div>
-                                        <p className="text-[12px] text-[#9090b8] leading-relaxed">
-                                            {signalAttribution.grangerP < 0.05
-                                                ? 'Sentiment Granger-causes price with statistical confidence (p < 0.05). Past sentiment scores contain information that predicts future price — beyond what price history alone explains.'
-                                                : signalAttribution.grangerP < 0.1
-                                                ? 'Marginal causality evidence (p < 0.10). Sentiment may lead price but evidence is not yet at the 95% confidence threshold required for institutional claims.'
-                                                : 'Sentiment does not Granger-cause price at current data levels. The relationship is correlational, not causal — price and sentiment move together but neither leads the other.'}
-                                        </p>
-                                        <div className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-700 ${signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${signalAttribution.grangerP < 0.05 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                            {signalAttribution.grangerP < 0.05 ? 'Causal — sentiment leads price' : 'Correlation only'}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </section>
+                    <AlphaAttributionSection
+                        signalAttribution={signalAttribution}
+                        recommendationScore={recommendationScore}
+                        targetKeyword={targetKeyword}
+                    />
                 )}
 
             </main>
