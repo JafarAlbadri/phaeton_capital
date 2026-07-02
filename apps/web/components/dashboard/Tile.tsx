@@ -12,9 +12,9 @@ export function Tile({ label, value, sub, variant = 'gold', icon: Icon }: {
 }) {
     const vClass = variant === 'bull' ? 'text-emerald-400 border-emerald-500/15 bg-emerald-500/10' :
                    variant === 'bear' ? 'text-red-400 border-red-500/15 bg-red-500/10' :
-                   'text-gold-base border-[#d4a017]/15 bg-[rgba(212,160,23,0.08)]';
+                   'text-gold-base border-[#C96442]/15 bg-[rgba(201,100,66,0.08)]';
 
-    const valClass = variant === 'bull' ? 'text-emerald-400' : variant === 'bear' ? 'text-red-400' : 'text-[#fcd97a]';
+    const valClass = variant === 'bull' ? 'text-emerald-400' : variant === 'bear' ? 'text-red-400' : 'text-[#A8552F]';
 
     return (
         <div className="card rounded-[14px] p-5 relative overflow-hidden group" data-animate-child>

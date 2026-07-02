@@ -15,20 +15,20 @@ export function ConfidenceGauge({ value, colors }: { value: number; colors: stri
                     </linearGradient>
                 </defs>
                 {/* Background arc */}
-                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1a1a3a" strokeWidth="10" strokeLinecap="round" />
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#E5E1D5" strokeWidth="10" strokeLinecap="round" />
                 {/* Value arc */}
                 <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" strokeWidth="10" strokeLinecap="round"
                       strokeDasharray="283" strokeDashoffset={283}
                       className="animate-[barFillIn_1.2s_cubic-bezier(0.34,1.56,0.64,1)_forwards]"
                       style={{ animationName: 'dash', '--dash-to': dashoffset } as React.CSSProperties} />
                 {/* Needle */}
-                <line x1="100" y1="100" x2="100" y2="30" stroke="#f0efff" strokeWidth="2" strokeLinecap="round"
+                <line x1="100" y1="100" x2="100" y2="30" stroke="#1F1E1D" strokeWidth="2" strokeLinecap="round"
                       className="origin-[100px_100px] transition-transform duration-1000 ease-out"
                       style={{ transform: `rotate(${rotate}deg)` }} />
-                <circle cx="100" cy="100" r="4" fill="#f0efff" />
+                <circle cx="100" cy="100" r="4" fill="#1F1E1D" />
 
-                <text x="100" y="85" textAnchor="middle" className="font-mono font-700 text-[28px]" fill="#fcd97a">{pct.toFixed(0)}%</text>
-                <text x="100" y="105" textAnchor="middle" className="font-sans font-600 text-[9px] tracking-[0.15em] uppercase" fill="#5d5d8a">CONFIDENCE</text>
+                <text x="100" y="85" textAnchor="middle" className="font-mono font-700 text-[28px]" fill="#A8552F">{pct.toFixed(0)}%</text>
+                <text x="100" y="105" textAnchor="middle" className="font-sans font-600 text-[9px] tracking-[0.15em] uppercase" fill="#8F8C80">CONFIDENCE</text>
             </svg>
             <style jsx>{`
                 @keyframes dash {

@@ -2,11 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Page background ───────────────────────────────────────────── */
+/* ─── Page background — warm ivory, Anthropic-style ─────────────── */
 body {
-  background-color: #09090b; /* Zinc 950 */
-  color: #f4f4f5; /* Zinc 100 */
-  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #F0EEE6;
+  color: #1F1E1D;
+  font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -15,44 +15,44 @@ body {
 
 /* ─── Card system ────────────────────────────────────────────────── */
 .card {
-  background: #18181b; /* Zinc 900 */
-  border: 1px solid #3f3f46; /* Zinc 700 */
+  background: #FFFFFF;
+  border: 1px solid #E5E1D5;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(31,30,29,0.05), 0 1px 2px rgba(31,30,29,0.03);
   transition: transform 280ms ease, box-shadow 280ms ease, border-color 280ms ease;
 }
 .card:hover {
-  border-color: #52525b; /* Zinc 600 */
-  box-shadow: 0 4px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+  border-color: #D5CFBE;
+  box-shadow: 0 4px 12px rgba(31,30,29,0.07), 0 2px 4px rgba(31,30,29,0.04);
 }
 
 .card-gold {
-  border-color: rgba(244,244,245,0.1);
+  border-color: rgba(201,100,66,0.25);
 }
 .card-gold:hover {
-  border-color: rgba(244,244,245,0.2);
+  border-color: rgba(201,100,66,0.4);
 }
 
 /* ─── Section headers ────────────────────────────────────────────── */
 .section-title {
   font-size: 12px; font-weight: 600;
   letter-spacing: 0.05em; text-transform: uppercase;
-  color: #a1a1aa; /* Zinc 400 */
+  color: #8A8875;
 }
 
 /* ─── Score bars ─────────────────────────────────────────────────── */
 .score-bar-track {
   height: 6px; border-radius: 100px;
-  background: #27272a; /* Zinc 800 */
+  background: #E9E5D9;
   position: relative; overflow: hidden;
 }
 .score-bar-fill {
   height: 100%; border-radius: 100px; position: relative;
   transition: width 0.8s ease;
 }
-.score-bar-bull { background: #34d399; }
-.score-bar-bear { background: #fb7185; }
-.score-bar-gold { background: #f4f4f5; }
+.score-bar-bull { background: #4E7D53; }
+.score-bar-bear { background: #C24E42; }
+.score-bar-gold { background: #C96442; }
 .score-bar-thick { height: 10px; }
 
 /* ─── Badges ─────────────────────────────────────────────────────── */
@@ -62,25 +62,28 @@ body {
   font-size: 11px; font-weight: 600;
   letter-spacing: 0.02em; text-transform: uppercase;
 }
-.badge-bull  { color: #34d399; background: #064e3b; border: 1px solid rgba(52,211,153,0.2); }
-.badge-bear  { color: #fb7185; background: #881337; border: 1px solid rgba(251,113,133,0.2); }
-.badge-hold  { color: #a1a1aa; background: #27272a; border: 1px solid #3f3f46; }
-.badge-gold  { color: #09090b; background: #f4f4f5; border: 1px solid #d4d4d8; }
+.badge-bull  { color: #35593C; background: #E4EDE2; border: 1px solid rgba(78,125,83,0.3); }
+.badge-bear  { color: #8F3329; background: #F4E0DC; border: 1px solid rgba(194,78,66,0.3); }
+.badge-hold  { color: #6E6C60; background: #EFECE1; border: 1px solid #DFDACB; }
+.badge-gold  { color: #FFFFFF; background: #C96442; border: 1px solid #B4552D; }
 .badge-dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* ─── Live status dot ────────────────────────────────────────────── */
-.status-live { width: 6px; height: 6px; border-radius: 50%; background: #34d399; animation: livePulse 2.5s ease-out infinite; }
+.status-live { width: 6px; height: 6px; border-radius: 50%; background: #4E7D53; animation: livePulse 2.5s ease-out infinite; }
 
-/* ─── Gradient text ──────────────────────────────────────────────── */
+/* ─── Gradient text — book-cloth terracotta ─────────────────────── */
 .text-gradient-gold {
-  color: #f4f4f5;
+  background: linear-gradient(120deg, #B4552D, #C96442);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   font-weight: 700;
 }
 
 /* ─── Skeleton / loading ─────────────────────────────────────────── */
 .skeleton {
   border-radius: 6px;
-  background: #27272a;
+  background: #E9E5D9;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -89,22 +92,22 @@ body {
 [data-animate].animate-in { opacity: 1; transform: translateY(0); }
 
 /* ─── Table ──────────────────────────────────────────────────────── */
-.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #27272a; }
-.data-table tr:hover { background: #18181b; }
-.data-table tr:hover td:first-child { border-left: 2px solid #52525b; }
+.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #EDE9DD; }
+.data-table tr:hover { background: #FAF8F2; }
+.data-table tr:hover td:first-child { border-left: 2px solid #C96442; }
 
 /* Custom Recharts Tooltip */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #18181b !important;
-  border: 1px solid #3f3f46 !important;
+  background: #FFFFFF !important;
+  border: 1px solid #DFDACB !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.4) !important;
-  color: #f4f4f5 !important;
+  box-shadow: 0 4px 12px rgba(31,30,29,0.08) !important;
+  color: #1F1E1D !important;
 }
 
 /* Typography styles */
 .num {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
 

@@ -219,7 +219,7 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
 
     // ── Dimension cards config ─────────────────────────────
     const dimensions = [
-        { icon: DollarSign,  label: 'Fundamental Analysis',  text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(212,160,23,0.06)]',  border: 'border-[rgba(212,160,23,0.12)]' },
+        { icon: DollarSign,  label: 'Fundamental Analysis',  text: fundamentalText, color: 'text-gold-bright',   bg: 'bg-[rgba(201,100,66,0.06)]',  border: 'border-[rgba(201,100,66,0.12)]' },
         { icon: BarChart2,   label: 'Technical Analysis',     text: technicalText,   color: 'text-indigo-400',     bg: 'bg-indigo-500/5',              border: 'border-indigo-500/15' },
         { icon: Bot,         label: 'Quantitative Models',    text: quantText,       color: 'text-purple-400',     bg: 'bg-purple-500/5',              border: 'border-purple-500/15' },
         { icon: Globe,       label: 'Macro Environment',      text: macroText,       color: 'text-cyan-400',       bg: 'bg-cyan-500/5',                border: 'border-cyan-500/15' },
@@ -235,13 +235,13 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
                     <Award className="w-3.5 h-3.5 text-amber-400" />
                 </div>
                 <span className="section-title">Comprehensive Analysis</span>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
                 <span className="badge badge-gold">Composite Assessment</span>
             </div>
 
             <div className="space-y-6" data-animate-child>
                 {/* Executive Summary */}
-                <div className={`relative rounded-2xl border p-7 overflow-hidden ${isBull ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : isBear ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-[#1e1e42] bg-[#0d0d24]'}`}>
+                <div className={`relative rounded-2xl border p-7 overflow-hidden ${isBull ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : isBear ? 'border-red-500/20 bg-red-500/[0.03]' : 'border-[#DFDACB] bg-[#FFFFFF]'}`}>
                     <div className={`absolute top-0 left-0 w-1 h-full rounded-l-2xl ${isBull ? 'bg-emerald-500' : isBear ? 'bg-red-500' : 'bg-amber-500'}`} />
                     <div className="flex items-start gap-5 pl-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isBull ? 'bg-emerald-500/15 border border-emerald-500/25' : isBear ? 'bg-red-500/15 border border-red-500/25' : 'bg-amber-500/15 border border-amber-500/25'}`}>
@@ -249,11 +249,11 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
                         </div>
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-3">
-                                <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#9898c0]">Overall Assessment</span>
+                                <span className="text-[11px] font-700 tracking-[0.12em] uppercase text-[#6E6C60]">Overall Assessment</span>
                                 <span className={`badge ${isBull ? 'badge-bull' : isBear ? 'badge-bear' : 'badge-hold'}`}><div className="badge-dot" />{signalWord}</span>
-                                <span className="font-mono text-[12px] text-[#9898c0]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
+                                <span className="font-mono text-[12px] text-[#6E6C60]">{score.toFixed(1)}/100 · {conf.toFixed(0)}% conf.</span>
                             </div>
-                            <p className="text-[15px] leading-[1.8] text-[#c8c8e0] font-400">{execSummary}</p>
+                            <p className="text-[15px] leading-[1.8] text-[#45433C] font-400">{execSummary}</p>
                         </div>
                     </div>
                 </div>
@@ -266,7 +266,7 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
                                 <Icon className={`w-4 h-4 shrink-0 ${color}`} />
                                 <span className={`text-[11px] font-700 tracking-[0.1em] uppercase ${color}`}>{label}</span>
                             </div>
-                            <p className="text-[13px] leading-[1.75] text-[#9898c0]">{text}</p>
+                            <p className="text-[13px] leading-[1.75] text-[#6E6C60]">{text}</p>
                         </div>
                     ))}
                 </div>
@@ -276,8 +276,8 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
                     <div className={`text-[42px] font-display font-800 leading-none tracking-[-0.04em] bg-gradient-to-r ${sig.from} ${sig.to} bg-clip-text text-transparent shrink-0`}>
                         {signalWord}
                     </div>
-                    <div className="w-px h-10 bg-[#1a1a3a] hidden sm:block shrink-0" />
-                    <div className="text-[13px] leading-[1.75] text-[#9898c0]">
+                    <div className="w-px h-10 bg-[#E5E1D5] hidden sm:block shrink-0" />
+                    <div className="text-[13px] leading-[1.75] text-[#6E6C60]">
                         Based on a composite weighting of fundamental valuation, technical patterns, quantitative models, macro factors, sentiment analysis, insider flow, and risk profile — Phaeton Capital rates <span className={`font-700 ${isBull ? 'text-emerald-400' : isBear ? 'text-red-400' : 'text-amber-400'}`}>{signalWord}</span> for {ticker}. This analysis is algorithmically generated and does not constitute financial advice.
                     </div>
                 </div>

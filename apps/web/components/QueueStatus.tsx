@@ -51,7 +51,7 @@ export default function QueueStatus() {
         <div className="relative">
             <button
                 onClick={() => setExpanded(e => !e)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0c0c24] border border-[#1e1e3a] hover:border-[#2a2a5a] transition-all text-[11px]"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAF9F5] border border-[#E5E1D5] hover:border-[#D5CFBE] transition-all text-[11px]"
             >
                 {busy ? (
                     <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
@@ -62,48 +62,48 @@ export default function QueueStatus() {
                 ) : (
                     <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 )}
-                <span className="text-[#9898c0] font-mono">
+                <span className="text-[#6E6C60] font-mono">
                     {busy ? `Scanning ${data.jobs.find(j => j.state === "active")?.ticker ?? "…"}` :
                      total > 0 ? `${total} queued` :
                      data.failed > 0 ? `${data.failed} failed` : "Idle"}
                 </span>
-                {expanded ? <ChevronUp className="w-3 h-3 text-[#5d5d8a]" /> : <ChevronDown className="w-3 h-3 text-[#5d5d8a]" />}
+                {expanded ? <ChevronUp className="w-3 h-3 text-[#8F8C80]" /> : <ChevronDown className="w-3 h-3 text-[#8F8C80]" />}
             </button>
 
             {expanded && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-[#09091f] border border-[#1e1e3a] rounded-xl shadow-[0_8px_40px_rgba(0,0,0,0.7)] z-[100] p-3">
+                <div className="absolute top-full right-0 mt-2 w-64 bg-[#FAF9F5] border border-[#E5E1D5] rounded-xl shadow-[0_8px_40px_rgba(0,0,0,0.7)] z-[100] p-3">
                     <div className="grid grid-cols-4 gap-2 mb-3">
                         {[
                             { label: "Active", value: data.active, color: "text-indigo-400" },
                             { label: "Waiting", value: data.waiting, color: "text-amber-400" },
-                            { label: "Delayed", value: data.delayed, color: "text-[#9898c0]" },
+                            { label: "Delayed", value: data.delayed, color: "text-[#6E6C60]" },
                             { label: "Failed", value: data.failed, color: "text-red-400" },
                         ].map(s => (
-                            <div key={s.label} className="bg-[#0c0c24] rounded-lg p-2 text-center border border-[#1a1a3a]">
+                            <div key={s.label} className="bg-[#FAF9F5] rounded-lg p-2 text-center border border-[#E5E1D5]">
                                 <div className={`font-mono text-[14px] font-700 ${s.color}`}>{s.value}</div>
-                                <div className="text-[9px] text-[#5d5d8a] mt-0.5">{s.label}</div>
+                                <div className="text-[9px] text-[#8F8C80] mt-0.5">{s.label}</div>
                             </div>
                         ))}
                     </div>
 
                     {data.jobs.length > 0 ? (
                         <div className="space-y-1.5">
-                            <div className="text-[10px] uppercase tracking-[0.08em] text-[#5d5d8a] mb-2">Jobs</div>
+                            <div className="text-[10px] uppercase tracking-[0.08em] text-[#8F8C80] mb-2">Jobs</div>
                             {data.jobs.slice(0, 6).map((job, i) => (
                                 <div key={job.id ?? i} className="flex items-center gap-2 text-[11px]">
                                     {job.state === "active"
                                         ? <Loader2 className="w-3 h-3 text-indigo-400 animate-spin shrink-0" />
                                         : <Clock className="w-3 h-3 text-amber-400/60 shrink-0" />
                                     }
-                                    <span className="font-mono text-white font-700">{job.ticker}</span>
-                                    <span className={`ml-auto text-[10px] ${job.state === "active" ? "text-indigo-400" : "text-[#5d5d8a]"}`}>
+                                    <span className="font-mono text-[#1F1E1D] font-700">{job.ticker}</span>
+                                    <span className={`ml-auto text-[10px] ${job.state === "active" ? "text-indigo-400" : "text-[#8F8C80]"}`}>
                                         {job.state}
                                     </span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-2 text-[11px] text-[#5d5d8a]">Queue is empty</div>
+                        <div className="text-center py-2 text-[11px] text-[#8F8C80]">Queue is empty</div>
                     )}
                 </div>
             )}

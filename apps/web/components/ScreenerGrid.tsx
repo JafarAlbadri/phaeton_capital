@@ -17,10 +17,10 @@ const SIG_COLORS: Record<string, string> = {
 };
 
 function SignalBadge({ signal }: { signal: string | null }) {
-    if (!signal) return <span className="text-[#5d5d8a]">—</span>;
+    if (!signal) return <span className="text-[#8F8C80]">—</span>;
     const word = signal.replace("_", " ");
     return (
-        <span className={`px-2 py-0.5 rounded text-[10px] font-700 tracking-[0.06em] border ${SIG_COLORS[signal] ?? "text-[#9898c0]"}`}>
+        <span className={`px-2 py-0.5 rounded text-[10px] font-700 tracking-[0.06em] border ${SIG_COLORS[signal] ?? "text-[#6E6C60]"}`}>
             {word}
         </span>
     );
@@ -28,7 +28,7 @@ function SignalBadge({ signal }: { signal: string | null }) {
 
 // ── Regime badge ───────────────────────────────────────────────────────────────
 function RegimeBadge({ state }: { state: number | null }) {
-    if (state == null) return <span className="text-[#5d5d8a]">—</span>;
+    if (state == null) return <span className="text-[#8F8C80]">—</span>;
     if (state === 2) return <span className="text-[10px] font-700 text-emerald-400">🟢 Bull</span>;
     if (state === 1) return <span className="text-[10px] font-700 text-amber-400">🟡 Neutral</span>;
     return <span className="text-[10px] font-700 text-red-400">🔴 Bear</span>;
@@ -36,8 +36,8 @@ function RegimeBadge({ state }: { state: number | null }) {
 
 // ── Score bar ──────────────────────────────────────────────────────────────────
 function ScorePill({ value }: { value: number | null }) {
-    if (value == null) return <span className="text-[#5d5d8a] font-mono text-[11px]">—</span>;
-    const color = value >= 60 ? "#0ecf8a" : value >= 40 ? "#f59e0b" : "#f5495a";
+    if (value == null) return <span className="text-[#8F8C80] font-mono text-[11px]">—</span>;
+    const color = value >= 60 ? "#4E7D53" : value >= 40 ? "#C96442" : "#C24E42";
     return (
         <span className="font-mono text-[12px] font-700" style={{ color }}>
             {value.toFixed(1)}
@@ -47,11 +47,11 @@ function ScorePill({ value }: { value: number | null }) {
 
 // ── Risk dots ─────────────────────────────────────────────────────────────────
 function RiskDots({ rating }: { rating: number | null }) {
-    if (rating == null) return <span className="text-[#5d5d8a]">—</span>;
+    if (rating == null) return <span className="text-[#8F8C80]">—</span>;
     return (
         <div className="flex gap-0.5">
             {[1, 2, 3, 4, 5].map(n => (
-                <div key={n} className={`w-1.5 h-1.5 rounded-full ${n <= rating ? "bg-red-400" : "bg-[#1e1e3a]"}`} />
+                <div key={n} className={`w-1.5 h-1.5 rounded-full ${n <= rating ? "bg-red-400" : "bg-[#E5E1D5]"}`} />
             ))}
         </div>
     );
@@ -172,9 +172,9 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
 
     if (tickers.length === 0) {
         return (
-            <div className="rounded-xl border border-[#1e1e3a] bg-[#09091f] p-8 text-center">
-                <Star className="w-8 h-8 text-[#2a2a5a] mx-auto mb-3" />
-                <p className="text-[13px] text-[#5d5d8a] mb-4">
+            <div className="rounded-xl border border-[#E5E1D5] bg-[#FAF9F5] p-8 text-center">
+                <Star className="w-8 h-8 text-[#D5CFBE] mx-auto mb-3" />
+                <p className="text-[13px] text-[#8F8C80] mb-4">
                     Your watchlist is empty. Add tickers to track them across all horizons.
                 </p>
                 {showAddButton && (
@@ -184,7 +184,7 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
                             onChange={e => setAddInput(e.target.value.toUpperCase())}
                             onKeyDown={e => e.key === "Enter" && addTicker()}
                             placeholder="AAPL, TSLA…"
-                            className="flex-1 bg-[#0c0c24] border border-[#1e1e3a] rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-indigo-500/50"
+                            className="flex-1 bg-[#FAF9F5] border border-[#E5E1D5] rounded-lg px-3 py-2 text-[13px] text-[#1F1E1D] focus:outline-none focus:border-indigo-500/50"
                         />
                         <button onClick={addTicker} className="px-4 py-2 bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-300 text-[12px] font-700 hover:bg-indigo-500/30 transition-all">
                             Add
@@ -196,10 +196,10 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
     }
 
     return (
-        <div className="rounded-xl border border-[#1e1e3a] bg-[#09091f] overflow-hidden">
+        <div className="rounded-xl border border-[#E5E1D5] bg-[#FAF9F5] overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[#1e1e3a]">
-                <span className="text-[12px] font-700 tracking-[0.08em] uppercase text-[#9898c0]">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[#E5E1D5]">
+                <span className="text-[12px] font-700 tracking-[0.08em] uppercase text-[#6E6C60]">
                     Watchlist · {tickers.length} ticker{tickers.length !== 1 ? "s" : ""}
                 </span>
                 <div className="flex items-center gap-2">
@@ -210,12 +210,12 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
                                 onChange={e => setAddInput(e.target.value.toUpperCase())}
                                 onKeyDown={e => e.key === "Enter" && addTicker()}
                                 placeholder="Add ticker…"
-                                className="bg-[#0c0c24] border border-[#1e1e3a] rounded-lg px-2.5 py-1 text-[12px] text-white w-32 focus:outline-none focus:border-indigo-500/50"
+                                className="bg-[#FAF9F5] border border-[#E5E1D5] rounded-lg px-2.5 py-1 text-[12px] text-[#1F1E1D] w-32 focus:outline-none focus:border-indigo-500/50"
                             />
                             <button onClick={addTicker} className="px-2.5 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-300 text-[11px] font-700 hover:bg-indigo-500/30 transition-all">Add</button>
                         </div>
                     )}
-                    <button onClick={fetchData} disabled={loading} className="p-1.5 rounded-lg hover:bg-white/5 text-[#5d5d8a] hover:text-[#9898c0] transition-all">
+                    <button onClick={fetchData} disabled={loading} className="p-1.5 rounded-lg hover:bg-white/5 text-[#8F8C80] hover:text-[#6E6C60] transition-all">
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                     </button>
                 </div>
@@ -226,7 +226,7 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
                 <div className="flex items-center gap-2 px-5 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[12px]">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                     <span>{error}</span>
-                    <button onClick={() => setError(null)} className="ml-auto text-[#5d5d8a] hover:text-[#9898c0]">✕</button>
+                    <button onClick={() => setError(null)} className="ml-auto text-[#8F8C80] hover:text-[#6E6C60]">✕</button>
                 </div>
             )}
 
@@ -234,12 +234,12 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="border-b border-[#1a1a3a]">
+                        <tr className="border-b border-[#E5E1D5]">
                             <th className="w-8 px-3 py-2" />
                             {cols.map(c => (
                                 <th key={c.key}
                                     onClick={() => c.sortable && handleSort(c.key)}
-                                    className={`px-3 py-2 text-left text-[10px] font-700 tracking-[0.08em] uppercase text-[#5d5d8a] whitespace-nowrap ${c.sortable ? "cursor-pointer hover:text-[#9898c0]" : ""}`}>
+                                    className={`px-3 py-2 text-left text-[10px] font-700 tracking-[0.08em] uppercase text-[#8F8C80] whitespace-nowrap ${c.sortable ? "cursor-pointer hover:text-[#6E6C60]" : ""}`}>
                                     {c.label}
                                     <SortIcon field={c.key} current={sortBy} order={order} />
                                 </th>
@@ -249,33 +249,33 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
                     <tbody>
                         {loading && rows.length === 0 ? (
                             Array.from({ length: tickers.length }).map((_, i) => (
-                                <tr key={i} className="border-b border-[#1a1a3a]/50">
+                                <tr key={i} className="border-b border-[#E5E1D5]/50">
                                     <td colSpan={cols.length + 1} className="px-3 py-3">
-                                        <div className="h-4 bg-[#12122e] rounded animate-pulse w-full" />
+                                        <div className="h-4 bg-[#EFECE1] rounded animate-pulse w-full" />
                                     </td>
                                 </tr>
                             ))
                         ) : rows.length === 0 ? (
                             <tr>
-                                <td colSpan={cols.length + 1} className="px-4 py-6 text-center text-[12px] text-[#5d5d8a]">
+                                <td colSpan={cols.length + 1} className="px-4 py-6 text-center text-[12px] text-[#8F8C80]">
                                     No data yet — trigger a scrape to populate scores.
                                 </td>
                             </tr>
                         ) : rows.map(row => (
                             <tr key={row.ticker}
                                 onClick={() => router.push(`/?ticker=${row.ticker}`)}
-                                className="border-b border-[#1a1a3a]/50 cursor-pointer hover:bg-white/[0.02] transition-colors group">
+                                className="border-b border-[#E5E1D5]/50 cursor-pointer hover:bg-white/[0.02] transition-colors group">
                                 {/* Star */}
                                 <td className="px-3 py-3" onClick={e => { e.stopPropagation(); toggleWatch(row.ticker); }}>
                                     {watchlist.includes(row.ticker)
                                         ? <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                        : <StarOff className="w-3.5 h-3.5 text-[#2a2a5a] group-hover:text-[#5d5d8a]" />
+                                        : <StarOff className="w-3.5 h-3.5 text-[#D5CFBE] group-hover:text-[#8F8C80]" />
                                     }
                                 </td>
                                 {/* Ticker */}
-                                <td className="px-3 py-3 font-mono text-[13px] font-700 text-white">{row.ticker}</td>
+                                <td className="px-3 py-3 font-mono text-[13px] font-700 text-[#1F1E1D]">{row.ticker}</td>
                                 {/* Price */}
-                                <td className="px-3 py-3 font-mono text-[12px] text-[#9898c0]">
+                                <td className="px-3 py-3 font-mono text-[12px] text-[#6E6C60]">
                                     {row.lastPrice != null ? `$${row.lastPrice.toFixed(2)}` : "—"}
                                 </td>
                                 {/* Scores */}
@@ -290,7 +290,7 @@ export default function ScreenerGrid({ initialTickers, showAddButton = true }: S
                                         <span className={`font-mono text-[12px] font-600 ${(row.sentimentScore ?? 0) > 0.1 ? "text-emerald-400" : (row.sentimentScore ?? 0) < -0.1 ? "text-red-400" : "text-amber-400"}`}>
                                             {row.sentimentScore.toFixed(2)}
                                         </span>
-                                    ) : <span className="text-[#5d5d8a]">—</span>}
+                                    ) : <span className="text-[#8F8C80]">—</span>}
                                 </td>
                                 {/* Regime */}
                                 <td className="px-3 py-3"><RegimeBadge state={row.hmmState} /></td>

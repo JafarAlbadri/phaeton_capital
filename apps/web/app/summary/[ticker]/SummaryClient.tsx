@@ -50,11 +50,11 @@ interface Props {
 
 // ─── Signal config ───────────────────────────────────────────────────────────
 const SIGNAL_CFG: Record<string, { word: string; color: string; bg: string; border: string; glow: string; icon: typeof TrendingUp }> = {
-    STRONG_BUY:  { word: "STRONG BUY",  color: "#0ecf8a", bg: "rgba(14,207,138,0.08)", border: "rgba(14,207,138,0.30)", glow: "0 0 60px rgba(14,207,138,0.15)", icon: TrendingUp },
-    BUY:         { word: "BUY",         color: "#0ecf8a", bg: "rgba(14,207,138,0.06)", border: "rgba(14,207,138,0.20)", glow: "0 0 40px rgba(14,207,138,0.10)", icon: TrendingUp },
-    HOLD:        { word: "HOLD",        color: "#f59e0b", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.20)", glow: "0 0 40px rgba(245,158,11,0.10)", icon: Minus },
-    SELL:        { word: "SELL",        color: "#f5495a", bg: "rgba(245,73,90,0.06)",  border: "rgba(245,73,90,0.20)",  glow: "0 0 40px rgba(245,73,90,0.10)",  icon: TrendingDown },
-    STRONG_SELL: { word: "STRONG SELL", color: "#f5495a", bg: "rgba(245,73,90,0.08)",  border: "rgba(245,73,90,0.30)",  glow: "0 0 60px rgba(245,73,90,0.15)",  icon: TrendingDown },
+    STRONG_BUY:  { word: "STRONG BUY",  color: "#4E7D53", bg: "rgba(78,125,83,0.08)", border: "rgba(78,125,83,0.30)", glow: "0 0 60px rgba(78,125,83,0.15)", icon: TrendingUp },
+    BUY:         { word: "BUY",         color: "#4E7D53", bg: "rgba(78,125,83,0.06)", border: "rgba(78,125,83,0.20)", glow: "0 0 40px rgba(78,125,83,0.10)", icon: TrendingUp },
+    HOLD:        { word: "HOLD",        color: "#C96442", bg: "rgba(201,100,66,0.06)", border: "rgba(201,100,66,0.20)", glow: "0 0 40px rgba(201,100,66,0.10)", icon: Minus },
+    SELL:        { word: "SELL",        color: "#C24E42", bg: "rgba(194,78,66,0.06)",  border: "rgba(194,78,66,0.20)",  glow: "0 0 40px rgba(194,78,66,0.10)",  icon: TrendingDown },
+    STRONG_SELL: { word: "STRONG SELL", color: "#C24E42", bg: "rgba(194,78,66,0.08)",  border: "rgba(194,78,66,0.30)",  glow: "0 0 60px rgba(194,78,66,0.15)",  icon: TrendingDown },
 };
 function sig(s?: string | null) { return SIGNAL_CFG[s ?? ""] ?? SIGNAL_CFG["HOLD"]; }
 
@@ -81,7 +81,7 @@ function ConfidenceArc({ value, color }: { value: number; color: string }) {
     return (
         <div className="flex flex-col items-center">
             <svg viewBox="0 0 200 110" className="w-[160px]">
-                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#12122e" strokeWidth="10" strokeLinecap="round" />
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#EFECE1" strokeWidth="10" strokeLinecap="round" />
                 <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
                     strokeDasharray={`${dashLen} ${circumHalf}`}
                     style={{ filter: `drop-shadow(0 0 6px ${color})` }} />
@@ -113,7 +113,7 @@ export default function SummaryClient({
     return (
         <main className="relative z-10 min-h-screen px-4 py-8 max-w-3xl mx-auto">
             {/* Back link */}
-            <Link href={`/?q=${ticker}`} className="inline-flex items-center gap-1.5 text-[12px] text-[#7878a0] hover:text-[#b0b0d0] transition-colors mb-6">
+            <Link href={`/?q=${ticker}`} className="inline-flex items-center gap-1.5 text-[12px] text-[#7878a0] hover:text-[#57554B] transition-colors mb-6">
                 <ArrowLeft size={14} /> Back to Terminal
             </Link>
 
@@ -124,9 +124,9 @@ export default function SummaryClient({
                     {/* Left: ticker + signal */}
                     <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
-                            <h1 className="font-[var(--font-syne)] text-3xl font-extrabold tracking-tight text-[#f0efff]">{ticker}</h1>
+                            <h1 className="font-[var(--font-syne)] text-3xl font-extrabold tracking-tight text-[#1F1E1D]">{ticker}</h1>
                             {price != null && (
-                                <span className="font-mono text-lg text-[#9898c0]">${price.toFixed(2)}</span>
+                                <span className="font-mono text-lg text-[#6E6C60]">${price.toFixed(2)}</span>
                             )}
                         </div>
                         {(sector || marketCap) && <p className="text-[13px] text-[#7878a0] mb-4">{sector ?? ""}{sector && marketCap ? " \u00b7 " : ""}{marketCap ? fmtMktCap(marketCap) : ""}</p>}
@@ -160,11 +160,11 @@ export default function SummaryClient({
                 <div className="space-y-3">
                     {primary?.drivers.map((d, i) => {
                         const pct = Math.max(0, Math.min(100, d.score));
-                        const barColor = d.impact === "bullish" ? "#0ecf8a" : d.impact === "bearish" ? "#f5495a" : "#f59e0b";
+                        const barColor = d.impact === "bullish" ? "#4E7D53" : d.impact === "bearish" ? "#C24E42" : "#C96442";
                         return (
                             <div key={d.factor} className="flex items-center gap-3">
-                                <span className="text-[13px] font-medium text-[#b0b0d0] w-28 shrink-0">{DRIVER_LABELS[d.factor] ?? d.factor}</span>
-                                <div className="flex-1 h-[8px] rounded-full bg-[#12122e] overflow-hidden">
+                                <span className="text-[13px] font-medium text-[#57554B] w-28 shrink-0">{DRIVER_LABELS[d.factor] ?? d.factor}</span>
+                                <div className="flex-1 h-[8px] rounded-full bg-[#EFECE1] overflow-hidden">
                                     <div className="h-full rounded-full transition-all duration-700"
                                         style={{ width: `${pct}%`, background: barColor, boxShadow: `4px 0 12px ${barColor}40` }} />
                                 </div>
@@ -197,9 +197,9 @@ export default function SummaryClient({
                                     <stop offset="100%" stopColor={s.color} stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#5d5d8a" }} tickLine={false} axisLine={false} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#5d5d8a" }} tickLine={false} axisLine={false} width={30} />
-                            <Tooltip contentStyle={{ background: "#0e0e24", border: "1px solid #1e1e42", borderRadius: 8, fontSize: 12 }}
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#8F8C80" }} tickLine={false} axisLine={false} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#8F8C80" }} tickLine={false} axisLine={false} width={30} />
+                            <Tooltip contentStyle={{ background: "#0e0e24", border: "1px solid #DFDACB", borderRadius: 8, fontSize: 12 }}
                                 formatter={(v: number) => [v.toFixed(1), "Score"]} />
                             <Area type="monotone" dataKey="score" stroke={s.color} strokeWidth={2}
                                 fill="url(#sparkFill)" dot={false} activeDot={{ r: 4, fill: s.color }} />
@@ -234,7 +234,7 @@ export default function SummaryClient({
             )}
 
             {/* Footer */}
-            <p className="text-center text-[11px] text-[#5d5d8a] mt-8 mb-4">
+            <p className="text-center text-[11px] text-[#8F8C80] mt-8 mb-4">
                 Phaeton Capital &middot; Generated {new Date().toISOString().slice(0, 10)} &middot; Not financial advice
             </p>
         </main>
@@ -243,9 +243,9 @@ export default function SummaryClient({
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, variant }: { label: string; value: string; icon: typeof Target; variant: "bull" | "bear" | "gold" }) {
-    const color = variant === "bull" ? "#0ecf8a" : variant === "bear" ? "#f5495a" : "#fcd97a";
-    const bgColor = variant === "bull" ? "rgba(14,207,138,0.06)" : variant === "bear" ? "rgba(245,73,90,0.06)" : "rgba(212,160,23,0.06)";
-    const borderColor = variant === "bull" ? "rgba(14,207,138,0.15)" : variant === "bear" ? "rgba(245,73,90,0.15)" : "rgba(212,160,23,0.15)";
+    const color = variant === "bull" ? "#4E7D53" : variant === "bear" ? "#C24E42" : "#A8552F";
+    const bgColor = variant === "bull" ? "rgba(78,125,83,0.06)" : variant === "bear" ? "rgba(194,78,66,0.06)" : "rgba(201,100,66,0.06)";
+    const borderColor = variant === "bull" ? "rgba(78,125,83,0.15)" : variant === "bear" ? "rgba(194,78,66,0.15)" : "rgba(201,100,66,0.15)";
 
     return (
         <div className="card rounded-xl p-4 text-center">

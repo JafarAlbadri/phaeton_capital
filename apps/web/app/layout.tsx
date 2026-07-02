@@ -1,9 +1,10 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono, Lora } from 'next/font/google';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' });
+const lora = Lora({ subsets: ['latin'], variable: '--font-display' });
 
 export const metadata: Metadata = {
     title: "Phaeton Capital | Terminal",
@@ -16,7 +17,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+        <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${lora.variable}`}>
             <body className="antialiased min-h-screen">
                 {children}
             </body>

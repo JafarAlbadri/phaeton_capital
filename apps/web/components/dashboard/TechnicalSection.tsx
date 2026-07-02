@@ -12,7 +12,7 @@ export function TechnicalSection({ technicalIndicators }: { technicalIndicators:
                     <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <InlineExplain topic="technical_score"><span className="section-title">Technical Analysis</span></InlineExplain>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
                 {technicalIndicators.technical_signal && (
                     <span className={`badge ${technicalIndicators.technical_signal==='BULLISH' ? 'badge-bull' : 'badge-bear'}`}>
                         {technicalIndicators.technical_signal}

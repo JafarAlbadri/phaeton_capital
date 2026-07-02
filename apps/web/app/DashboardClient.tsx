@@ -320,7 +320,7 @@ export default function DashboardClient({
                             <Star className="w-3.5 h-3.5 text-amber-400" />
                         </div>
                         <span className="section-title">Watchlist Screener</span>
-                        <div className="flex-1 h-px bg-gradient-to-r from-[#1a1a3a] to-transparent" />
+                        <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
                         <span className="badge badge-gold">Multi-Horizon</span>
                     </div>
                     <ScreenerGrid showAddButton />

@@ -383,6 +383,7 @@ async function processPosts(keywordOverride?: string, opts?: { skipFundamentals?
                 duplicate_hash: duplicateHash,
                 source: post.source,
                 ai_model: aiResult.ai_model,
+                prompt_version: aiResult.prompt_version,
                 scrape_batch_id: scrape_batch_id
             };
         }).filter((s): s is NonNullable<typeof s> => s !== null);

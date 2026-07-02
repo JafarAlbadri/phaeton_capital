@@ -372,24 +372,24 @@ function ExplainModal({ entry, onClose }: ModalProps) {
         className={[
           "relative w-full max-w-xl max-h-[85vh] overflow-hidden",
           "bg-[#0a0a1c] rounded-2xl",
-          "border border-[#d4a017]/60 ring-1 ring-[#d4a017]/20",
-          "shadow-[0_30px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(212,160,23,0.15)]",
+          "border border-[#C96442]/60 ring-1 ring-[#C96442]/20",
+          "shadow-[0_30px_80px_rgba(0,0,0,0.95),0_0_0_1px_rgba(201,100,66,0.15)]",
           "flex flex-col",
         ].join(" ")}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Title bar — visually distinct from body so the box reads like
             a window with chrome. */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#d4a017]/25 bg-gradient-to-b from-[#12122a] to-[#0a0a1c]">
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[#C96442]/25 bg-gradient-to-b from-[#12122a] to-[#0a0a1c]">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-2 h-2 rounded-full bg-[#fcd97a] shadow-[0_0_8px_rgba(252,217,122,0.6)] flex-shrink-0" />
-            <p className="text-[#fcd97a] font-bold text-[15px] leading-snug truncate">
+            <div className="w-2 h-2 rounded-full bg-[#A8552F] shadow-[0_0_8px_rgba(252,217,122,0.6)] flex-shrink-0" />
+            <p className="text-[#A8552F] font-bold text-[15px] leading-snug truncate">
               {entry.title}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-[#9898c0] hover:text-[#fcd97a] hover:bg-white/5 transition-colors flex-shrink-0 p-1.5 rounded-md border border-[#2a2a4a] hover:border-[#d4a017]/50"
+            className="text-[#6E6C60] hover:text-[#A8552F] hover:bg-white/5 transition-colors flex-shrink-0 p-1.5 rounded-md border border-[#2a2a4a] hover:border-[#C96442]/50"
             aria-label="Close"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -410,20 +410,20 @@ function ExplainModal({ entry, onClose }: ModalProps) {
           </p>
 
           <div>
-            <p className="text-[#fcd97a] text-[10.5px] font-bold tracking-[0.10em] uppercase mb-2">
+            <p className="text-[#A8552F] text-[10.5px] font-bold tracking-[0.10em] uppercase mb-2">
               Why it matters
             </p>
-            <p className="text-[#c8c8e0] text-[14px] leading-[1.65]">
+            <p className="text-[#45433C] text-[14px] leading-[1.65]">
               {entry.whyMatters}
             </p>
           </div>
 
           {entry.range && (
-            <div className="bg-[#05051a] border border-[#1a1a3a] rounded-[10px] px-4 py-3 mt-1">
+            <div className="bg-[#05051a] border border-[#E5E1D5] rounded-[10px] px-4 py-3 mt-1">
               <p className="text-[#7878a0] text-[10px] font-bold tracking-[0.10em] uppercase mb-1.5">
                 Normal range
               </p>
-              <p className="text-[#fcd97a] font-mono text-[12px] leading-relaxed">
+              <p className="text-[#A8552F] font-mono text-[12px] leading-relaxed">
                 {entry.range}
               </p>
             </div>
@@ -431,10 +431,10 @@ function ExplainModal({ entry, onClose }: ModalProps) {
         </div>
 
         {/* Footer hint */}
-        <div className="px-6 py-3 border-t border-[#1a1a3a] bg-[#05051a]/60 text-center">
+        <div className="px-6 py-3 border-t border-[#E5E1D5] bg-[#05051a]/60 text-center">
           <p className="text-[10px] text-[#7878a0]">
             Press{" "}
-            <kbd className="px-1.5 py-0.5 rounded bg-[#1a1a3a] text-[#9898c0] font-mono border border-[#2a2a4a]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[#E5E1D5] text-[#6E6C60] font-mono border border-[#2a2a4a]">
               Esc
             </kbd>{" "}
             or click outside to close
@@ -476,9 +476,9 @@ export function ExplainTooltip({ topic, className }: ExplainTooltipProps) {
         title={entry.title}
         className={[
           "inline-flex items-center justify-center",
-          "text-[#5d5d8a] hover:text-[#fcd97a]",
+          "text-[#8F8C80] hover:text-[#A8552F]",
           "transition-colors duration-150",
-          open && "text-[#fcd97a]",
+          open && "text-[#A8552F]",
         ]
           .filter(Boolean)
           .join(" ")}
