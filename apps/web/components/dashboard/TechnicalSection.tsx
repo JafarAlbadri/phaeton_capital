@@ -12,7 +12,7 @@ export function TechnicalSection({ technicalIndicators }: { technicalIndicators:
                     <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <InlineExplain topic="technical_score"><span className="section-title">Technical Analysis</span></InlineExplain>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#3A3833] to-transparent" />
                 {technicalIndicators.technical_signal && (
                     <span className={`badge ${technicalIndicators.technical_signal==='BULLISH' ? 'badge-bull' : 'badge-bear'}`}>
                         {technicalIndicators.technical_signal}
@@ -20,7 +20,7 @@ export function TechnicalSection({ technicalIndicators }: { technicalIndicators:
                 )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 xl:gap-5">
                 <Tile label="RSI (14)" value={technicalIndicators.rsi_14?.toFixed(1) || '—'} variant={technicalIndicators.rsi_14 < 30 ? 'bull' : technicalIndicators.rsi_14 > 70 ? 'bear' : 'gold'} icon={Activity} />
                 <Tile label="MACD" value={technicalIndicators.macd?.toFixed(3) || '—'} variant={(technicalIndicators.macd || 0) > 0 ? 'bull' : 'bear'} icon={TrendingUp} />
                 <Tile label="SMA 50" value={technicalIndicators.sma_50 ? `$${technicalIndicators.sma_50.toFixed(2)}` : '—'} variant="gold" icon={ArrowUpRight} />

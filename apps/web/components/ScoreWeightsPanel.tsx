@@ -78,10 +78,10 @@ function computeCustomScore(
 // ── Score colour ──────────────────────────────────────────────────────────────
 
 function scoreColor(v: number | null): string {
-    if (v == null) return '#6E6C60';
-    if (v >= 60)  return '#4E7D53';
-    if (v >= 40)  return '#C96442';
-    return '#C24E42';
+    if (v == null) return '#A6A296';
+    if (v >= 60)  return '#7FA886';
+    if (v >= 40)  return '#D97757';
+    return '#D9776B';
 }
 
 // ── Slider row ────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ function SliderRow({ label, weight, score, onChange }: SliderRowProps) {
         <div className="grid grid-cols-[120px_1fr_44px_52px] items-center gap-3 py-1.5">
             {/* Label + score */}
             <div className="flex items-center gap-2">
-                <span className="text-[12px] text-[#6E6C60] font-500 truncate">{label}</span>
+                <span className="text-[12px] text-[#A6A296] font-500 truncate">{label}</span>
                 {score != null && (
                     <span
                         className="text-[10px] font-mono font-700"
@@ -126,14 +126,14 @@ function SliderRow({ label, weight, score, onChange }: SliderRowProps) {
                     className="w-full h-1.5 appearance-none rounded-full cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                     style={{
                         background: score != null
-                            ? `linear-gradient(to right, #C96442 ${(weight / 40) * 100}%, #E5E1D5 ${(weight / 40) * 100}%)`
-                            : '#E5E1D5',
+                            ? `linear-gradient(to right, #D97757 ${(weight / 40) * 100}%, #3A3833 ${(weight / 40) * 100}%)`
+                            : '#3A3833',
                     }}
                 />
             </div>
 
             {/* Weight value */}
-            <span className="text-right text-[12px] font-mono font-600 text-[#A8552F]">
+            <span className="text-right text-[12px] font-mono font-600 text-[#E0906F]">
                 {weight}
             </span>
 
@@ -169,11 +169,11 @@ export default function ScoreWeightsPanel({ scores, baseComposite }: ScoreWeight
 
     const reset = () => setWeights({ ...DEFAULT_WEIGHTS });
 
-    const deltaColor  = delta == null ? '#6E6C60' : delta > 0 ? '#4E7D53' : delta < 0 ? '#C24E42' : '#6E6C60';
+    const deltaColor  = delta == null ? '#A6A296' : delta > 0 ? '#7FA886' : delta < 0 ? '#D9776B' : '#A6A296';
     const deltaPrefix = delta == null ? '' : delta > 0 ? '+' : '';
 
     return (
-        <div className="rounded-xl border border-[#E5E1D5] bg-[#FAF9F5] overflow-hidden">
+        <div className="rounded-xl border border-[#3A3833] bg-[#262624] overflow-hidden">
 
             {/* ── Toggle button ──────────────────────────────────────────── */}
             <button
@@ -181,8 +181,8 @@ export default function ScoreWeightsPanel({ scores, baseComposite }: ScoreWeight
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.025] transition-colors group"
             >
                 <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#A8552F]" />
-                    <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60] group-hover:text-[#1F1E1D] transition-colors">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#E0906F]" />
+                    <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296] group-hover:text-[#F0EEE6] transition-colors">
                         Tune Weights
                     </span>
                 </div>
@@ -207,7 +207,7 @@ export default function ScoreWeightsPanel({ scores, baseComposite }: ScoreWeight
             {/* ── Expanded panel ─────────────────────────────────────────── */}
             {open && (
                 <>
-                    <div className="border-t border-[#E5E1D5] px-4 pt-3 pb-4">
+                    <div className="border-t border-[#3A3833] px-4 pt-3 pb-4">
 
                         {/* Weights-sum warning */}
                         {totalWeight > 100 && (
@@ -232,7 +232,7 @@ export default function ScoreWeightsPanel({ scores, baseComposite }: ScoreWeight
                         </div>
 
                         {/* Divider */}
-                        <div className="my-3 h-px bg-[#E5E1D5]" />
+                        <div className="my-3 h-px bg-[#3A3833]" />
 
                         {/* Score readout */}
                         <div className="flex items-center justify-between">
@@ -272,7 +272,7 @@ export default function ScoreWeightsPanel({ scores, baseComposite }: ScoreWeight
                             {/* Reset button */}
                             <button
                                 onClick={reset}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E1D5] text-[11px] text-[#6E6C60] hover:border-[#2e2e5a] hover:text-[#1F1E1D] hover:bg-white/[0.025] transition-all"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#3A3833] text-[11px] text-[#A6A296] hover:border-[#2e2e5a] hover:text-[#F0EEE6] hover:bg-white/[0.025] transition-all"
                             >
                                 <RotateCcw className="w-3 h-3" />
                                 Reset to Default

@@ -12,73 +12,73 @@ const config: Config = {
     theme: {
         extend: {
             colors: {
-                // Surfaces
-                'bg-void':    '#F0EEE6', // page ivory
-                'bg-base':    '#FFFFFF', // cards
-                'bg-raised':  '#F5F3EB',
-                'bg-overlay': '#FAF9F5',
+                // Surfaces — warm charcoal (Anthropic dark)
+                'bg-void':    '#1F1E1D',
+                'bg-base':    '#2A2927',
+                'bg-raised':  '#242320',
+                'bg-overlay': '#262624',
                 // Borders
-                'border-dim':     '#EAE6DA',
-                'border-default': '#DFDACB',
-                'border-bright':  '#CFC9B8',
-                // Accent — book cloth terracotta
-                'gold-deep':    '#8A4630',
-                'gold-muted':   '#B4552D',
-                'gold-base':    '#C96442',
-                'gold-bright':  '#A8552F',
-                'gold-pale':    '#D9906F',
-                'gold-shimmer': '#EFD9CC',
-                // Signals — muted, earthy
-                'bull':         '#4E7D53',
-                'bull-dim':     '#E4EDE2',
-                'bear':         '#C24E42',
-                'bear-dim':     '#F4E0DC',
+                'border-dim':     '#33322E',
+                'border-default': '#43413A',
+                'border-bright':  '#52504A',
+                // Accent — book cloth terracotta, lifted for dark
+                'gold-deep':    '#E8A98C',
+                'gold-muted':   '#C96442',
+                'gold-base':    '#D97757',
+                'gold-bright':  '#E0906F',
+                'gold-pale':    '#B4552D',
+                'gold-shimmer': '#3D2A1F',
+                // Signals — muted earthy, lifted for dark
+                'bull':         '#7FA886',
+                'bull-dim':     '#2E3B2F',
+                'bear':         '#D9776B',
+                'bear-dim':     '#46302B',
                 'neutral-sig':  '#8F8C80',
-                'warn':         '#C96442',
+                'warn':         '#D97757',
                 // Text
-                'text-primary':   '#1F1E1D',
-                'text-secondary': '#6E6C60',
+                'text-primary':   '#F0EEE6',
+                'text-secondary': '#A6A296',
                 'text-tertiary':  '#8F8C80',
-                'text-disabled':  '#B9B5A7',
+                'text-disabled':  '#6B6960',
 
                 // ── Overridden stock scales (only shades the app uses) ──
                 emerald: {
-                    100: '#E4EDE2', 200: '#C9DCC6', 300: '#8FB292', 400: '#4E7D53',
-                    500: '#3E6B47', 600: '#35593C', 700: '#2C4A33', 800: '#233B29',
-                    900: '#1B2E20', 950: '#DCE8DA',
+                    100: '#2E3B2F', 200: '#3A4B3C', 300: '#A9C7AC', 400: '#7FA886',
+                    500: '#6C9673', 600: '#5A8161', 700: '#4E7D53', 800: '#3E6247',
+                    900: '#2E4A36', 950: '#2A362B',
                 },
                 red: {
-                    100: '#F4E0DC', 200: '#EAC7C0', 300: '#D88A7B', 400: '#C24E42',
-                    500: '#A93E33', 600: '#8F3329', 700: '#752A22', 800: '#5C211B',
-                    900: '#452019', 950: '#F0DAD5',
+                    100: '#46302B', 200: '#543630', 300: '#E0A197', 400: '#D9776B',
+                    500: '#C9635A', 600: '#B5544A', 700: '#9C463E', 800: '#7E3831',
+                    900: '#5F2B26', 950: '#3E2823',
                 },
                 rose: {
-                    400: '#C24E42', 500: '#A93E33', 900: '#452019',
+                    400: '#D9776B', 500: '#C9635A', 900: '#5F2B26',
                 },
                 amber: {
-                    100: '#F5E4D7', 200: '#EDCDB8', 300: '#D9906F', 400: '#C96442',
-                    500: '#B4552D', 600: '#9B4A28', 700: '#7F3D22', 800: '#66311C',
-                    900: '#4E2616', 950: '#F2E2D6',
+                    100: '#3D2A1F', 200: '#4A2E1F', 300: '#E8A98C', 400: '#D97757',
+                    500: '#C96442', 600: '#B4552D', 700: '#9B4A28', 800: '#7F3D22',
+                    900: '#66311C', 950: '#362419',
                 },
                 orange: {
-                    300: '#D9906F', 400: '#C05A2E', 500: '#A84E27',
-                    900: '#4E2616', 950: '#F2E2D6',
+                    300: '#E8A98C', 400: '#DB8A5C', 500: '#C97141',
+                    900: '#66311C', 950: '#362419',
                 },
                 indigo: {
-                    100: '#E2E8F1', 300: '#A3B6D6', 400: '#7E97BE', 500: '#5F7BA6',
-                    600: '#4C6488', 700: '#3E5270', 950: '#E6EBF3',
+                    100: '#2A3240', 300: '#A9BCD9', 400: '#8CA3C7', 500: '#6F8BB3',
+                    600: '#5F7BA6', 700: '#4C6488', 950: '#252C38',
                 },
                 purple: {
-                    400: '#8B7BA3', 500: '#75658D',
+                    400: '#A899BC', 500: '#9587AB',
                 },
                 cyan: {
-                    400: '#5F8FA6', 500: '#4E7A8F',
+                    400: '#8FB4C7', 500: '#7AA3B8',
                 },
                 blue: {
-                    400: '#5F7BA6', 500: '#4C6488',
+                    400: '#8CA3C7', 500: '#6F8BB3',
                 },
                 slate: {
-                    800: '#EEEAE0',
+                    800: '#33312C',
                 },
             },
             fontFamily: {
@@ -87,11 +87,11 @@ const config: Config = {
                 display: ['var(--font-display)', 'Lora', 'Georgia', 'serif'],
             },
             boxShadow: {
-                'card':       '0 1px 3px rgba(31,30,29,0.06), 0 1px 2px rgba(31,30,29,0.04)',
-                'card-hover': '0 4px 12px rgba(31,30,29,0.08), 0 2px 4px rgba(31,30,29,0.05)',
-                'card-bull':  '0 0 0 1px rgba(78,125,83,0.25)',
-                'card-bear':  '0 0 0 1px rgba(194,78,66,0.25)',
-                'card-gold':  '0 0 0 1px rgba(201,100,66,0.2)',
+                'card':       '0 1px 3px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15)',
+                'card-hover': '0 4px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2)',
+                'card-bull':  '0 0 0 1px rgba(127,168,134,0.3)',
+                'card-bear':  '0 0 0 1px rgba(217,119,107,0.3)',
+                'card-gold':  '0 0 0 1px rgba(217,119,87,0.3)',
                 'glow-bull':  'none',
                 'glow-bear':  'none',
                 'glow-gold':  'none',
@@ -115,7 +115,7 @@ const config: Config = {
                 shimmerSweep:{ from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(300%)' } },
                 ticker:      { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(-50%)' } },
                 livePulse: {
-                    '0%':   { boxShadow: '0 0 0 0 rgba(78,125,83,0.25)' },
+                    '0%':   { boxShadow: '0 0 0 0 rgba(127,168,134,0.3)' },
                     '70%':  { boxShadow: '0 0 0 6px transparent' },
                     '100%': { boxShadow: '0 0 0 0 transparent' },
                 },

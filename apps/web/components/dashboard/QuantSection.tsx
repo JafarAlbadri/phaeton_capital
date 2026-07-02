@@ -12,7 +12,7 @@ export function QuantSection({ quantMetrics, trendsHistory }: { quantMetrics: an
                     <Bot className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <InlineExplain topic="quant_score"><span className="section-title">Quantitative Models</span></InlineExplain>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#3A3833] to-transparent" />
             </div>
             <div className="card p-6 flex flex-col gap-2">
                 <ScoreBar label="Hurst Exponent" value={quantMetrics.hurst_exponent} variant={(quantMetrics.hurst_exponent||0)>0.5 ? 'bull' : 'gold'} thick />
@@ -20,7 +20,7 @@ export function QuantSection({ quantMetrics, trendsHistory }: { quantMetrics: an
                 <ScoreBar label="Granger p-value (x100)" value={quantMetrics.granger_p_value ? quantMetrics.granger_p_value*100 : null} variant={quantMetrics.granger_p_value < 0.05 ? 'bull' : 'bear'} thick />
                 <ScoreBar label="Sent ↔ Price ρ (x100)" value={quantMetrics.sentiment_price_corr ? quantMetrics.sentiment_price_corr*100 : null} variant="gold" thick />
 
-                <div className="mt-4 pt-4 border-t border-[#E5E1D5] grid grid-cols-2 gap-4">
+                <div className="mt-4 pt-4 border-t border-[#3A3833] grid grid-cols-2 gap-4">
                     <div>
                         <div className="section-title mb-1 flex items-center gap-1">HMM Regime <ExplainTooltip topic="hmm" /></div>
                         <div className={`font-mono text-xl font-700 ${quantMetrics.hmm_state === 2 ? 'text-emerald-400' : quantMetrics.hmm_state === 0 ? 'text-red-400' : 'text-amber-400'}`}>
@@ -35,7 +35,7 @@ export function QuantSection({ quantMetrics, trendsHistory }: { quantMetrics: an
 
                 {/* V2: Google Trends sparkline */}
                 {quantMetrics.trends_score != null && (
-                    <div className="mt-4 pt-4 border-t border-[#E5E1D5]">
+                    <div className="mt-4 pt-4 border-t border-[#3A3833]">
                         <div className="flex items-center justify-between mb-2">
                             <div className="section-title">Google Trends Signal</div>
                             <span className={`text-[12px] font-mono font-700 ${quantMetrics.trends_score > 60 ? 'text-emerald-400' : quantMetrics.trends_score < 40 ? 'text-red-400' : 'text-amber-400'}`}>
@@ -53,12 +53,12 @@ export function QuantSection({ quantMetrics, trendsHistory }: { quantMetrics: an
                             ).join(' ');
                             return (
                                 <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10 overflow-visible">
-                                    <polyline points={pts} fill="none" stroke="#5F7BA6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <polyline points={pts} fill="none" stroke="#8CA3C7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     <polyline points={`0,${H} ${pts} ${W},${H}`} fill="url(#trendsGrad)" stroke="none" />
                                     <defs>
                                         <linearGradient id="trendsGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#5F7BA6" stopOpacity={0.25} />
-                                            <stop offset="100%" stopColor="#5F7BA6" stopOpacity={0} />
+                                            <stop offset="0%" stopColor="#8CA3C7" stopOpacity={0.25} />
+                                            <stop offset="100%" stopColor="#8CA3C7" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                 </svg>

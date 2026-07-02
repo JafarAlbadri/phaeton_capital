@@ -11,14 +11,14 @@ const SIG_STYLES: Record<string, { bg: string; text: string; border: string }> =
     STRONG_BUY:  { bg: 'rgba(78,125,83,0.12)',  text: '#34d399', border: 'rgba(78,125,83,0.30)'  },
     BUY:         { bg: 'rgba(78,125,83,0.07)',  text: '#6ee7b7', border: 'rgba(78,125,83,0.18)'  },
     HOLD:        { bg: 'rgba(201,100,66,0.10)',  text: '#fbbf24', border: 'rgba(201,100,66,0.25)'  },
-    SELL:        { bg: 'rgba(194,78,66,0.10)',   text: '#C24E42', border: 'rgba(194,78,66,0.22)'   },
-    STRONG_SELL: { bg: 'rgba(194,78,66,0.15)',   text: '#C24E42', border: 'rgba(194,78,66,0.32)'   },
+    SELL:        { bg: 'rgba(194,78,66,0.10)',   text: '#D9776B', border: 'rgba(194,78,66,0.22)'   },
+    STRONG_SELL: { bg: 'rgba(194,78,66,0.15)',   text: '#D9776B', border: 'rgba(194,78,66,0.32)'   },
 };
 
 function SignalBadge({ signal }: { signal: string | null }) {
     if (!signal) return <span style={{ color: '#8F8C80' }}>—</span>;
     const s = SIG_STYLES[signal];
-    if (!s) return <span style={{ color: '#6E6C60', fontSize: 11 }}>{signal}</span>;
+    if (!s) return <span style={{ color: '#A6A296', fontSize: 11 }}>{signal}</span>;
     return (
         <span
             style={{
@@ -41,7 +41,7 @@ function SignalBadge({ signal }: { signal: string | null }) {
 
 function ScorePill({ value }: { value: number | null }) {
     if (value == null) return <span style={{ color: '#8F8C80', fontFamily: 'monospace', fontSize: 11 }}>—</span>;
-    const color = value >= 60 ? '#4E7D53' : value >= 40 ? '#C96442' : '#C24E42';
+    const color = value >= 60 ? '#7FA886' : value >= 40 ? '#D97757' : '#D9776B';
     return (
         <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color }}>
             {value.toFixed(1)}
@@ -51,9 +51,9 @@ function ScorePill({ value }: { value: number | null }) {
 
 function RegimeBadge({ state }: { state: number | null }) {
     if (state == null) return <span style={{ color: '#8F8C80', fontSize: 10 }}>—</span>;
-    if (state === 2) return <span style={{ fontSize: 10, fontWeight: 700, color: '#4E7D53' }}>Bull</span>;
-    if (state === 1) return <span style={{ fontSize: 10, fontWeight: 700, color: '#C96442' }}>Neutral</span>;
-    return <span style={{ fontSize: 10, fontWeight: 700, color: '#C24E42' }}>Bear</span>;
+    if (state === 2) return <span style={{ fontSize: 10, fontWeight: 700, color: '#7FA886' }}>Bull</span>;
+    if (state === 1) return <span style={{ fontSize: 10, fontWeight: 700, color: '#D97757' }}>Neutral</span>;
+    return <span style={{ fontSize: 10, fontWeight: 700, color: '#D9776B' }}>Bear</span>;
 }
 
 // ── Skeleton row ─────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ function SkeletonRow() {
                         style={{
                             height: 12,
                             width: w,
-                            background: '#EFECE1',
+                            background: '#33312C',
                         }}
                     />
                 </td>
@@ -134,9 +134,9 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
     if (peerTickers.length === 0) {
         return (
             <div
-                className="rounded-xl border border-[#E5E1D5] bg-[#FAF9F5] p-6 text-center"
+                className="rounded-xl border border-[#3A3833] bg-[#262624] p-6 text-center"
             >
-                <Globe className="w-6 h-6 text-[#D5CFBE] mx-auto mb-2" />
+                <Globe className="w-6 h-6 text-[#52504A] mx-auto mb-2" />
                 <p className="text-[12px] text-[#8F8C80]">No peer data available</p>
             </div>
         );
@@ -144,13 +144,13 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div className="rounded-xl border border-[#E5E1D5] bg-[#FAF9F5] overflow-hidden">
+        <div className="rounded-xl border border-[#3A3833] bg-[#262624] overflow-hidden">
 
             {/* Panel header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#E5E1D5]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#3A3833]">
                 <div className="flex items-center gap-2">
-                    <Globe className="w-3.5 h-3.5 text-[#A8552F]" />
-                    <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60]">
+                    <Globe className="w-3.5 h-3.5 text-[#E0906F]" />
+                    <span className="text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296]">
                         Sector Peers
                         {sector ? (
                             <span className="text-[#8F8C80]"> · {sector}</span>
@@ -161,7 +161,7 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
                 <button
                     onClick={() => navigate(currentTicker)}
                     disabled={loading}
-                    className="p-1.5 rounded-lg hover:bg-white/5 text-[#8F8C80] hover:text-[#6E6C60] transition-all"
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-[#8F8C80] hover:text-[#A6A296] transition-all"
                     title="Refresh"
                 >
                     <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
@@ -175,7 +175,7 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
                     <span>{error}</span>
                     <button
                         onClick={() => setError(null)}
-                        className="ml-auto text-[#8F8C80] hover:text-[#6E6C60] leading-none"
+                        className="ml-auto text-[#8F8C80] hover:text-[#A6A296] leading-none"
                     >
                         ✕
                     </button>
@@ -186,7 +186,7 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="border-b border-[#E5E1D5]">
+                        <tr className="border-b border-[#3A3833]">
                             {['Ticker', 'Price', '15D Score', 'Signal', 'Regime'].map(h => (
                                 <th
                                     key={h}
@@ -218,7 +218,7 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
                                     <tr
                                         key={row.ticker}
                                         onClick={() => navigate(row.ticker)}
-                                        className="border-b border-[#E5E1D5]/50 cursor-pointer hover:bg-white/[0.025] transition-colors"
+                                        className="border-b border-[#3A3833]/50 cursor-pointer hover:bg-white/[0.025] transition-colors"
                                         style={
                                             isCurrent
                                                 ? {
@@ -233,13 +233,13 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
                                         <td className="px-3 py-2.5">
                                             <span
                                                 className="font-mono text-[12px] font-700"
-                                                style={{ color: isCurrent ? '#A8552F' : '#1F1E1D' }}
+                                                style={{ color: isCurrent ? '#E0906F' : '#F0EEE6' }}
                                             >
                                                 {row.ticker}
                                                 {isCurrent && (
                                                     <span
                                                         className="ml-1.5 text-[9px] font-700 tracking-[0.06em] uppercase"
-                                                        style={{ color: '#C96442' }}
+                                                        style={{ color: '#D97757' }}
                                                     >
                                                         ▶ current
                                                     </span>
@@ -248,7 +248,7 @@ export default function PeerComparison({ currentTicker, sector, peerTickers }: P
                                         </td>
 
                                         {/* Price */}
-                                        <td className="px-3 py-2.5 font-mono text-[11px] text-[#6E6C60]">
+                                        <td className="px-3 py-2.5 font-mono text-[11px] text-[#A6A296]">
                                             {row.lastPrice != null ? `$${row.lastPrice.toFixed(2)}` : '—'}
                                         </td>
 

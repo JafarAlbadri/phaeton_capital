@@ -16,7 +16,7 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                     <Activity className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <InlineExplain topic="ic"><span className="section-title">Alpha Attribution</span></InlineExplain>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#3A3833] to-transparent" />
                 <span className="badge badge-gold">Institutional Signal Quality</span>
             </div>
 
@@ -25,10 +25,10 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                 {/* IC */}
                 <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
                     <div className="section-title mb-0.5">Information Coefficient</div>
-                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ic === null ? 'text-[#6E6C60]' : signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic < 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ic === null ? 'text-[#A6A296]' : signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic < 0 ? 'text-red-400' : 'text-amber-400'}`}>
                         {signalAttribution.ic !== null ? signalAttribution.ic.toFixed(3) : '—'}
                     </div>
-                    <div className="text-[11px] text-[#7C7A6E] mt-1">rank-corr(score, return)</div>
+                    <div className="text-[11px] text-[#9B9789] mt-1">rank-corr(score, return)</div>
                     {signalAttribution.ic !== null && (
                         <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ic > 0.1 ? 'text-emerald-400' : signalAttribution.ic > 0 ? 'text-amber-400' : 'text-red-400'}`}>
                             {signalAttribution.ic > 0.1 ? '✓ Strong predictive power' : signalAttribution.ic > 0 ? '~ Weak signal' : '✗ Negative signal'}
@@ -39,10 +39,10 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                 {/* IR */}
                 <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
                     <div className="section-title mb-0.5">Information Ratio</div>
-                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#6E6C60]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#A6A296]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                         {signalAttribution.ir !== null ? signalAttribution.ir.toFixed(2) : '—'}
                     </div>
-                    <div className="text-[11px] text-[#7C7A6E] mt-1">IC / σ(IC) · rolling 10</div>
+                    <div className="text-[11px] text-[#9B9789] mt-1">IC / σ(IC) · rolling 10</div>
                     {signalAttribution.ir !== null && (
                         <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                             {signalAttribution.ir > 1.5 ? '✓ Institutional grade' : signalAttribution.ir > 0.5 ? '~ Developing edge' : '✗ Inconsistent'}
@@ -53,11 +53,11 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                 {/* T-Stat */}
                 <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
                     <div className="section-title mb-0.5">T-Statistic</div>
-                    <div className={`font-mono text-[28px] font-700 leading-none flex items-baseline gap-1.5 ${signalAttribution.tStat === null ? 'text-[#6E6C60]' : Math.abs(signalAttribution.tStat) > 1.96 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <div className={`font-mono text-[28px] font-700 leading-none flex items-baseline gap-1.5 ${signalAttribution.tStat === null ? 'text-[#A6A296]' : Math.abs(signalAttribution.tStat) > 1.96 ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {signalAttribution.tStat !== null ? Math.abs(signalAttribution.tStat).toFixed(2) : '—'}
                         {signalAttribution.isSignificant && <span className="text-[16px] text-emerald-400">★</span>}
                     </div>
-                    <div className="text-[11px] text-[#7C7A6E] mt-1">
+                    <div className="text-[11px] text-[#9B9789] mt-1">
                         {signalAttribution.pValue !== null ? `p = ${signalAttribution.pValue.toFixed(3)}` : 'insufficient data'}
                     </div>
                     <div className={`text-[10px] font-700 mt-1 ${signalAttribution.isSignificant ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -68,10 +68,10 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                 {/* Causal Lead / Granger */}
                 <div className="card p-5 flex flex-col gap-1 relative overflow-hidden" data-animate-child>
                     <div className="section-title mb-0.5">Causal Signal</div>
-                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.grangerP === null ? 'text-[#6E6C60]' : signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.grangerP === null ? 'text-[#A6A296]' : signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {signalAttribution.grangerP !== null ? (signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)) : '—'}
                     </div>
-                    <div className="text-[11px] text-[#7C7A6E] mt-1">Granger p-value</div>
+                    <div className="text-[11px] text-[#9B9789] mt-1">Granger p-value</div>
                     <div className={`text-[10px] font-700 mt-1 ${signalAttribution.grangerP !== null && signalAttribution.grangerP < 0.05 ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {signalAttribution.grangerP !== null
                             ? signalAttribution.grangerP < 0.05 ? '✓ Sentiment Granger-causes price' : '~ Correlation, not causation'
@@ -86,7 +86,7 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                     <div className="card p-6" data-animate-child>
                         <div className="flex items-center justify-between mb-4">
                             <div className="section-title">Component Signal Breakdown</div>
-                            <span className="text-[10px] font-mono text-[#7C7A6E]">{targetKeyword?.toUpperCase()} · Current Tick</span>
+                            <span className="text-[10px] font-mono text-[#9B9789]">{targetKeyword?.toUpperCase()} · Current Tick</span>
                         </div>
                         <div className="flex flex-col gap-0.5">
                             {[
@@ -103,8 +103,8 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                             })}
                         </div>
                         {signalAttribution.sentimentPriceCorr !== null && (
-                            <div className="mt-4 pt-4 border-t border-[#E5E1D5] flex items-center gap-3">
-                                <div className="text-[11px] text-[#7C7A6E]">Sentiment ↔ Price Correlation</div>
+                            <div className="mt-4 pt-4 border-t border-[#3A3833] flex items-center gap-3">
+                                <div className="text-[11px] text-[#9B9789]">Sentiment ↔ Price Correlation</div>
                                 <div className={`font-mono text-[13px] font-700 ml-auto ${Math.abs(signalAttribution.sentimentPriceCorr) > 0.3 ? 'text-emerald-400' : 'text-amber-400'}`}>
                                     {signalAttribution.sentimentPriceCorr.toFixed(3)}
                                 </div>
@@ -118,18 +118,18 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                     <div className="card p-6" data-animate-child>
                         <div className="flex items-center justify-between mb-4">
                             <div className="section-title">Win Rate by Signal Type</div>
-                            <span className="text-[10px] font-mono text-[#7C7A6E]">{signalAttribution.n} resolved predictions</span>
+                            <span className="text-[10px] font-mono text-[#9B9789]">{signalAttribution.n} resolved predictions</span>
                         </div>
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="border-b border-[#E5E1D5]">
-                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60]">Signal</th>
-                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60] text-center">Calls</th>
-                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60] text-right">Hit Rate</th>
-                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#6E6C60] text-right">Avg Return</th>
+                                <tr className="border-b border-[#3A3833]">
+                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296]">Signal</th>
+                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296] text-center">Calls</th>
+                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296] text-right">Hit Rate</th>
+                                    <th className="pb-2 text-[11px] font-700 tracking-[0.08em] uppercase text-[#A6A296] text-right">Avg Return</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-black/[0.05]">
+                            <tbody className="divide-y divide-white/[0.06]">
                                 {(['STRONG_BUY','BUY','HOLD','SELL','STRONG_SELL'] as const).map(sig => {
                                     const row = signalAttribution.bySignalType.find((r: any) => r.signal === sig);
                                     if (!row) return null;
@@ -144,7 +144,7 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                                                     {sig.replace('_', ' ')}
                                                 </span>
                                             </td>
-                                            <td className="py-2.5 text-center font-mono text-[13px] text-[#6E6C60]">{row.calls}</td>
+                                            <td className="py-2.5 text-center font-mono text-[13px] text-[#A6A296]">{row.calls}</td>
                                             <td className={`py-2.5 text-right font-mono text-[13px] font-700 ${hrColor}`}>
                                                 {row.hitRate !== null ? `${(row.hitRate * 100).toFixed(0)}%` : '—'}
                                             </td>
@@ -168,18 +168,18 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                             <div className="flex items-center gap-2 mb-1">
                                 <Zap className="w-3.5 h-3.5 text-amber-400" />
                                 <div className="section-title">Transfer Entropy</div>
-                                <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.transferEntropy > 0.02 ? 'text-emerald-400' : signalAttribution.transferEntropy > 0.01 ? 'text-amber-400' : 'text-[#6E6C60]'}`}>
+                                <span className={`ml-auto font-mono text-[18px] font-700 ${signalAttribution.transferEntropy > 0.02 ? 'text-emerald-400' : signalAttribution.transferEntropy > 0.01 ? 'text-amber-400' : 'text-[#A6A296]'}`}>
                                     {signalAttribution.transferEntropy.toFixed(4)} bits
                                 </span>
                             </div>
-                            <p className="text-[12px] text-[#7C7A6E] leading-relaxed">
+                            <p className="text-[12px] text-[#9B9789] leading-relaxed">
                                 {signalAttribution.transferEntropy > 0.02
                                     ? 'Sentiment flow carries meaningful directional information about future price movement — signal has causal information content above noise threshold.'
                                     : signalAttribution.transferEntropy > 0.01
                                     ? 'Moderate information transfer detected. Sentiment provides some predictive content, but signal-to-noise ratio is below institutional threshold.'
                                     : 'Low information transfer. Sentiment and price are largely independent — treat with caution.'}
                             </p>
-                            <div className="mt-1 h-1.5 rounded-full bg-[#EFECE1] overflow-hidden">
+                            <div className="mt-1 h-1.5 rounded-full bg-[#33312C] overflow-hidden">
                                 <div className="h-full rounded-full score-bar-fill score-bar-gold" style={{ width: `${Math.min(100, signalAttribution.transferEntropy * 2500)}%` }} />
                             </div>
                         </div>
@@ -193,7 +193,7 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                                     p = {signalAttribution.grangerP < 0.001 ? '<0.001' : signalAttribution.grangerP.toFixed(3)}
                                 </span>
                             </div>
-                            <p className="text-[12px] text-[#7C7A6E] leading-relaxed">
+                            <p className="text-[12px] text-[#9B9789] leading-relaxed">
                                 {signalAttribution.grangerP < 0.05
                                     ? 'Sentiment Granger-causes price with statistical confidence (p < 0.05). Past sentiment scores contain information that predicts future price — beyond what price history alone explains.'
                                     : signalAttribution.grangerP < 0.1

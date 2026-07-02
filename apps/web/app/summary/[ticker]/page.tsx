@@ -23,7 +23,7 @@ export default async function SummaryPage(
     if (!TICKER_RE.test(ticker)) {
         return (
             <main className="min-h-screen flex items-center justify-center">
-                <p className="text-[#6E6C60]">Invalid ticker.</p>
+                <p className="text-[#A6A296]">Invalid ticker.</p>
             </main>
         );
     }
@@ -55,7 +55,7 @@ export default async function SummaryPage(
     if (!recs || recs.length === 0) {
         return (
             <main className="min-h-screen flex items-center justify-center">
-                <p className="text-[#6E6C60]">No signal data for <span className="text-[#A8552F] font-mono">{ticker}</span>.</p>
+                <p className="text-[#A6A296]">No signal data for <span className="text-[#E0906F] font-mono">{ticker}</span>.</p>
             </main>
         );
     }

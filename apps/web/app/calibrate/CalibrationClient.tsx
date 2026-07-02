@@ -20,12 +20,12 @@ interface Post {
 
 function SentimentBar({ value, label }: { value: number; label: string }) {
     const pct = ((value + 1) / 2) * 100;
-    const color = value > 0.1 ? "#4E7D53" : value < -0.1 ? "#C24E42" : "#C96442";
+    const color = value > 0.1 ? "#7FA886" : value < -0.1 ? "#D9776B" : "#D97757";
     return (
         <div className="flex items-center gap-2">
             <span className="text-[10px] text-[#8F8C80] w-10 shrink-0">{label}</span>
-            <div className="flex-1 h-1.5 rounded-full bg-[#EFECE1] relative">
-                <div className="absolute top-0 left-1/2 bottom-0 w-px bg-[#D5CFBE]" />
+            <div className="flex-1 h-1.5 rounded-full bg-[#33312C] relative">
+                <div className="absolute top-0 left-1/2 bottom-0 w-px bg-[#52504A]" />
                 <div className="absolute top-0 bottom-0 rounded-full transition-all"
                      style={{ left: `${Math.min(pct, 50)}%`, right: `${Math.max(0, 100 - Math.max(pct, 50))}%`, background: color }} />
             </div>
@@ -64,12 +64,12 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
     });
 
     return (
-        <div className="min-h-screen bg-[#F0EEE6] text-[#1F1E1D] p-6 max-w-4xl mx-auto">
+        <div className="min-h-screen bg-[#1F1E1D] text-[#F0EEE6] p-6 max-w-4xl mx-auto">
             {/* Header */}
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
-                    <span className="font-display font-800 tracking-[0.15em] text-[#A8552F] text-xl">PHAETON</span>
-                    <span className="text-[10px] tracking-[0.3em] text-[#7C7A6E]">/ AI CALIBRATION</span>
+                    <span className="font-display font-800 tracking-[0.15em] text-[#E0906F] text-xl">PHAETON</span>
+                    <span className="text-[10px] tracking-[0.3em] text-[#9B9789]">/ AI CALIBRATION</span>
                 </div>
                 <p className="text-[13px] text-[#8F8C80] max-w-lg">
                     Review AI-labeled posts and apply human corrections. These labels train the model to be more accurate over time.
@@ -77,7 +77,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
                 <div className="flex items-center gap-4 mt-4">
                     <div className="flex items-center gap-2 text-[12px]">
                         <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                        <span className="text-[#6E6C60]">{totalLabeled + labeledCount - items.filter(p => p.admin_sentiment !== null && posts.find(q => q.id === p.id)?.admin_sentiment !== null).length} labeled total</span>
+                        <span className="text-[#A6A296]">{totalLabeled + labeledCount - items.filter(p => p.admin_sentiment !== null && posts.find(q => q.id === p.id)?.admin_sentiment !== null).length} labeled total</span>
                     </div>
                     <div className="text-[12px] text-[#8F8C80]">{total} posts in DB</div>
                     <div className="text-[12px] text-amber-400 font-mono">{items.filter(p => p.admin_sentiment === null).length} unlabeled in this batch</div>
@@ -88,7 +88,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
             <div className="flex gap-2 mb-5">
                 {(["unlabeled", "labeled", "all"] as const).map(f => (
                     <button key={f} onClick={() => setFilter(f)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-700 border transition-all ${filter === f ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300" : "bg-[#FAF9F5] border-[#E5E1D5] text-[#8F8C80] hover:text-[#6E6C60]"}`}>
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-700 border transition-all ${filter === f ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300" : "bg-[#262624] border-[#3A3833] text-[#8F8C80] hover:text-[#A6A296]"}`}>
                         {f.charAt(0).toUpperCase() + f.slice(1)} ({f === "all" ? items.length : f === "labeled" ? items.filter(p => p.admin_sentiment !== null).length : items.filter(p => p.admin_sentiment === null).length})
                     </button>
                 ))}
@@ -100,7 +100,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
                     const isExpanded = expanded === post.id;
                     const isLabeled = post.admin_sentiment !== null;
                     return (
-                        <div key={post.id} className={`rounded-xl border transition-all ${isLabeled ? "border-emerald-500/20 bg-emerald-500/[0.03]" : "border-[#E5E1D5] bg-[#FAF9F5]"}`}>
+                        <div key={post.id} className={`rounded-xl border transition-all ${isLabeled ? "border-emerald-500/20 bg-emerald-500/[0.03]" : "border-[#3A3833] bg-[#262624]"}`}>
                             {/* Top row */}
                             <div className="flex items-start gap-3 p-4">
                                 <div className="flex-1 min-w-0">
@@ -108,7 +108,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
                                         <span className="font-mono text-[11px] font-700 text-amber-400">{post.ticker}</span>
                                         <span className="text-[10px] text-[#8F8C80]">{post.source}</span>
                                         <span className="text-[10px] text-[#8F8C80]">u/{post.author} · {post.author_karma.toLocaleString()} karma</span>
-                                        <span className="text-[10px] text-[#A5A296]">{new Date(post.post_timestamp).toLocaleDateString()}</span>
+                                        <span className="text-[10px] text-[#7C7970]">{new Date(post.post_timestamp).toLocaleDateString()}</span>
                                         {isLabeled && <span className="text-[10px] text-emerald-400 font-700">✓ Labeled</span>}
                                     </div>
 
@@ -124,7 +124,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
                                     </p>
                                     {post.content.length > 120 && (
                                         <button onClick={() => setExpanded(isExpanded ? null : post.id)}
-                                            className="text-[11px] text-[#8F8C80] hover:text-[#6E6C60] mt-1 flex items-center gap-1">
+                                            className="text-[11px] text-[#8F8C80] hover:text-[#A6A296] mt-1 flex items-center gap-1">
                                             {isExpanded ? <><ChevronUp className="w-3 h-3" /> Less</> : <><ChevronDown className="w-3 h-3" /> More</>}
                                         </button>
                                     )}
@@ -147,7 +147,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
                                                 ? color === "emerald" ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
                                                     : color === "amber" ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
                                                     : "bg-red-500/20 border-red-500/40 text-red-300"
-                                                : "bg-[#FAF9F5] border-[#E5E1D5] text-[#8F8C80] hover:text-[#6E6C60] hover:border-[#D5CFBE]"
+                                                : "bg-[#262624] border-[#3A3833] text-[#8F8C80] hover:text-[#A6A296] hover:border-[#52504A]"
                                         }`}>
                                         {label}
                                     </button>

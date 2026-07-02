@@ -37,7 +37,7 @@ export function BacktestSection({ targetKeyword }: { targetKeyword: string }) {
                     <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
                 </div>
                 <span className="section-title">Signal Backtest</span>
-                <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
+                <div className="flex-1 h-px bg-gradient-to-r from-[#3A3833] to-transparent" />
                 <button onClick={() => {
                     const opening = !btOpen;
                     setBtOpen(opening);
@@ -49,11 +49,11 @@ export function BacktestSection({ targetKeyword }: { targetKeyword: string }) {
             {btOpen && (
                 <div className="card p-5">
                     <div className="flex items-center gap-2 mb-4">
-                        <span className="text-[11px] text-[#7C7A6E]">Horizon:</span>
+                        <span className="text-[11px] text-[#9B9789]">Horizon:</span>
                         {([15, 30, 90] as const).map(h => (
                             <button key={h} onClick={() => { setBtHorizon(h); setBtData(null); }}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-700 transition-all ${
-                                    btHorizon === h ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300' : 'bg-[#FAF9F5] border border-[#E5E1D5] text-[#8F8C80] hover:text-[#6E6C60]'
+                                    btHorizon === h ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300' : 'bg-[#262624] border border-[#3A3833] text-[#8F8C80] hover:text-[#A6A296]'
                                 }`}>{h}D</button>
                         ))}
                         <button onClick={() => { setBtData(null); runBacktest(); }} disabled={btLoading}
@@ -78,7 +78,7 @@ export function BacktestSection({ targetKeyword }: { targetKeyword: string }) {
                                     { label: 'Sharpe',     value: btData.sharpe_ratio?.toFixed(2),             color: btData.sharpe_ratio > 1 ? 'text-emerald-400' : 'text-amber-400' },
                                     { label: 'Max DD',     value: `${btData.max_drawdown_pct?.toFixed(1)}%`,   color: 'text-red-400' },
                                 ].map(s => (
-                                    <div key={s.label} className="bg-[#FAF9F5] rounded-xl border border-[#E5E1D5] p-3 text-center">
+                                    <div key={s.label} className="bg-[#262624] rounded-xl border border-[#3A3833] p-3 text-center">
                                         <div className="text-[10px] uppercase tracking-[0.08em] text-[#8F8C80] mb-1">{s.label}</div>
                                         <div className={`font-mono text-[15px] font-700 ${s.color}`}>{s.value}</div>
                                     </div>
@@ -89,22 +89,22 @@ export function BacktestSection({ targetKeyword }: { targetKeyword: string }) {
                                     <ComposedChart data={btData.equity_curve} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="btGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#C96442" stopOpacity={0.3} />
-                                                <stop offset="100%" stopColor="#C96442" stopOpacity={0} />
+                                                <stop offset="0%" stopColor="#D97757" stopOpacity={0.3} />
+                                                <stop offset="100%" stopColor="#D97757" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
                                         <XAxis dataKey="date" hide />
                                         <YAxis domain={['auto', 'auto']} hide />
                                         <Tooltip content={<CustomTooltip />} />
-                                        <ReferenceLine y={100} stroke="#D5CFBE" strokeDasharray="4 4" />
-                                        <Area type="monotone" dataKey="equity" name="Strategy" stroke="#C96442" fill="url(#btGrad)" strokeWidth={1.5} dot={false} />
-                                        <Line type="monotone" dataKey="spy" name="SPY" stroke="#5F7BA6" strokeWidth={1} strokeDasharray="5 3" dot={false} />
+                                        <ReferenceLine y={100} stroke="#52504A" strokeDasharray="4 4" />
+                                        <Area type="monotone" dataKey="equity" name="Strategy" stroke="#D97757" fill="url(#btGrad)" strokeWidth={1.5} dot={false} />
+                                        <Line type="monotone" dataKey="spy" name="SPY" stroke="#8CA3C7" strokeWidth={1} strokeDasharray="5 3" dot={false} />
                                     </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
                             <div className="flex justify-center gap-6 mt-2">
-                                <span className="flex items-center gap-1.5 text-[11px] text-[#6E6C60]"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Strategy</span>
-                                <span className="flex items-center gap-1.5 text-[11px] text-[#6E6C60]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #5F7BA6'}} /> SPY Benchmark</span>
+                                <span className="flex items-center gap-1.5 text-[11px] text-[#A6A296]"><span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> Strategy</span>
+                                <span className="flex items-center gap-1.5 text-[11px] text-[#A6A296]"><span className="w-3 h-0.5 bg-indigo-400 inline-block rounded" style={{borderTop: '1px dashed #8CA3C7'}} /> SPY Benchmark</span>
                             </div>
                         </>
                     )}

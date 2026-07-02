@@ -385,10 +385,25 @@ def get_stock_data(ticker_symbol):
                     date_val = row.get('Start Date')
                     date_str = date_val.isoformat() if hasattr(date_val, 'isoformat') else str(date_val)
 
+                    # yfinance's 'Transaction' column is empty on most rows
+                    # these days — the classification lives in the free-text
+                    # 'Text' column ("Sale at price 172.50...", "Purchase...").
+                    transaction = str(row.get('Transaction') or '').strip()
+                    if not transaction:
+                        text = str(row.get('Text') or '').lower()
+                        if 'purchase' in text or 'buy' in text:
+                            transaction = 'Purchase'
+                        elif 'sale' in text or 'sell' in text:
+                            transaction = 'Sale'
+                        elif 'gift' in text:
+                            transaction = 'Gift'
+                        elif 'exercise' in text or 'conversion' in text:
+                            transaction = 'Option Exercise'
+
                     insider_list.append({
                         "insider_name": str(row.get('Insider', '')),
                         "position": str(row.get('Position', '')),
-                        "transaction": str(row.get('Transaction', '')),
+                        "transaction": transaction,
                         "shares": safe_float(row.get('Shares')),
                         "value": safe_float(row.get('Value')),
                         "date": date_str

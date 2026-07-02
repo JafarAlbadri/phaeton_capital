@@ -277,14 +277,15 @@ export default function DashboardClient({
 
                 {technicalIndicators && <TechnicalSection technicalIndicators={technicalIndicators} />}
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {/* items-start keeps the shorter column from stretching to match the taller one */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
                     {quantMetrics && <QuantSection quantMetrics={quantMetrics} trendsHistory={trendsHistory} />}
-
-                    {/* key={ticker} resets the panel state when the viewed ticker changes */}
-                    <BacktestSection key={targetKeyword} targetKeyword={targetKeyword} />
-
                     {macroIndicators && <MacroSection macroIndicators={macroIndicators} />}
                 </div>
+
+                {/* Full-width so the collapsed header doesn't leave a tall empty
+                    grid cell; key={ticker} resets panel state on ticker change */}
+                <BacktestSection key={targetKeyword} targetKeyword={targetKeyword} />
 
                 <SentimentCharts
                     recentSentiments={recentSentiments}
@@ -320,7 +321,7 @@ export default function DashboardClient({
                             <Star className="w-3.5 h-3.5 text-amber-400" />
                         </div>
                         <span className="section-title">Watchlist Screener</span>
-                        <div className="flex-1 h-px bg-gradient-to-r from-[#E5E1D5] to-transparent" />
+                        <div className="flex-1 h-px bg-gradient-to-r from-[#3A3833] to-transparent" />
                         <span className="badge badge-gold">Multi-Horizon</span>
                     </div>
                     <ScreenerGrid showAddButton />

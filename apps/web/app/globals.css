@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Page background — warm ivory, Anthropic-style ─────────────── */
+/* ─── Page background — warm charcoal, Anthropic dark ────────────── */
 body {
-  background-color: #F0EEE6;
-  color: #1F1E1D;
+  background-color: #1F1E1D;
+  color: #F0EEE6;
   font-family: var(--font-inter), 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -15,44 +15,44 @@ body {
 
 /* ─── Card system ────────────────────────────────────────────────── */
 .card {
-  background: #FFFFFF;
-  border: 1px solid #E5E1D5;
+  background: #2A2927;
+  border: 1px solid #3A3833;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(31,30,29,0.05), 0 1px 2px rgba(31,30,29,0.03);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15);
   transition: transform 280ms ease, box-shadow 280ms ease, border-color 280ms ease;
 }
 .card:hover {
-  border-color: #D5CFBE;
-  box-shadow: 0 4px 12px rgba(31,30,29,0.07), 0 2px 4px rgba(31,30,29,0.04);
+  border-color: #4A4841;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .card-gold {
-  border-color: rgba(201,100,66,0.25);
+  border-color: rgba(217,119,87,0.3);
 }
 .card-gold:hover {
-  border-color: rgba(201,100,66,0.4);
+  border-color: rgba(217,119,87,0.5);
 }
 
 /* ─── Section headers ────────────────────────────────────────────── */
 .section-title {
   font-size: 12px; font-weight: 600;
   letter-spacing: 0.05em; text-transform: uppercase;
-  color: #8A8875;
+  color: #8F8C80;
 }
 
 /* ─── Score bars ─────────────────────────────────────────────────── */
 .score-bar-track {
   height: 6px; border-radius: 100px;
-  background: #E9E5D9;
+  background: #383632;
   position: relative; overflow: hidden;
 }
 .score-bar-fill {
   height: 100%; border-radius: 100px; position: relative;
   transition: width 0.8s ease;
 }
-.score-bar-bull { background: #4E7D53; }
-.score-bar-bear { background: #C24E42; }
-.score-bar-gold { background: #C96442; }
+.score-bar-bull { background: #7FA886; }
+.score-bar-bear { background: #D9776B; }
+.score-bar-gold { background: #D97757; }
 .score-bar-thick { height: 10px; }
 
 /* ─── Badges ─────────────────────────────────────────────────────── */
@@ -62,18 +62,18 @@ body {
   font-size: 11px; font-weight: 600;
   letter-spacing: 0.02em; text-transform: uppercase;
 }
-.badge-bull  { color: #35593C; background: #E4EDE2; border: 1px solid rgba(78,125,83,0.3); }
-.badge-bear  { color: #8F3329; background: #F4E0DC; border: 1px solid rgba(194,78,66,0.3); }
-.badge-hold  { color: #6E6C60; background: #EFECE1; border: 1px solid #DFDACB; }
-.badge-gold  { color: #FFFFFF; background: #C96442; border: 1px solid #B4552D; }
+.badge-bull  { color: #A9C7AC; background: rgba(127,168,134,0.14); border: 1px solid rgba(127,168,134,0.35); }
+.badge-bear  { color: #E0A197; background: rgba(217,119,107,0.14); border: 1px solid rgba(217,119,107,0.35); }
+.badge-hold  { color: #B3AFA3; background: #33312C; border: 1px solid #43413A; }
+.badge-gold  { color: #FFF7F2; background: #C96442; border: 1px solid #D97757; }
 .badge-dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* ─── Live status dot ────────────────────────────────────────────── */
-.status-live { width: 6px; height: 6px; border-radius: 50%; background: #4E7D53; animation: livePulse 2.5s ease-out infinite; }
+.status-live { width: 6px; height: 6px; border-radius: 50%; background: #7FA886; animation: livePulse 2.5s ease-out infinite; }
 
 /* ─── Gradient text — book-cloth terracotta ─────────────────────── */
 .text-gradient-gold {
-  background: linear-gradient(120deg, #B4552D, #C96442);
+  background: linear-gradient(120deg, #E0906F, #D97757);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -83,7 +83,7 @@ body {
 /* ─── Skeleton / loading ─────────────────────────────────────────── */
 .skeleton {
   border-radius: 6px;
-  background: #E9E5D9;
+  background: #33312C;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -92,17 +92,17 @@ body {
 [data-animate].animate-in { opacity: 1; transform: translateY(0); }
 
 /* ─── Table ──────────────────────────────────────────────────────── */
-.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #EDE9DD; }
-.data-table tr:hover { background: #FAF8F2; }
-.data-table tr:hover td:first-child { border-left: 2px solid #C96442; }
+.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #33322E; }
+.data-table tr:hover { background: #2E2D2A; }
+.data-table tr:hover td:first-child { border-left: 2px solid #D97757; }
 
 /* Custom Recharts Tooltip */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #FFFFFF !important;
-  border: 1px solid #DFDACB !important;
+  background: #2A2927 !important;
+  border: 1px solid #43413A !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(31,30,29,0.08) !important;
-  color: #1F1E1D !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35) !important;
+  color: #F0EEE6 !important;
 }
 
 /* Typography styles */
