@@ -15,6 +15,26 @@ function pearsonCorrelation(xs: number[], ys: number[]): number {
     return den === 0 ? 0 : num / den;
 }
 
+/** Midranks (ties share the average rank) for Spearman. */
+function ranks(xs: number[]): number[] {
+    const idx = xs.map((v, i) => [v, i] as const).sort((a, b) => a[0] - b[0]);
+    const out = new Array<number>(xs.length);
+    let i = 0;
+    while (i < idx.length) {
+        let j = i;
+        while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
+        const avgRank = (i + j) / 2 + 1;
+        for (let k = i; k <= j; k++) out[idx[k][1]] = avgRank;
+        i = j + 1;
+    }
+    return out;
+}
+
+/** Spearman rank correlation — the IC in its institutional definition. */
+function spearmanCorrelation(xs: number[], ys: number[]): number {
+    return pearsonCorrelation(ranks(xs), ranks(ys));
+}
+
 function icTStat(ic: number, n: number): number {
     if (n < 3 || Math.abs(ic) >= 1) return 0;
     return ic * Math.sqrt(n - 2) / Math.sqrt(1 - ic ** 2);
@@ -48,10 +68,9 @@ export default async function Page(
         where: { ticker: targetKeyword }
     });
 
-    const basePrice = fundamentalData?.current_price || 100;
-    let currentSimPrice = basePrice * 0.95; // Start slightly lower
-
-    // Prepare data for line chart (reverse for chronological order)
+    // Prepare data for line chart (reverse for chronological order).
+    // NOTE: this chart plots sentiment only — an earlier version overlaid a
+    // "price" line that was a random-walk simulation, not real prices.
     recentData.reverse(); // mutates to ascending chronological order
     const firstTs = recentData[0]?.post_timestamp;
     const lastTs = recentData[recentData.length - 1]?.post_timestamp;
@@ -62,14 +81,12 @@ export default async function Page(
     const timeFmt = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     const chartData = recentData.map((item: any) => {
-        currentSimPrice += (item.sentiment * basePrice * 0.001) + ((Math.random() - 0.5) * basePrice * 0.002);
         const dateStr = dateFmt.format(item.post_timestamp);
         const timeLabel = spansMultipleDays ? dateStr : `${dateStr} ${timeFmt.format(item.post_timestamp)}`;
         return {
             timeLabel,
             sentiment: item.sentiment,
             ticker: item.ticker,
-            price: currentSimPrice
         };
     });
 
@@ -270,48 +287,65 @@ export default async function Page(
         },
     });
 
-    // Compute audit stats
+    // Compute audit stats — P&L-style, direction-adjusted: a SELL that fell
+    // 5% is a +5% trade, not a −5% one. HOLD has no position and is excluded
+    // from return stats (it still counts toward hit rate).
     let auditHitRate: number | null = null;
     let auditAvgReturn: number | null = null;
     let auditMaxDrawdown: number | null = null;
     let auditSharpe: number | null = null;
     const resolvedPredictions = predictionHistory.filter(p => p.outcome === 'CORRECT' || p.outcome === 'INCORRECT');
     if (resolvedPredictions.length > 0) {
-        const returns = resolvedPredictions
-            .filter(p => p.price_at_signal && p.price_at_resolution)
-            .map(p => (p.price_at_resolution! - p.price_at_signal) / p.price_at_signal);
+        const directionalReturns = resolvedPredictions
+            .filter(p => p.price_at_signal && p.price_at_resolution && p.signal !== 'HOLD')
+            .map(p => {
+                const raw = (p.price_at_resolution! - p.price_at_signal) / p.price_at_signal;
+                const isShort = p.signal === 'SELL' || p.signal === 'STRONG_SELL';
+                return isShort ? -raw : raw;
+            });
         const correct = resolvedPredictions.filter(p => p.outcome === 'CORRECT').length;
         auditHitRate = correct / resolvedPredictions.length;
-        if (returns.length > 0) {
-            auditAvgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-            auditMaxDrawdown = Math.min(...returns);
+        if (directionalReturns.length > 0) {
+            auditAvgReturn = directionalReturns.reduce((a, b) => a + b, 0) / directionalReturns.length;
+            auditMaxDrawdown = Math.min(...directionalReturns);
             const mean_ = auditAvgReturn;
-            const variance_ = returns.reduce((a, r) => a + Math.pow(r - mean_, 2), 0) / returns.length;
+            const variance_ = directionalReturns.reduce((a, r) => a + Math.pow(r - mean_, 2), 0) / directionalReturns.length;
             const std_ = Math.sqrt(variance_);
             auditSharpe = std_ > 0 ? mean_ / std_ : null;
         }
     }
 
     // ── Signal Attribution (IC / IR / T-Stat) ──────────────────────────────
-    const icPairs = resolvedPredictions
+    // Computed on 15d-horizon records only: mixing horizons correlates the
+    // score against returns measured over different periods. Chronological
+    // order and a wider window than the 25-row audit table.
+    const resolvedForStats = await prisma.predictionRecord.findMany({
+        where: { ticker: targetKeyword, horizon: 15, outcome: { in: ['CORRECT', 'INCORRECT'] } },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+        select: { composite_score: true, price_at_signal: true, price_at_resolution: true },
+    });
+    const icPairs = resolvedForStats
         .filter(p => p.price_at_signal && p.price_at_resolution && p.composite_score != null)
         .map(p => ({
             score: p.composite_score as number,
             ret: (p.price_at_resolution! - p.price_at_signal) / p.price_at_signal,
         }));
 
+    // IC = Spearman rank correlation, matching the "rank-corr" the UI claims
     const ic = icPairs.length >= 5
-        ? pearsonCorrelation(icPairs.map(p => p.score), icPairs.map(p => p.ret))
+        ? spearmanCorrelation(icPairs.map(p => p.score), icPairs.map(p => p.ret))
         : null;
 
-    // Rolling IC series (window = 10) for IR
+    // IR from NON-overlapping IC batches — overlapping windows autocorrelate
+    // the IC series and understate its dispersion, inflating IR.
     let ir: number | null = null;
-    if (icPairs.length >= 10) {
-        const windowSize = 10;
+    const IC_BATCH = 5;
+    if (icPairs.length >= IC_BATCH * 3) {
         const icSeries: number[] = [];
-        for (let i = windowSize; i <= icPairs.length; i++) {
-            const window = icPairs.slice(i - windowSize, i);
-            icSeries.push(pearsonCorrelation(window.map(p => p.score), window.map(p => p.ret)));
+        for (let i = 0; i + IC_BATCH <= icPairs.length; i += IC_BATCH) {
+            const batch = icPairs.slice(i, i + IC_BATCH);
+            icSeries.push(spearmanCorrelation(batch.map(p => p.score), batch.map(p => p.ret)));
         }
         const icMean = icSeries.reduce((a, b) => a + b, 0) / icSeries.length;
         const icStd = Math.sqrt(icSeries.reduce((s, v) => s + (v - icMean) ** 2, 0) / icSeries.length);
@@ -320,7 +354,9 @@ export default async function Page(
 
     const tStat = ic !== null ? icTStat(ic, icPairs.length) : null;
     const icPValue = tStat !== null ? Math.exp(-0.717 * Math.abs(tStat) - 0.416 * tStat ** 2) : null;
-    const icIsSignificant = icPValue !== null && icPValue < 0.05;
+    // The p-value uses a normal approximation, which overclaims at small n —
+    // don't badge significance on thin samples.
+    const icIsSignificant = icPValue !== null && icPValue < 0.05 && icPairs.length >= 10;
 
     // Win rate by signal type
     const signalGroups: Record<string, { calls: number; correct: number; returns: number[] }> = {};

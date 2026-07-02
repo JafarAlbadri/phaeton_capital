@@ -133,12 +133,17 @@ def process_quant(payload):
                 pass
 
         # --- Hurst Exponent (DFA) ---
+        # DFA operates on the PROFILE (cumulative sum) of a stationary series,
+        # i.e. returns. Feeding prices (already integrated returns) and
+        # integrating again shifts the exponent by +1 — live values sat at
+        # 1.4-1.7, an impossible range for H, and the "trending" bonus fired
+        # for every ticker. True H lives in (0, 1) with 0.5 = random walk.
         hurst_exponent = None
         if len(hist) > 100:
             try:
-                close_prices = hist['Close'].values
-                # 1. Calculate profile
-                y = np.cumsum(close_prices - np.mean(close_prices))
+                ret_series = hist['return'].values
+                # 1. Calculate profile of returns
+                y = np.cumsum(ret_series - np.mean(ret_series))
                 # 2. Define scale/lags
                 min_scale = 10
                 max_scale = len(y) // 4
@@ -322,7 +327,9 @@ def process_quant(payload):
                 s = stock_aligned[common_dates].values[-20:]
                 m = spy_returns[common_dates].values[-20:]
                 cov = np.cov(s, m)[0, 1]
-                var_m = np.var(m)
+                # np.cov uses ddof=1 — the variance must match or beta is
+                # inflated by n/(n-1) (~5% at n=20)
+                var_m = np.var(m, ddof=1)
                 if var_m > 0:
                     rolling_beta = float(cov / var_m)
         except Exception:

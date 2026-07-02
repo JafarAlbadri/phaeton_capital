@@ -312,11 +312,14 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
             except Exception:
                 return 1
 
-        # Hurst exponent (rolling)
+        # Hurst exponent (rolling) — DFA on the profile of RETURNS, not prices
+        # (prices are already integrated; integrating again shifts H by +1)
         def rolling_hurst(prices, window=100):
-            if len(prices) < window:
+            if len(prices) < window + 1:
                 return 0.5
-            y = np.cumsum(prices[-window:] - np.mean(prices[-window:]))
+            window_prices = prices[-(window + 1):]
+            rets = np.diff(window_prices) / window_prices[:-1]
+            y = np.cumsum(rets - np.mean(rets))
             scales = np.unique(np.floor(np.logspace(np.log10(10), np.log10(window//4), 10)).astype(int))
             if len(scales) < 3:
                 return 0.5
@@ -813,18 +816,24 @@ async def squeeze_endpoint(ticker: str):
         stock = yf.Ticker(ticker.upper())
         info = stock.info
 
-        short_float = info.get("shortPercentOfFloat") or info.get("shortRatio")
+        short_float = info.get("shortPercentOfFloat")
         short_ratio = info.get("shortRatio")  # days to cover
         float_shares = info.get("floatShares")
         shares_short = info.get("sharesShort")
         avg_volume = info.get("averageVolume")
 
+        # Derive short float from shares if yfinance doesn't provide the
+        # ratio directly. (The old fallback used shortRatio — days-to-cover —
+        # as if it were a float percentage, which is a different unit.)
+        if short_float is None and shares_short and float_shares:
+            short_float = shares_short / float_shares
+
         if short_float is None and shares_short is None:
             return {"error": "No short interest data available", "ticker": ticker.upper()}
 
-        # Normalise short float to 0-1 if given as decimal (e.g. 0.05 = 5%)
+        # Normalise short float to 0-1 if given as percentage (e.g. 5 = 5%)
         sf = float(short_float) if short_float is not None else 0.0
-        if sf > 1: sf = sf / 100  # Already a percentage
+        if sf > 1: sf = sf / 100
 
         # Days-to-cover: shares_short / avg_daily_volume
         dtc = float(short_ratio) if short_ratio is not None else None

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Globe } from 'lucide-react';
 import {
-    Area, AreaChart, CartesianGrid, ComposedChart, Line, ReferenceArea,
+    Area, AreaChart, CartesianGrid, ComposedChart, ReferenceArea,
     ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { CustomTooltip } from './CustomTooltip';
@@ -72,15 +72,15 @@ export function SentimentCharts({ recentSentiments, gaussianData, quantMetrics, 
                                 </defs>
                                 <CartesianGrid strokeDasharray="1 8" stroke="#43413A" vertical={false} />
                                 <XAxis dataKey="timeLabel" axisLine={false} tickLine={false} tick={{ fill: '#8F8C80', fontSize: 11 }} tickMargin={8} />
-                                <YAxis yAxisId="left" dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#8F8C80', fontSize: 11 }} width={35} domain={[-1,1]} />
-                                <YAxis yAxisId="right" dataKey="price" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#8CA3C7', fontSize: 11 }} domain={['auto', 'auto']} tickFormatter={(v) => `$${v.toFixed(0)}`} />
+                                {/* Sentiment only — the old "price" overlay was a random-walk
+                                    simulation, not real prices, and was removed for honesty */}
+                                <YAxis dataKey="sentiment" axisLine={false} tickLine={false} tick={{ fill: '#8F8C80', fontSize: 11 }} width={35} domain={[-1,1]} />
                                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#D97757', strokeWidth: 1, strokeOpacity: 0.3 }} />
-                                <ReferenceArea yAxisId="left" y1={0.6} y2={1.0} fill="#7FA886" fillOpacity={0.04} />
-                                <ReferenceArea yAxisId="left" y1={-1.0} y2={-0.6} fill="#D9776B" fillOpacity={0.04} />
-                                <ReferenceLine yAxisId="left" y={0.6} stroke="#7FA886" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopLeft', style: { fill: '#7FA886', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                <ReferenceLine yAxisId="left" y={-0.6} stroke="#D9776B" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomLeft', style: { fill: '#D9776B', fontSize: 10, letterSpacing: '0.08em' } }} />
-                                <Area yAxisId="left" type="monotone" dataKey="sentiment" stroke="#D97757" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#D97757', stroke: '#1F1E1D', strokeWidth: 2 }} isAnimationActive={true} />
-                                <Line yAxisId="right" type="monotone" dataKey="price" stroke="#8CA3C7" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#8CA3C7', stroke: '#1F1E1D', strokeWidth: 2 }} isAnimationActive={true} />
+                                <ReferenceArea y1={0.6} y2={1.0} fill="#7FA886" fillOpacity={0.04} />
+                                <ReferenceArea y1={-1.0} y2={-0.6} fill="#D9776B" fillOpacity={0.04} />
+                                <ReferenceLine y={0.6} stroke="#7FA886" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BULLISH', position: 'insideTopLeft', style: { fill: '#7FA886', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                <ReferenceLine y={-0.6} stroke="#D9776B" strokeOpacity={0.5} strokeDasharray="4 4" label={{ value: 'BEARISH', position: 'insideBottomLeft', style: { fill: '#D9776B', fontSize: 10, letterSpacing: '0.08em' } }} />
+                                <Area type="monotone" dataKey="sentiment" stroke="#D97757" strokeWidth={2.5} fill="url(#sentGrad)" dot={false} activeDot={{ r: 5, fill: '#D97757', stroke: '#1F1E1D', strokeWidth: 2 }} isAnimationActive={true} />
                             </ComposedChart>
                         </ResponsiveContainer>
                     </div>

@@ -42,7 +42,7 @@ export function AlphaAttributionSection({ signalAttribution, recommendationScore
                     <div className={`font-mono text-[28px] font-700 leading-none ${signalAttribution.ir === null ? 'text-[#A6A296]' : signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                         {signalAttribution.ir !== null ? signalAttribution.ir.toFixed(2) : '—'}
                     </div>
-                    <div className="text-[11px] text-[#9B9789] mt-1">IC / σ(IC) · rolling 10</div>
+                    <div className="text-[11px] text-[#9B9789] mt-1">IC / σ(IC) · 5-trade batches</div>
                     {signalAttribution.ir !== null && (
                         <div className={`text-[10px] font-700 mt-1 ${signalAttribution.ir > 1.5 ? 'text-emerald-400' : signalAttribution.ir > 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                             {signalAttribution.ir > 1.5 ? '✓ Institutional grade' : signalAttribution.ir > 0.5 ? '~ Developing edge' : '✗ Inconsistent'}
