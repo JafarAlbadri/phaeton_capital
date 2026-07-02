@@ -25,6 +25,7 @@ import { InsiderSection } from '../components/dashboard/InsiderSection';
 import { AnalysisSection } from '../components/dashboard/AnalysisSection';
 import { PredictionAuditSection } from '../components/dashboard/PredictionAuditSection';
 import { AlphaAttributionSection } from '../components/dashboard/AlphaAttributionSection';
+import { BottomLineSection } from '../components/dashboard/BottomLineSection';
 
 export default function DashboardClient({
     recentSentiments, manipulationStats, targetKeyword,
@@ -336,6 +337,23 @@ export default function DashboardClient({
                         signalAttribution={signalAttribution}
                         recommendationScore={recommendationScore}
                         targetKeyword={targetKeyword}
+                    />
+                )}
+
+                {/* The closing synthesis — everything above, weighed into one verdict */}
+                {recommendationScore && (
+                    <BottomLineSection
+                        targetKeyword={targetKeyword}
+                        sig={sig}
+                        recommendationScore={recommendationScore}
+                        recommendationScores={recommendationScores}
+                        auditStats={auditStats}
+                        riskProfile={riskProfile}
+                        technicalIndicators={technicalIndicators}
+                        fundamentalData={fundamentalData}
+                        quantMetrics={quantMetrics}
+                        macroIndicators={macroIndicators}
+                        insiderStats={insiderStats}
                     />
                 )}
 

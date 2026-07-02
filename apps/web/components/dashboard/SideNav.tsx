@@ -2,7 +2,7 @@
 
 import {
     Activity, Award, BarChart2, Bot, Briefcase, Calendar, DollarSign,
-    Globe, LayoutGrid, Radio, Shield, TrendingUp, Zap,
+    Globe, LayoutGrid, Radio, Scale, Shield, TrendingUp, Zap,
 } from 'lucide-react';
 
 const SIDEBAR_ITEMS = [
@@ -18,6 +18,7 @@ const SIDEBAR_ITEMS = [
     { icon: Calendar, label: 'Predictions', id: '#predictions' },
     { icon: Activity, label: 'Alpha Attribution', id: '#alpha' },
     { icon: Zap, label: 'Squeeze', id: '#squeeze' },
+    { icon: Scale, label: 'Bottom Line', id: '#bottomline' },
 ];
 
 const MOBILE_ITEMS = [
