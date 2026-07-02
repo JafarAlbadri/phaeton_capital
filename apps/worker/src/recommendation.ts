@@ -233,7 +233,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             let qScore = 50;
             if (quant.hmm_state === 2) qScore += 15;
             else if (quant.hmm_state === 0) qScore -= 15;
-            if (quant.kelly_fraction != null) qScore += Math.min(quant.kelly_fraction * 25, 15);
+            if (quant.kelly_fraction != null) qScore += clamp(quant.kelly_fraction * 25, -15, 15);
             if (quant.monte_carlo_mean != null && fundamental?.current_price) {
                 const mcUp = (quant.monte_carlo_mean - fundamental.current_price) / fundamental.current_price;
                 qScore += clamp(mcUp * 50, -15, 15);
@@ -292,7 +292,8 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
 
         const signal = signalFromScore(composite);
         // High risk reduces confidence instead of killing the signal entirely
-        const riskRating = riskProfile?.overall_risk_rating ?? 1;
+        // Missing risk data is UNKNOWN, not safe — default to mid-scale
+        const riskRating = riskProfile?.overall_risk_rating ?? 3;
         const riskOverride = riskRating === 5 && (signal === 'STRONG_BUY' || signal === 'STRONG_SELL');
         const finalSignal = riskOverride
             ? (signal === 'STRONG_BUY' ? 'BUY' : 'SELL')  // Downgrade one notch, don't kill

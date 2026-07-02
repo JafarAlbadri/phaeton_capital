@@ -49,7 +49,7 @@ export async function executeQuantModels(ticker: string): Promise<QuantMetricsDa
         const recentData = await prisma.sentiment.findMany({
             where: {
                 is_manipulation: false,
-                ticker: { equals: ticker, mode: 'insensitive' }
+                ticker: ticker
             },
             orderBy: { post_timestamp: 'desc' },
             take: 500

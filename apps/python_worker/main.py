@@ -7,19 +7,22 @@ app = FastAPI(title="Phaeton Capital Python Worker")
 
 @app.post("/quant")
 async def quant_endpoint(request: Request):
+    import asyncio
     payload = await request.json()
-    result = advanced_math.process_quant(payload)
+    # process_quant is CPU/network-heavy — keep it off the event loop
+    result = await asyncio.to_thread(advanced_math.process_quant, payload)
     return result
 
 @app.get("/fundamentals/{ticker}")
-async def fundamentals_endpoint(ticker: str):
+def fundamentals_endpoint(ticker: str):
     result = yfinance_fetcher.get_stock_data(ticker)
     return result
 
 @app.post("/macro")
 async def macro_endpoint(request: Request):
+    import asyncio
     payload = await request.json()
-    result = macro_fetcher.process_macro(payload)
+    result = await asyncio.to_thread(macro_fetcher.process_macro, payload)
     return result
 
 @app.get("/health")
@@ -27,7 +30,7 @@ def health_endpoint():
     return {"status": "ok"}
 
 @app.get("/options/{ticker}")
-async def options_endpoint(ticker: str):
+def options_endpoint(ticker: str):
     try:
         import yfinance as yf
         import numpy as np
@@ -101,7 +104,7 @@ async def options_endpoint(ticker: str):
 # ── Epic 1: Backtesting ────────────────────────────────────────────────────────
 
 @app.get("/backtest/{ticker}")
-async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
+def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
                             start: str = "", end: str = ""):
     """Walk-forward backtest using RSI + MACD + SMA signals. Returns equity curve vs SPY."""
     try:
@@ -228,7 +231,7 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
 # ── Composite Backtest ────────────────────────────────────────────────────────
 
 @app.get("/composite-backtest/{ticker}")
-async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int = 3):
+def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int = 3):
     """
     Walk-forward backtest of the composite scoring logic, mirroring
     recommendation.ts with identical weights and signal thresholds.
@@ -298,7 +301,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
                 return 1
             window = ret_vals[max(0, end - 252):end]
             try:
-                model = hmmlib.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
+                model = hmmlib.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100, random_state=42)
                 model.fit(window)
                 means = model.means_.flatten()
                 bull_idx = int(np.argmax(means))
@@ -415,7 +418,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
                 var = float(np.var(ret_window))
                 if var > 0:
                     kelly = max(-1, min(1, (mu / var) * 0.25))
-                    quant += min(kelly * 25, 15)
+                    quant += max(-15.0, min(kelly * 25, 15.0))
 
             quant = max(0, min(100, quant))
 
@@ -529,7 +532,7 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
 # ── Epic 5: Contrarian Signal ──────────────────────────────────────────────────
 
 @app.get("/contrarian/{ticker}")
-async def contrarian_endpoint(ticker: str):
+def contrarian_endpoint(ticker: str):
     """Detect RSI + sentiment divergence contrarian setups."""
     try:
         import yfinance as yf
@@ -599,7 +602,7 @@ async def contrarian_endpoint(ticker: str):
 # ── Epic 7: Earnings History ───────────────────────────────────────────────────
 
 @app.get("/earnings-history/{ticker}")
-async def earnings_history_endpoint(ticker: str):
+def earnings_history_endpoint(ticker: str):
     """Fetch last 8 earnings dates with EPS drift and price reaction stats."""
     try:
         import yfinance as yf
@@ -729,8 +732,9 @@ async def trends_endpoint(ticker: str):
         weekly_data = [{"week": dates[i], "interest": values[i]} for i in range(len(values))]
 
         arr = np.array(values, dtype=float)
-        mean_12w = float(np.mean(arr[-12:]) if len(arr) >= 12 else np.mean(arr))
-        std_12w  = float(np.std(arr[-12:])  if len(arr) >= 12 else np.std(arr))
+        baseline = arr[-13:-1] if len(arr) >= 13 else arr[:-1] if len(arr) > 1 else arr
+        mean_12w = float(np.mean(baseline))
+        std_12w  = float(np.std(baseline))
         last_val = float(arr[-1]) if len(arr) > 0 else mean_12w
 
         z = (last_val - mean_12w) / max(std_12w, 1.0)
@@ -746,7 +750,7 @@ async def trends_endpoint(ticker: str):
 # ── V2: ADR Cross-Listing Gap ──────────────────────────────────────────────────
 
 @app.get("/crosslist/{ticker}")
-async def crosslist_endpoint(ticker: str):
+def crosslist_endpoint(ticker: str):
     """ADR / cross-listing gap monitor."""
     try:
         import yfinance as yf
@@ -781,7 +785,7 @@ async def crosslist_endpoint(ticker: str):
 # ── Ticker Search ──────────────────────────────────────────────────────────────
 
 @app.get("/search")
-async def search_endpoint(q: str = ""):
+def search_endpoint(q: str = ""):
     """Ticker search: company name or partial ticker → ranked equity results."""
     if not q or len(q.strip()) < 1:
         return []
@@ -807,7 +811,7 @@ async def search_endpoint(q: str = ""):
         return []
 
 @app.get("/squeeze/{ticker}")
-async def squeeze_endpoint(ticker: str):
+def squeeze_endpoint(ticker: str):
     """Short squeeze pressure indicator combining short interest, days-to-cover, and float."""
     try:
         import yfinance as yf
@@ -972,7 +976,11 @@ async def optimize_weights_endpoint(request: Request):
         # giving it weight via abs() would reward it for pointing the wrong
         # way. Clip negatives to zero; if nothing is positively predictive,
         # keep the base weights.
-        pos_coefs = np.clip(coefs, 0, None)
+        # Standardized coefficients are per-SD effects; convert to per-raw-point
+        # (divide by feature scale) before turning them into score weights,
+        # otherwise low-variance components get systematically over-weighted.
+        per_point = coefs / scaler.scale_[:6]
+        pos_coefs = np.clip(per_point, 0, None)
         if pos_coefs.sum() <= 0:
             return {
                 "error": "no_positively_predictive_components",
@@ -983,7 +991,8 @@ async def optimize_weights_endpoint(request: Request):
             }
 
         # Blend: 70% ML-derived, 30% prior base weights (regularisation toward base)
-        blended = 0.7 * (pos_coefs / pos_coefs.sum()) + 0.3 * base_arr
+        # Conservative blend until the target/CV redesign (see roadmap Tier 2)
+        blended = 0.3 * (pos_coefs / pos_coefs.sum()) + 0.7 * base_arr
         blended = blended / blended.sum()
 
         weights = {k.replace("_score", ""): round(float(w), 4) for k, w in zip(FEATURE_KEYS, blended)}

@@ -102,7 +102,9 @@ export async function scrapeReddit(keyword: string, limit = 100): Promise<Scrape
 
         return children.map((child: any) => {
             const data = child.data;
-            const authorData = authorCache[data.author] || { karma: 500, ageDays: 100 };
+            // Unverified authors (beyond the profile-lookup budget) must not get
+            // full trust — karma 100 maps to the 0.3 trust floor, not 1.0.
+            const authorData = authorCache[data.author] || { karma: 100, ageDays: 100 };
             return {
                 id: data.id,
                 source: 'reddit',

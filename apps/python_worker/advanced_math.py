@@ -107,7 +107,7 @@ def process_quant(payload):
         if len(returns) > 500:
             try:
                 # Use 3 states to represent Bear, Range, Bull
-                model = hmm.GaussianHMM(n_components=3, covariance_type="diag", n_iter=200)
+                model = hmm.GaussianHMM(n_components=3, covariance_type="diag", n_iter=200, random_state=42)
                 # Expanding window conceptually for the live prediction:
                 # We fit on data up to T-1, predict for T to avoid fitting on the event we classify.
                 train_returns = returns[:-1]
@@ -228,6 +228,7 @@ def process_quant(payload):
 
         if len(returns) > 5:
             try:
+                np.random.seed(42)  # deterministic MC — unseeded runs jittered qScore
                 S0 = hist['Close'].values[-1]
                 mu = np.mean(returns)
                 # Use GARCH vol if available, else historical

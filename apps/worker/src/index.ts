@@ -221,8 +221,9 @@ async function syncFundamentals(currentKeyword: string) {
 
 async function processPosts(keywordOverride?: string, opts?: { skipFundamentals?: boolean }) {
     if (isScraping) {
-        logWrapper.info('Scrape already in progress.');
-        return;
+        // Throw so BullMQ retries with backoff — returning here reported
+        // SUCCESS and silently dropped the job forever if a previous run hung.
+        throw new Error('Scrape already in progress — retry later.');
     }
     isScraping = true;
     try {
@@ -322,7 +323,7 @@ async function processPosts(keywordOverride?: string, opts?: { skipFundamentals?
         if (dupes > 0) logWrapper.info(`Skipped ${dupes} duplicate posts.`);
     } catch (dbErr) {
         logWrapper.error('Database connection might not be ready.', dbErr);
-        return;
+        throw dbErr; // infra failure must fail the job, not complete it silently
     }
 
     if (newPosts.length === 0) {
@@ -444,7 +445,7 @@ async function processPosts(keywordOverride?: string, opts?: { skipFundamentals?
     // Epic 5: Fetch contrarian signal from Python worker and save
     try {
         const PYTHON = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
-        const cRes = await fetch(`${PYTHON}/contrarian/${currentKeyword}`);
+        const cRes = await fetch(`${PYTHON}/contrarian/${currentKeyword}`, { signal: AbortSignal.timeout(15_000) });
         if (cRes.ok) {
             const contrarian: any = await cRes.json();
             if (!contrarian.error) {
@@ -704,6 +705,8 @@ async function start() {
     // Startup run
     scrapeQueue.add('process', { keyword: targetKeyword }, {
         jobId: `startup_${targetKeyword}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: true,
         removeOnFail: 1000,
     }).catch(logWrapper.error);
@@ -712,7 +715,7 @@ async function start() {
     scrapeQueue.upsertJobScheduler(
         `recurring_${targetKeyword}`,
         { pattern: '*/15 * * * *' },
-        { name: 'process', data: { keyword: targetKeyword }, opts: { removeOnComplete: true, removeOnFail: 1000 } },
+        { name: 'process', data: { keyword: targetKeyword }, opts: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: 1000 } },
     ).catch(logWrapper.error);
 
     // Universe sweep — every 6 hours, picks tickers stale > 6h, max 30 per sweep.

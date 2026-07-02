@@ -180,8 +180,10 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
     // ── Risk analysis text ─────────────────────────────────
     let riskText = '';
     if (riskProfile) {
-        const sharpe  = riskProfile.sharpe_ratio;
-        const var_    = riskProfile.value_at_risk;
+        // Sharpe lives on QuantMetrics; RiskProfile's field is var_95 —
+        // the old field names didn't exist, so these sentences never rendered.
+        const sharpe  = quantMetrics?.sharpe_ratio;
+        const var_    = riskProfile.var_95;
         const dd      = riskProfile.max_drawdown;
         const liq     = riskProfile.liquidity_score;
 
@@ -191,13 +193,13 @@ export function AnalysisSection({ recommendationScore, fundamentalData, technica
             : `Sharpe ratio of ${sharpe.toFixed(2)} is low — returns do not justify the volatility.`
             : '';
         const varText   = var_ != null
-            ? `Value-at-Risk (95%) is ${(var_*100).toFixed(1)}% daily loss level.`
+            ? `Value-at-Risk (95%, 15-day) is ${(var_*100).toFixed(1)}%.`
             : '';
         const ddText    = dd != null
             ? `Maximum drawdown is ${(Math.abs(dd)*100).toFixed(1)}%, which ${Math.abs(dd) > 0.3 ? 'is significant and should be considered in position sizing' : 'is within acceptable levels'}.`
             : '';
         const liqText   = liq != null
-            ? `Liquidity score is ${liq.toFixed(2)} — ${liq > 0.7 ? 'high liquidity facilitates easy entry and exit' : liq > 0.4 ? 'liquidity is sufficient' : 'low liquidity may result in slippage on larger positions'}.`
+            ? `Daily turnover is ${(liq*100).toFixed(2)}% of market cap — ${liq > 0.01 ? 'high daily turnover facilitates easy entry and exit' : liq > 0.003 ? 'turnover is sufficient' : 'low turnover may cause slippage on larger positions'}.`
             : '';
         riskText = [sharpeText, varText, ddText, liqText].filter(Boolean).join(' ');
     }

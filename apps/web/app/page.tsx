@@ -52,13 +52,16 @@ export default async function Page(
     const searchParams = await props.searchParams;
     // Get target keyword from URL query param `?q=` or fallback to env/default
     const queryParam = searchParams?.q;
-    const targetKeyword = (typeof queryParam === 'string' ? queryParam : null) || process.env.TARGET_KEYWORD || 'wallstreetbets';
+    const rawKeyword = (typeof queryParam === 'string' ? queryParam : null) || process.env.TARGET_KEYWORD || 'wallstreetbets';
+    // Same normalization as the write side (worker uppercases short symbols),
+    // so exact-match queries hit the ticker indexes.
+    const targetKeyword = rawKeyword.trim().length <= 5 ? rawKeyword.trim().toUpperCase() : rawKeyword.trim();
 
     // 1. Fetch recent sentiment entries for the SPECIFIC target keyword
     const recentData = await prisma.sentiment.findMany({
         where: {
             is_manipulation: false,
-            ticker: { equals: targetKeyword, mode: 'insensitive' }
+            ticker: targetKeyword
         },
         orderBy: { post_timestamp: 'desc' },
         take: 250
@@ -170,7 +173,7 @@ export default async function Page(
     }
 
     // 2. Stats for Slop/Bots (filtered for this keyword)
-    const baseWhere = { ticker: { equals: targetKeyword, mode: 'insensitive' as const } };
+    const baseWhere = { ticker: targetKeyword };
     const totalCount = await prisma.sentiment.count({ where: baseWhere });
     const manipulatedCount = await prisma.sentiment.count({ where: { ...baseWhere, is_manipulation: true } });
     const organicCount = totalCount - manipulatedCount;

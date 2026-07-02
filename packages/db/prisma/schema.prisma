@@ -243,6 +243,7 @@ model PredictionRecord {
 
   @@index([ticker])
   @@index([outcome])
+  @@index([ticker, horizon, createdAt(sort: Desc)])
 }
 
 model TrendsHistory {
