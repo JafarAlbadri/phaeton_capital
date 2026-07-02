@@ -3,53 +3,54 @@ import type { Config } from "tailwindcss";
 const config: Config = {
     content: [
         "./app/**/*.{js,ts,jsx,tsx,mdx}",
+        "./components/**/*.{js,ts,jsx,tsx,mdx}",
     ],
     theme: {
         extend: {
             colors: {
                 // Backgrounds
-                'bg-void':    '#05050f',
-                'bg-base':    '#080818',
-                'bg-raised':  '#0d0d24',
-                'bg-overlay': '#12122e',
+                'bg-void':    '#fafaf9', // Stone 50
+                'bg-base':    '#ffffff', // White
+                'bg-raised':  '#f5f5f4', // Stone 100
+                'bg-overlay': '#ffffff', // White
                 // Borders
-                'border-dim':     '#1a1a3a',
-                'border-default': '#252550',
-                'border-bright':  '#3a3a7a',
-                // Gold spectrum (brand signature)
-                'gold-deep':    '#92620a',
-                'gold-muted':   '#b8860b',
-                'gold-base':    '#d4a017',
-                'gold-bright':  '#f0b429',
-                'gold-pale':    '#fcd97a',
-                'gold-shimmer': '#fff3c4',
+                'border-dim':     '#f5f5f4', // Stone 100
+                'border-default': '#e7e5e4', // Stone 200
+                'border-bright':  '#d6d3d1', // Stone 300
+                // Accent spectrum (minimalist)
+                'gold-deep':    '#57534e', // Stone 600
+                'gold-muted':   '#78716c', // Stone 500
+                'gold-base':    '#292524', // Stone 800
+                'gold-bright':  '#1c1917', // Stone 900
+                'gold-pale':    '#d6d3d1', // Stone 300
+                'gold-shimmer': '#f5f5f4', // Stone 100
                 // Signals
-                'bull':         '#0ecf8a',
-                'bull-dim':     '#064d33',
-                'bear':         '#f5495a',
-                'bear-dim':     '#4d0a10',
-                'neutral-sig':  '#8b9cb5',
-                'warn':         '#f5a623',
+                'bull':         '#059669', // Emerald 600
+                'bull-dim':     '#d1fae5', // Emerald 100
+                'bear':         '#e11d48', // Rose 600
+                'bear-dim':     '#ffe4e6', // Rose 100
+                'neutral-sig':  '#78716c', // Stone 500
+                'warn':         '#d97706', // Amber 600
                 // Text
-                'text-primary':   '#f0efff',
-                'text-secondary': '#9898c0',
-                'text-tertiary':  '#5d5d8a',
-                'text-disabled':  '#2d2d55',
+                'text-primary':   '#1c1917', // Stone 900
+                'text-secondary': '#57534e', // Stone 600
+                'text-tertiary':  '#a8a29e', // Stone 400
+                'text-disabled':  '#d6d3d1', // Stone 300
             },
             fontFamily: {
-                sans:    ['Inter var', 'Inter', 'system-ui', 'sans-serif'],
-                mono:    ['JetBrains Mono', 'Fira Code', 'monospace'],
-                display: ['var(--font-syne)', 'Syne', 'system-ui', 'sans-serif'],
+                sans:    ['Inter', 'system-ui', 'sans-serif'],
+                mono:    ['JetBrains Mono', 'monospace'],
+                display: ['Inter', 'system-ui', 'sans-serif'],
             },
             boxShadow: {
-                'card':       '0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 20px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.7)',
-                'card-hover': '0 1px 0 rgba(255,255,255,0.06) inset, 0 12px 40px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.8)',
-                'card-bull':  '0 0 40px rgba(14,207,138,0.08), 0 0 0 1px rgba(14,207,138,0.15)',
-                'card-bear':  '0 0 40px rgba(245,73,90,0.08), 0 0 0 1px rgba(245,73,90,0.15)',
-                'card-gold':  '0 0 40px rgba(212,160,23,0.08), 0 0 0 1px rgba(212,160,23,0.15)',
-                'glow-bull':  '0 0 20px rgba(14,207,138,0.5)',
-                'glow-bear':  '0 0 20px rgba(245,73,90,0.5)',
-                'glow-gold':  '0 0 20px rgba(212,160,23,0.5)',
+                'card':       '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)',
+                'card-hover': '0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.03)',
+                'card-bull':  '0 0 0 1px rgba(5,150,105,0.2)',
+                'card-bear':  '0 0 0 1px rgba(225,29,72,0.2)',
+                'card-gold':  '0 0 0 1px rgba(28,25,23,0.1)',
+                'glow-bull':  'none',
+                'glow-bear':  'none',
+                'glow-gold':  'none',
             },
             animation: {
                 'pulse-slow':    'pulse 4s ease-in-out infinite',
@@ -60,7 +61,7 @@ const config: Config = {
                 'shimmer-sweep': 'shimmerSweep 1.2s ease 1s forwards',
                 'ticker':        'ticker 20s linear infinite',
                 'live-pulse':    'livePulse 2.5s ease-out infinite',
-                'orbit':         'orbit 30s linear infinite',
+                'orbit':         'none',
             },
             keyframes: {
                 fadeIn:      { from: { opacity: '0' }, to: { opacity: '1' } },
@@ -70,13 +71,9 @@ const config: Config = {
                 shimmerSweep:{ from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(300%)' } },
                 ticker:      { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(-50%)' } },
                 livePulse: {
-                    '0%':   { boxShadow: '0 0 0 0 rgba(14,207,138,0.5)' },
-                    '70%':  { boxShadow: '0 0 0 8px transparent' },
+                    '0%':   { boxShadow: '0 0 0 0 rgba(5,150,105,0.2)' },
+                    '70%':  { boxShadow: '0 0 0 6px transparent' },
                     '100%': { boxShadow: '0 0 0 0 transparent' },
-                },
-                orbit: {
-                    from: { transform: 'rotate(0deg) translateX(200px) rotate(0deg)' },
-                    to:   { transform: 'rotate(360deg) translateX(200px) rotate(-360deg)' },
                 },
             },
         },
