@@ -43,6 +43,10 @@ def process_quant(payload):
         merged_df = pd.DataFrame()
 
         if not sent_df.empty:
+            # Time-order the observations — the z-score "latest", the OU
+            # calibration and the FFT all assume a chronological series and
+            # the worker gives no ordering guarantee.
+            sent_df = sent_df.sort_values('post_timestamp').reset_index(drop=True)
             sent_df['date'] = pd.to_datetime(sent_df['post_timestamp']).dt.tz_localize(None).dt.normalize()
             # Use pre-computed time-decay weights from worker (falls back to 1.0 if absent)
             if 'decay_weight' not in sent_df.columns:
@@ -115,12 +119,16 @@ def process_quant(payload):
                 bear_state_idx = np.argmin(means)
 
                 current_state = hidden_states[-1]
+                # Encoding contract shared with the TypeScript side
+                # (recommendation.ts, UI, backtest): 2=bull, 1=neutral, 0=bear.
+                # The old 1/0/-1 encoding meant bull regimes were read as
+                # neutral downstream — bull was never detected.
                 if current_state == bull_state_idx:
-                    hmm_state = 1
+                    hmm_state = 2
                 elif current_state == bear_state_idx:
                     hmm_state = 0
                 else:
-                    hmm_state = -1 # Neutral/Range
+                    hmm_state = 1  # Neutral/Range
             except Exception:
                 pass
 
@@ -187,7 +195,7 @@ def process_quant(payload):
                 from arch import arch_model
                 am = arch_model(returns.flatten() * 100, vol='Garch', p=1, q=1, dist='Normal')
                 res = am.fit(disp='off', show_warning=False)
-                garch_vol_daily = float(res.conditional_volatility[-1]) / 100
+                garch_vol_daily = float(np.asarray(res.conditional_volatility)[-1]) / 100
                 garch_volatility = garch_vol_daily * np.sqrt(252)
             except ImportError:
                 # Fallback: EWMA volatility
@@ -265,12 +273,13 @@ def process_quant(payload):
                 if ann_vol > 0:
                     sharpe_ratio = float(ann_excess_mean / ann_vol)
 
-                # Sortino: only downside vol
-                downside = excess_returns[excess_returns < 0]
-                if len(downside) > 0:
-                    downside_vol = np.std(downside) * np.sqrt(252)
-                    if downside_vol > 0:
-                        sortino_ratio = float(ann_excess_mean / downside_vol)
+                # Sortino — canonical downside deviation: RMS of returns below
+                # target over ALL observations, not the std of the negative
+                # subset (which understates risk by ignoring how often
+                # downside happens).
+                downside_dev = np.sqrt(np.mean(np.minimum(excess_returns, 0.0) ** 2)) * np.sqrt(252)
+                if downside_dev > 0:
+                    sortino_ratio = float(ann_excess_mean / downside_dev)
 
                 # Calmar: return / max drawdown
                 close_prices = hist['Close'].values
@@ -394,7 +403,9 @@ def process_quant(payload):
         if not sent_df.empty and len(recent_sentiments) > 10:
             try:
                 s = recent_sentiments
-                dt = 1.0 / len(s)  # normalized time
+                # One observation = one time step. The old dt = 1/len(s) made
+                # theta scale with sample size, which is meaningless.
+                dt = 1.0
                 X = s[:-1]
                 dX = np.diff(s)
 
@@ -404,10 +415,10 @@ def process_quant(payload):
                 coeffs, residuals, _, _ = lstsq(A, dX, rcond=None)
                 a, b = coeffs
 
-                theta = -b / dt if dt > 0 else None
+                theta = -b / dt
                 mu_ou = a / (-b) if b != 0 else np.mean(s)
 
-                if theta is not None and theta > 0:
+                if theta > 0:
                     ou_theta = float(theta)
                     ou_mu = float(mu_ou)
                     ou_sigma = float(np.std(dX - (a + b * X)) / np.sqrt(dt))
@@ -415,11 +426,15 @@ def process_quant(payload):
                 pass
 
         # --- FFT Cycle Detection ---
+        # Runs on DAILY aggregated sentiment so the dominant period is in
+        # days. Running it on the raw per-post series (old behaviour) gave a
+        # period measured in "posts", which the UI mislabelled as days.
         dominant_cycle_days = None
-        if not sent_df.empty and len(recent_sentiments) > 20:
+        if not merged_df.empty and len(merged_df['sentiment']) > 20:
             try:
                 from numpy.fft import fft, fftfreq
-                signal_arr = recent_sentiments - np.mean(recent_sentiments)
+                daily_vals = merged_df['sentiment'].values
+                signal_arr = daily_vals - np.mean(daily_vals)
                 N = len(signal_arr)
                 fft_vals = np.abs(fft(signal_arr))[:N // 2]
                 freqs = fftfreq(N)[:N // 2]
@@ -433,27 +448,41 @@ def process_quant(payload):
                 pass
 
         # --- Transfer Entropy (Information-theoretic) ---
+        # TE(S→R) = H(R⁺|R) − H(R⁺|R,S): how much knowing today's sentiment
+        # reduces uncertainty about tomorrow's return beyond what today's
+        # return already tells us. Computed from discretized joint counts via
+        # the chain rule H(X|Y) = H(X,Y) − H(Y). The previous version compared
+        # entropies of two unrelated joint distributions, which is not TE.
         transfer_entropy = None
         if len(merged_df) > 10:
             try:
-                from scipy.stats import entropy
-
                 sent_vals = merged_df['sentiment'].values
                 ret_vals = merged_df['return'].values
 
                 n_bins = 3
                 sent_bins = pd.cut(sent_vals, bins=n_bins, labels=False)
                 ret_bins = pd.cut(ret_vals, bins=n_bins, labels=False)
-                ret_next = np.roll(ret_bins, -1)
 
-                joint = pd.crosstab(pd.Series(ret_bins[:-1]), pd.Series(ret_next[:-1]))
-                joint_sent = pd.crosstab(pd.Series(sent_bins[:-1]), pd.Series(ret_next[:-1]))
+                r_now = np.asarray(ret_bins[:-1], dtype=int)
+                s_now = np.asarray(sent_bins[:-1], dtype=int)
+                r_next = np.asarray(ret_bins[1:], dtype=int)
 
-                h_ret_given_ret = entropy(joint.values.flatten() + 1e-10)
-                h_ret_given_ret_sent = entropy(joint_sent.values.flatten() + 1e-10)
+                def _joint_entropy(*cols):
+                    counts = {}
+                    for key in zip(*cols):
+                        counts[key] = counts.get(key, 0) + 1
+                    p = np.array(list(counts.values()), dtype=float)
+                    p /= p.sum()
+                    return float(-(p * np.log2(p)).sum())
 
-                te = max(0.0, float(h_ret_given_ret - h_ret_given_ret_sent))
-                transfer_entropy = te
+                h_r = _joint_entropy(r_now)
+                h_rr = _joint_entropy(r_now, r_next)
+                h_rs = _joint_entropy(r_now, s_now)
+                h_rrs = _joint_entropy(r_now, s_now, r_next)
+
+                # H(R⁺|R) − H(R⁺|R,S), in bits
+                te = (h_rr - h_r) - (h_rrs - h_rs)
+                transfer_entropy = max(0.0, float(te))
             except Exception:
                 pass
 

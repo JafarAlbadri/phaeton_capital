@@ -16,6 +16,24 @@ Phaeton Capital scrapes market discussion from social media, labels sentiment wi
 4. **Analyze** — a Python engine fuses sentiment with live price data and computes a battery of quantitative models.
 5. **Surface** — results appear as signals, backtests, screeners and risk metrics on a Next.js dashboard.
 
+## AI model chain (all free-tier)
+
+Sentiment labeling walks a fallback chain and *remembers* rate limits: a
+model that returns 429 goes on cooldown (`AI_COOLDOWN_MS`, default 10 min)
+and the router skips it until the cooldown expires, instead of re-trying the
+exhausted tier on every batch.
+
+```
+gemini-2.5-flash            (primary, AI_MODEL)
+  → gemini-2.5-flash-lite   (GEMINI_FALLBACK_MODELS, in order)
+  → gemini-2.0-flash
+  → OpenRouter / Groq / Together  (open-weight aggregators, by API key)
+```
+
+Gemini calls use schema-enforced structured output, so the response shape is
+API-guaranteed. Live routing state (active model + cooling tiers) is exposed
+at the worker's `/health` endpoint under `ai_router`.
+
 ## Quantitative engine
 
 The Python engine (`apps/python_worker`) implements 20+ models:

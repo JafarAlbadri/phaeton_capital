@@ -1,5 +1,6 @@
 import { logWrapper } from './logger';
 import { GoogleGenAI, Type } from '@google/genai';
+import { ModelRouter } from './modelRouter';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -43,6 +44,26 @@ if (process.env.OPENROUTER_API_KEY) {
 
 if (!fallbackApiKey) {
     logWrapper.warn('No fallback API key (OPENROUTER_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY) set. Gemma fallback disabled — only Gemini tiers available.');
+}
+
+// Rate-limited models cool down for this long before the chain retries them.
+// Free-tier daily quotas make short cooldowns pointless; 10 min is a sane
+// middle ground between RPM blips and day-long exhaustion.
+const AI_COOLDOWN_MS = parseInt(process.env.AI_COOLDOWN_MS || String(10 * 60_000), 10);
+const router = new ModelRouter(AI_COOLDOWN_MS);
+
+/** Full Gemini chain in priority order (primary first, no duplicates). */
+function geminiChain(): string[] {
+    return [aiModel, ...GEMINI_FALLBACK_MODELS.filter(m => m !== aiModel)];
+}
+
+/** Router snapshot for the /health endpoint. */
+export function aiRouterStatus() {
+    const status = router.status(geminiChain());
+    return {
+        ...status,
+        aggregator: fallbackApiKey ? { provider: fallbackProviderName, models: FALLBACK_MODELS } : null,
+    };
 }
 
 export interface AiInput {
@@ -195,8 +216,9 @@ async function labelWithFallbackModel(
     logWrapper.warn(`[AI Route] All Gemini tiers exhausted. Falling back to ${fallbackProviderName}...`);
 
     // Try each candidate model in order. A 429 / upstream-throttle on one
-    // model rolls over to the next. Only return null if all candidates fail.
-    for (const model of FALLBACK_MODELS) {
+    // model puts it on cooldown and rolls over to the next. Only return null
+    // if all candidates fail.
+    for (const model of router.availableChain(FALLBACK_MODELS)) {
         try {
             const resp = await fetch(FALLBACK_ENDPOINT, {
                 method: 'POST',
@@ -220,9 +242,11 @@ async function labelWithFallbackModel(
 
             if (!resp.ok) {
                 const body = await resp.text().catch(() => '');
-                // 429 / upstream throttle on this specific model — try the next one
+                // 429 / upstream throttle on this specific model — cool it
+                // down so later batches skip straight past it
                 if (resp.status === 429 || body.includes('rate-limited') || body.includes('temporarily')) {
-                    logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} throttled (${resp.status}). Trying next candidate...`);
+                    router.markRateLimited(model);
+                    logWrapper.warn(`[AI Route] ${fallbackProviderName} ${model} throttled (${resp.status}) — cooling ${Math.round(AI_COOLDOWN_MS / 60000)}min. Trying next candidate...`);
                     continue;
                 }
                 logWrapper.error(`[AI Route] ${fallbackProviderName} ${model} HTTP ${resp.status}: ${body.slice(0, 200)}`);
@@ -310,32 +334,32 @@ No markdown formatting, just the raw JSON. Must be an array even if there is onl
         return results;
     };
 
-    // Primary model, then each Gemini fallback tier on rate limits, then the
-    // aggregator providers. Non-rate-limit errors abort (they'd fail everywhere).
-    try {
-        return await callGemini(aiModel);
-    } catch (err: any) {
-        if (!isRateLimitError(err)) {
-            logWrapper.error('Error calling Gemini:', err);
-            return null;
-        }
-        logWrapper.warn(`[AI Route] Primary model (${aiModel}) rate-limited. Trying Gemini fallbacks: ${GEMINI_FALLBACK_MODELS.join(', ')}`);
+    // Walk the Gemini chain in priority order, skipping models that are on
+    // rate-limit cooldown — quota exhaustion is sticky, so a dead tier isn't
+    // re-tried on every batch. Non-rate-limit errors abort (they'd fail
+    // everywhere). When every Gemini tier is cooling, go straight to the
+    // aggregator providers.
+    const chain = geminiChain();
+    const usable = router.availableChain(chain);
+    if (usable.length < chain.length) {
+        const cooling = chain.filter(m => !usable.includes(m));
+        logWrapper.info(`[AI Route] Skipping cooling Gemini tiers: ${cooling.join(', ')}`);
     }
 
-    for (const model of GEMINI_FALLBACK_MODELS) {
-        if (model === aiModel) continue;
+    for (const model of usable) {
         try {
             const results = await callGemini(model);
             if (results) {
-                logWrapper.info(`[AI Route] Gemini fallback ${model} succeeded (${results.length} labels)`);
+                if (model !== aiModel) logWrapper.info(`[AI Route] Gemini fallback ${model} succeeded (${results.length} labels)`);
                 return results;
             }
         } catch (err: any) {
             if (!isRateLimitError(err)) {
-                logWrapper.error(`[AI Route] Gemini fallback ${model} failed:`, err);
+                logWrapper.error(`[AI Route] Gemini ${model} failed:`, err);
                 return null;
             }
-            logWrapper.warn(`[AI Route] Gemini fallback ${model} also rate-limited. Trying next...`);
+            router.markRateLimited(model);
+            logWrapper.warn(`[AI Route] Gemini ${model} rate-limited — cooling ${Math.round(AI_COOLDOWN_MS / 60000)}min. Trying next tier...`);
         }
     }
 

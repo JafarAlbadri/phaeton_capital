@@ -1,5 +1,5 @@
 import { logWrapper } from './logger';
-import { labelSentimentAndDetectManipulation, AiInput } from './ai';
+import { labelSentimentAndDetectManipulation, aiRouterStatus, AiInput } from './ai';
 import { scrapeReddit, scrapePolygonNews, scrapeNewsAPI, scrapeStockTwits, scrapeEDGAR, scrapeOptionsFlow, computeTrustScore, generateDuplicateHash, ScrapedPost } from './scraper';
 import { fetchFundamentals } from './fundamentals';
 import { fetchAndSaveTrends } from './trends';
@@ -509,7 +509,7 @@ async function start() {
             }
 
             if (url.pathname === '/health' && req.method === 'GET') {
-                return new Response(JSON.stringify({ status: 'ok', using_redis: true }), {
+                return new Response(JSON.stringify({ status: 'ok', using_redis: true, ai_router: aiRouterStatus() }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
                 });
             }
