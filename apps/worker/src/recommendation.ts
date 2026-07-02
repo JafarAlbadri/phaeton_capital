@@ -334,6 +334,21 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             }
         });
 
+        await prisma.scoreSnapshot.create({
+            data: {
+                ticker,
+                horizon,
+                composite_score: composite,
+                sentiment_score: sentimentScore,
+                technical_score: technicalScore,
+                fundamental_score: fundamentalScore,
+                quant_score: quantScore,
+                insider_score: insiderScore,
+                macro_score: macroScore,
+                signal: finalSignal,
+            }
+        });
+
         if (fundamental?.current_price) {
             // The pipeline runs every 15 minutes — recording a prediction on every
             // run floods the table with near-duplicate rows that poison the ML
@@ -362,30 +377,8 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             }
         }
 
-        // Resolve pending predictions older than 15 days
-        const resolutionMs = resolutionDays * 24 * 60 * 60 * 1000;
-        const resolutionCutoff = new Date(Date.now() - resolutionMs);
-        const pending = await prisma.predictionRecord.findMany({
-            where: { ticker, outcome: 'PENDING', horizon, createdAt: { lte: resolutionCutoff } }
-        });
-        if (pending.length > 0 && fundamental?.current_price) {
-            // One symmetric band for every signal class — the old ±5% HOLD band
-            // vs ±2% BUY/SELL made HOLD far easier to score CORRECT, biasing the
-            // outcome base rates the ML weight training learns from. The band
-            // scales with horizon via √t (standard volatility-of-time scaling).
-            const moveThreshold = 0.02 * Math.sqrt(horizon / 15);
-            await prisma.$transaction(pending.map(pred => {
-                const delta = (fundamental.current_price! - pred.price_at_signal) / pred.price_at_signal;
-                const correct =
-                    ((pred.signal === 'STRONG_BUY' || pred.signal === 'BUY') && delta > moveThreshold) ||
-                    ((pred.signal === 'STRONG_SELL' || pred.signal === 'SELL') && delta < -moveThreshold) ||
-                    (pred.signal === 'HOLD' && Math.abs(delta) <= moveThreshold);
-                return prisma.predictionRecord.update({
-                    where: { id: pred.id },
-                    data: { price_at_resolution: fundamental.current_price, outcome: correct ? 'CORRECT' : 'INCORRECT' }
-                });
-            }));
-        }
+        // Prediction resolution has been moved to a standalone BullMQ sweep job
+        // to ensure it resolves against point-in-time PriceSnapshot data.
 
         logWrapper.info(`Recommendation for ${ticker} [${horizon}d]: ${finalSignal} (score=${composite.toFixed(1)}, confidence=${(confidence*100).toFixed(0)}%, regime=${macro?.vix != null && macro.vix > 30 ? 'CRISIS' : quant?.hmm_state === 2 ? 'BULL' : quant?.hmm_state === 0 ? 'BEAR' : 'NEUTRAL'})`);
 

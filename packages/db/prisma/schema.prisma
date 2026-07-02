@@ -364,3 +364,30 @@ model TrackedTicker {
   @@index([active, priority])
   @@index([lastScanned])
 }
+
+model PriceSnapshot {
+  id        String   @id @default(cuid())
+  ticker    String
+  date      DateTime
+  close     Float
+
+  @@unique([ticker, date])
+  @@index([ticker, date(sort: Desc)])
+}
+
+model ScoreSnapshot {
+  id                String   @id @default(cuid())
+  ticker            String
+  horizon           Int
+  composite_score   Float?
+  sentiment_score   Float?
+  technical_score   Float?
+  fundamental_score Float?
+  quant_score       Float?
+  insider_score     Float?
+  macro_score       Float?
+  signal            String?
+  createdAt         DateTime @default(now())
+
+  @@index([ticker, horizon, createdAt(sort: Desc)])
+}

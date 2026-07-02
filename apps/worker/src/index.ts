@@ -24,6 +24,7 @@ import { computeVelocity } from './velocity';
 import { evaluateAlerts } from './alerts/evaluator';
 import { screenerQuery } from './screener';
 import { sweepUniverse } from './scanner';
+import { resolutionSweep } from './resolution';
 import prisma from '@phaeton/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
@@ -64,6 +65,8 @@ const scrapeWorker = new Worker('scrapeQueue', async (job: Job) => {
             maxBatch: job.data?.maxBatch ?? 30,
             enqueueSpacingMs: job.data?.spacingMs ?? 750,
         });
+    } else if (job.name === 'resolutionSweep') {
+        await resolutionSweep();
     }
 }, {
     connection: redisConnection,
@@ -213,6 +216,21 @@ async function syncFundamentals(currentKeyword: string) {
                 })
             ]);
         }
+
+        if (fundamentals.current_price != null) {
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            try {
+                await prisma.priceSnapshot.upsert({
+                    where: { ticker_date: { ticker: currentKeyword, date: today } },
+                    update: { close: fundamentals.current_price },
+                    create: { ticker: currentKeyword, date: today, close: fundamentals.current_price }
+                });
+            } catch (e) {
+                logWrapper.warn(`Failed to save PriceSnapshot for ${currentKeyword}:`, e);
+            }
+        }
+
         logWrapper.info(`Saved fundamentals for ${currentKeyword}`);
     } catch (e) {
         logWrapper.error('Failed to save fundamentals to DB:', e);
@@ -729,6 +747,14 @@ async function start() {
         ).catch(logWrapper.error);
         logWrapper.info('Universe sweep scheduled (every 6h, max 30 tickers/sweep).');
     }
+
+    // Prediction resolution sweep (hourly)
+    scrapeQueue.upsertJobScheduler(
+        'resolution_sweep',
+        { pattern: '0 * * * *' },
+        { name: 'resolutionSweep', data: {}, opts: { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: 1000 } },
+    ).catch(logWrapper.error);
+    logWrapper.info('Prediction resolution sweep scheduled (hourly).');
 }
 
 // Graceful shutdown: finish or cleanly release the in-flight job so

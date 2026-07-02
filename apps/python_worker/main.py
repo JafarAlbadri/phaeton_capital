@@ -18,6 +18,25 @@ def fundamentals_endpoint(ticker: str):
     result = yfinance_fetcher.get_stock_data(ticker)
     return result
 
+@app.get("/price-history/{ticker}")
+def price_history_endpoint(ticker: str, days: int = 120):
+    """Fetch point-in-time closing prices."""
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker.upper())
+        hist = stock.history(period=f"{days}d")
+        if hist is None or hist.empty:
+            return []
+        
+        result = []
+        for dt, row in hist.iterrows():
+            date_str = dt.strftime("%Y-%m-%d")
+            close_val = float(row["Close"])
+            result.append({"date": date_str, "close": close_val})
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/macro")
 async def macro_endpoint(request: Request):
     import asyncio
