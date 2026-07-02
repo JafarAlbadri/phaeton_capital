@@ -65,7 +65,15 @@ const scrapeWorker = new Worker('scrapeQueue', async (job: Job) => {
             enqueueSpacingMs: job.data?.spacingMs ?? 750,
         });
     }
-}, { connection: redisConnection, concurrency: 1 });
+}, {
+    connection: redisConnection,
+    concurrency: 1,
+    // Jobs run for minutes; give the lock headroom and tolerate stalls from
+    // container restarts (default maxStalledCount 1 permanently failed jobs
+    // that stalled twice, regardless of remaining attempts).
+    lockDuration: 60_000,
+    maxStalledCount: 3,
+});
 
 scrapeWorker.on('failed', (job: Job | undefined, err: Error) => {
     logWrapper.error(`Job failed for ${job?.data?.keyword}:`, err);
@@ -719,5 +727,24 @@ async function start() {
         logWrapper.info('Universe sweep scheduled (every 6h, max 30 tickers/sweep).');
     }
 }
+
+// Graceful shutdown: finish or cleanly release the in-flight job so
+// container restarts don't strand it as "stalled" in BullMQ.
+let shuttingDown = false;
+async function shutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logWrapper.info(`${signal} received — closing worker gracefully...`);
+    try {
+        await scrapeWorker.close();
+        await scrapeQueue.close();
+        await redisConnection.quit();
+    } catch (e) {
+        logWrapper.error('Error during shutdown:', e);
+    }
+    process.exit(0);
+}
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
 
 start().catch(logWrapper.error);
