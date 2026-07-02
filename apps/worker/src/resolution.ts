@@ -1,15 +1,20 @@
 import prisma from '@phaeton/db';
 import { logWrapper } from './logger';
 
-export async function resolutionSweep() {
-    logWrapper.info('Starting resolution sweep...');
+export async function resolutionSweep(reResolveAll = false) {
+    logWrapper.info(`Starting resolution sweep... (reResolveAll: ${reResolveAll})`);
     try {
+        const outcomesToSweep = reResolveAll 
+            ? ['PENDING', 'CORRECT', 'INCORRECT'] 
+            : ['PENDING'];
+
         const pending = await prisma.predictionRecord.findMany({
-            where: { outcome: 'PENDING' }
+            where: { outcome: { in: outcomesToSweep } }
         });
 
         const pythonUrl = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
         let resolvedCount = 0;
+        let flippedCount = 0;
 
         for (const pred of pending) {
             // A prediction resolves after `horizon` days
@@ -38,7 +43,11 @@ export async function resolutionSweep() {
             // 2. If not found locally, fetch history from Python worker and backfill
             if (!snapshot) {
                 try {
-                    const res = await fetch(`${pythonUrl}/price-history/${pred.ticker}?days=120`, { signal: AbortSignal.timeout(15_000) });
+                    // Calculate days needed to reach createdAt + horizon + 10 days margin
+                    const ageDays = Math.ceil((Date.now() - pred.createdAt.getTime()) / 86400000);
+                    const daysNeeded = Math.min(ageDays + pred.horizon + 10, 730);
+
+                    const res = await fetch(`${pythonUrl}/price-history/${pred.ticker}?days=${daysNeeded}`, { signal: AbortSignal.timeout(15_000) });
                     if (res.ok) {
                         const history = await res.json() as {date: string, close: number}[];
                         // Bulk upsert the fetched history to build up the database
@@ -88,17 +97,32 @@ export async function resolutionSweep() {
                     ((pred.signal === 'STRONG_SELL' || pred.signal === 'SELL') && delta < -moveThreshold) ||
                     (pred.signal === 'HOLD' && Math.abs(delta) <= moveThreshold);
                 
+                const newOutcome = correct ? 'CORRECT' : 'INCORRECT';
+
+                if (pred.outcome !== newOutcome) {
+                    flippedCount++;
+                }
+
                 await prisma.predictionRecord.update({
                     where: { id: pred.id },
                     data: {
                         price_at_resolution: resolutionPrice,
-                        outcome: correct ? 'CORRECT' : 'INCORRECT'
+                        outcome: newOutcome
                     }
                 });
                 resolvedCount++;
+            } else {
+                // Better to have no label than a wrong one if snapshot still missing
+                if (pred.outcome !== 'PENDING') {
+                    await prisma.predictionRecord.update({
+                        where: { id: pred.id },
+                        data: { outcome: 'PENDING', price_at_resolution: null }
+                    });
+                    flippedCount++;
+                }
             }
         }
-        logWrapper.info(`Resolution sweep completed: resolved ${resolvedCount} predictions.`);
+        logWrapper.info(`Resolution sweep completed: resolved ${resolvedCount} predictions. Flipped ${flippedCount} labels.`);
     } catch (e) {
         logWrapper.error('Resolution sweep failed:', e);
     }
