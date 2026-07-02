@@ -198,7 +198,7 @@ export default function DashboardClient({
     };
 
     return (
-        <div className="min-h-screen relative text-stone-900">
+        <div className="min-h-screen relative text-primary">
 
             {(loading || isPending) && <LoadingOverlay scanning={loading} label={searchQuery} />}
 

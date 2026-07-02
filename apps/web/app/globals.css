@@ -4,8 +4,8 @@
 
 /* ─── Page background ───────────────────────────────────────────── */
 body {
-  background-color: #fafaf9; /* Stone 50 */
-  color: #1c1917; /* Stone 900 */
+  background-color: #09090b; /* Zinc 950 */
+  color: #f4f4f5; /* Zinc 100 */
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -15,44 +15,44 @@ body {
 
 /* ─── Card system ────────────────────────────────────────────────── */
 .card {
-  background: #ffffff;
-  border: 1px solid #e7e5e4;
+  background: #18181b; /* Zinc 900 */
+  border: 1px solid #3f3f46; /* Zinc 700 */
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
   transition: transform 280ms ease, box-shadow 280ms ease, border-color 280ms ease;
 }
 .card:hover {
-  border-color: #d6d3d1;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.03);
+  border-color: #52525b; /* Zinc 600 */
+  box-shadow: 0 4px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .card-gold {
-  border-color: rgba(28,25,23,0.1);
+  border-color: rgba(244,244,245,0.1);
 }
 .card-gold:hover {
-  border-color: rgba(28,25,23,0.2);
+  border-color: rgba(244,244,245,0.2);
 }
 
 /* ─── Section headers ────────────────────────────────────────────── */
 .section-title {
   font-size: 12px; font-weight: 600;
   letter-spacing: 0.05em; text-transform: uppercase;
-  color: #57534e; /* Stone 600 */
+  color: #a1a1aa; /* Zinc 400 */
 }
 
 /* ─── Score bars ─────────────────────────────────────────────────── */
 .score-bar-track {
   height: 6px; border-radius: 100px;
-  background: #f5f5f4; /* Stone 100 */
+  background: #27272a; /* Zinc 800 */
   position: relative; overflow: hidden;
 }
 .score-bar-fill {
   height: 100%; border-radius: 100px; position: relative;
   transition: width 0.8s ease;
 }
-.score-bar-bull { background: #059669; }
-.score-bar-bear { background: #e11d48; }
-.score-bar-gold { background: #292524; }
+.score-bar-bull { background: #34d399; }
+.score-bar-bear { background: #fb7185; }
+.score-bar-gold { background: #f4f4f5; }
 .score-bar-thick { height: 10px; }
 
 /* ─── Badges ─────────────────────────────────────────────────────── */
@@ -62,25 +62,25 @@ body {
   font-size: 11px; font-weight: 600;
   letter-spacing: 0.02em; text-transform: uppercase;
 }
-.badge-bull  { color: #059669; background: #d1fae5; border: 1px solid rgba(5,150,105,0.2); }
-.badge-bear  { color: #e11d48; background: #ffe4e6; border: 1px solid rgba(225,29,72,0.2); }
-.badge-hold  { color: #57534e; background: #f5f5f4; border: 1px solid #e7e5e4; }
-.badge-gold  { color: #1c1917; background: #f5f5f4; border: 1px solid #d6d3d1; }
+.badge-bull  { color: #34d399; background: #064e3b; border: 1px solid rgba(52,211,153,0.2); }
+.badge-bear  { color: #fb7185; background: #881337; border: 1px solid rgba(251,113,133,0.2); }
+.badge-hold  { color: #a1a1aa; background: #27272a; border: 1px solid #3f3f46; }
+.badge-gold  { color: #09090b; background: #f4f4f5; border: 1px solid #d4d4d8; }
 .badge-dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* ─── Live status dot ────────────────────────────────────────────── */
-.status-live { width: 6px; height: 6px; border-radius: 50%; background: #059669; animation: livePulse 2.5s ease-out infinite; }
+.status-live { width: 6px; height: 6px; border-radius: 50%; background: #34d399; animation: livePulse 2.5s ease-out infinite; }
 
 /* ─── Gradient text ──────────────────────────────────────────────── */
 .text-gradient-gold {
-  color: #1c1917;
+  color: #f4f4f5;
   font-weight: 700;
 }
 
 /* ─── Skeleton / loading ─────────────────────────────────────────── */
 .skeleton {
   border-radius: 6px;
-  background: #f5f5f4;
+  background: #27272a;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -89,17 +89,17 @@ body {
 [data-animate].animate-in { opacity: 1; transform: translateY(0); }
 
 /* ─── Table ──────────────────────────────────────────────────────── */
-.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #f5f5f4; }
-.data-table tr:hover { background: #fafaf9; }
-.data-table tr:hover td:first-child { border-left: 2px solid #d6d3d1; }
+.data-table tr { transition: background 150ms ease; border-bottom: 1px solid #27272a; }
+.data-table tr:hover { background: #18181b; }
+.data-table tr:hover td:first-child { border-left: 2px solid #52525b; }
 
 /* Custom Recharts Tooltip */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background: #ffffff !important;
-  border: 1px solid #e7e5e4 !important;
+  background: #18181b !important;
+  border: 1px solid #3f3f46 !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
-  color: #1c1917 !important;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.4) !important;
+  color: #f4f4f5 !important;
 }
 
 /* Typography styles */
