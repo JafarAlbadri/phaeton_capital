@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import { logWrapper } from './logger';
 
 const PYTHON_URL = process.env.PYTHON_WORKER_URL ?? 'http://localhost:8000';
@@ -25,7 +25,7 @@ export async function fetchAndSaveCrossListing(ticker: string): Promise<void> {
             return;
         }
 
-        await (prisma as any).crossListingData.upsert({
+        await prisma.crossListingData.upsert({
             where: { ticker },
             update: {
                 home_ticker: data.home_ticker,

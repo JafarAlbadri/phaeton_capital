@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import DiscoverClient from './DiscoverClient';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ const SIGNAL_RANK: Record<string, number> = {
 };
 
 async function fetchDiscoveries(horizon: number, limit: number) {
-    const recs = await (prisma.recommendationScore as any).findMany({
+    const recs = await prisma.recommendationScore.findMany({
         where: {
             horizon,
             signal: { in: ['STRONG_BUY', 'BUY'] },
@@ -31,7 +31,7 @@ async function fetchDiscoveries(horizon: number, limit: number) {
             where: { ticker: { in: tickers } },
             select: { ticker: true, overall_risk_rating: true },
         }),
-        (prisma as any).trackedTicker.findMany({
+        prisma.trackedTicker.findMany({
             where: { ticker: { in: tickers } },
             select: { ticker: true, name: true, sector: true, lastScanned: true },
         }),
@@ -39,7 +39,7 @@ async function fetchDiscoveries(horizon: number, limit: number) {
             where: { ticker: { in: tickers }, outcome: { in: ['CORRECT', 'INCORRECT'] } },
             select: { ticker: true, outcome: true },
         }),
-        (prisma as any).trackedTicker.count({ where: { active: true } }).catch(() => 0),
+        prisma.trackedTicker.count({ where: { active: true } }).catch(() => 0),
     ]);
 
     const fundMap = Object.fromEntries(funds.map(f => [f.ticker, f]));

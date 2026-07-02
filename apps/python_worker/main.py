@@ -158,10 +158,11 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
             score += 15 if m > 0 else -15
             score += 10 if s50 > s200 else -10
 
-            if score > 60:
+            # Same signal thresholds as the live engine (recommendation.ts signalFromScore)
+            if score > 55:
                 direction = "BUY"
                 ret = (xp - ep) / ep
-            elif score < 40:
+            elif score < 45:
                 direction = "SELL"
                 ret = (ep - xp) / ep
             else:
@@ -197,7 +198,8 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
         step = max(1, len(equity) // 80)
         curve = []
         for i in range(0, len(equity), step):
-            trade_idx = min(i, len(trades) - 1)
+            # equity[0] is the starting 100 before any trade; equity[i] is after trades[i-1]
+            trade_idx = min(max(0, i - 1), len(trades) - 1)
             d = trades[trade_idx]["date"]
             spy_val = None
             try:
@@ -228,8 +230,10 @@ async def backtest_endpoint(ticker: str, horizon: int = 15, years: int = 2,
 @app.get("/composite-backtest/{ticker}")
 async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int = 3):
     """
-    Walk-forward backtest using the FULL multi-factor composite scoring logic
-    (technical + fundamental + quant), mirroring recommendation.ts.
+    Walk-forward backtest of the composite scoring logic, mirroring
+    recommendation.ts with identical weights and signal thresholds.
+    Only components with true point-in-time history (technical, quant) are
+    scored; the rest are held neutral to avoid look-ahead bias.
     Returns equity curve, Sharpe, alpha, hit rate vs SPY.
     """
     try:
@@ -281,33 +285,32 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
 
         # Returns for quant models
         returns = close.pct_change().dropna()
+        ret_vals = returns.values.reshape(-1, 1)
 
-        # HMM regime detection (rolling 252-day windows)
-        hmm_states = pd.Series(1, index=close.index)  # default neutral
-        if len(returns) > 300:
+        def hmm_state_at(day_idx: int) -> int:
+            """Fit an HMM on the trailing 252-day return window ending at day_idx
+            (close-price index) and classify the latest state as 0=bear/1=neutral/2=bull.
+            Bull/bear indices are re-derived from the fitted means on EVERY fit —
+            HMM state labels are arbitrary and permute between fits."""
+            # close index i corresponds to returns index i-1
+            end = day_idx - 1
+            if end < 60:
+                return 1
+            window = ret_vals[max(0, end - 252):end]
             try:
                 model = hmmlib.GaussianHMM(n_components=3, covariance_type="diag", n_iter=100)
-                ret_vals = returns.values.reshape(-1, 1)
-                model.fit(ret_vals[:252])
+                model.fit(window)
                 means = model.means_.flatten()
                 bull_idx = int(np.argmax(means))
                 bear_idx = int(np.argmin(means))
-
-                for i in range(252, len(ret_vals)):
-                    window = ret_vals[max(0, i-252):i]
-                    try:
-                        model.fit(window)
-                        state = model.predict(window[-1:].reshape(1, -1))[0]
-                        if state == bull_idx:
-                            hmm_states.iloc[i+1] = 2
-                        elif state == bear_idx:
-                            hmm_states.iloc[i+1] = 0
-                        else:
-                            hmm_states.iloc[i+1] = 1
-                    except Exception:
-                        pass
+                state = int(model.predict(window)[-1])
+                if state == bull_idx:
+                    return 2
+                if state == bear_idx:
+                    return 0
+                return 1
             except Exception:
-                pass
+                return 1
 
         # Hurst exponent (rolling)
         def rolling_hurst(prices, window=100):
@@ -331,14 +334,14 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
                 return 0.5
             return float(np.polyfit(np.log(valid), np.log(F), 1)[0])
 
-        # Fetch fundamental info (static — used as constant fundamental score)
-        info = stock.info
-        target_price = info.get("targetMeanPrice")
-        pe_ratio = info.get("trailingPE")
-        analyst_sb = info.get("numberOfAnalystOpinions", 0)
-
-        # ── Weights (mirrors recommendation.ts WEIGHTS_NEUTRAL) ──
-        W = {"technical": 0.35, "fundamental": 0.20, "quant": 0.30, "baseline": 0.15}
+        # ── Weights: identical to recommendation.ts WEIGHTS_NEUTRAL ──
+        # Components without point-in-time history (sentiment, fundamental,
+        # insider, macro) are scored neutral 50 — exactly what the live engine
+        # does when that data is missing. Using today's analyst targets or PE
+        # against historical prices would be look-ahead bias.
+        W = {"sentiment": 0.25, "technical": 0.20, "fundamental": 0.20,
+             "quant": 0.20, "insider": 0.10, "macro": 0.05}
+        NEUTRAL = 50.0
 
         # ── Walk-forward simulation ──
         h = int(horizon)
@@ -384,16 +387,12 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
 
             tech = max(0, min(100, tech))
 
-            # === Fundamental Score (static from current info) ===
-            fund = 50.0
-            if target_price and price > 0:
-                upside = (target_price - price) / price
-                fund += max(-30, min(30, upside * 100))
-            fund = max(0, min(100, fund))
+            # === Fundamental Score — neutral: no point-in-time analyst data ===
+            fund = NEUTRAL
 
             # === Quant Score ===
             quant = 50.0
-            hmm_s = int(hmm_states.iloc[i]) if i < len(hmm_states) else 1
+            hmm_s = hmm_state_at(i)
             if hmm_s == 2:
                 quant += 15
             elif hmm_s == 0:
@@ -417,12 +416,14 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
 
             quant = max(0, min(100, quant))
 
-            # === Composite ===
+            # === Composite (same weights as live WEIGHTS_NEUTRAL) ===
             composite = (
-                tech * W["technical"] +
-                fund * W["fundamental"] +
-                quant * W["quant"] +
-                50.0 * W["baseline"]  # sentiment/insider/macro assumed neutral
+                NEUTRAL * W["sentiment"] +
+                tech    * W["technical"] +
+                fund    * W["fundamental"] +
+                quant   * W["quant"] +
+                NEUTRAL * W["insider"] +
+                NEUTRAL * W["macro"]
             )
             composite = max(0, min(100, composite))
 
@@ -478,7 +479,8 @@ async def composite_backtest_endpoint(ticker: str, horizon: int = 15, years: int
         step = max(1, len(equity) // 80)
         curve = []
         for i in range(0, len(equity), step):
-            trade_idx = min(i, len(trades) - 1)
+            # equity[0] is the starting 100 before any trade; equity[i] is after trades[i-1]
+            trade_idx = min(max(0, i - 1), len(trades) - 1)
             d = trades[trade_idx]["date"]
             spy_val = None
             try:
@@ -670,18 +672,51 @@ async def earnings_history_endpoint(ticker: str):
 
 # ── V2: Google Trends ──────────────────────────────────────────────────────────
 
+# Google Trends data has daily granularity at best, so hammering it per
+# scrape cycle only earns 429s. Cache per ticker with a TTL and space out
+# the real requests behind a lock instead of a blanket 10s sleep.
+_trends_cache: dict = {}
+_TRENDS_TTL_SECONDS = 6 * 3600
+_TRENDS_MIN_SPACING_SECONDS = 5.0
+_trends_lock = None
+_trends_last_request = 0.0
+
 @app.get("/trends/{ticker}")
 async def trends_endpoint(ticker: str):
+    global _trends_lock, _trends_last_request
     try:
         import asyncio
+        import time
         import numpy as np
         from pytrends.request import TrendReq
 
-        pytrends = TrendReq(hl='en-US', tz=360)
-        kw = f"{ticker.upper()} stock"
-        pytrends.build_payload([kw], timeframe='today 3-m', geo='US')
-        await asyncio.sleep(10)
-        df = pytrends.interest_over_time()
+        t = ticker.upper()
+        cached = _trends_cache.get(t)
+        if cached and time.monotonic() - cached["ts"] < _TRENDS_TTL_SECONDS:
+            return cached["data"]
+
+        if _trends_lock is None:
+            _trends_lock = asyncio.Lock()
+
+        async with _trends_lock:
+            # Re-check: another request may have filled the cache while we waited
+            cached = _trends_cache.get(t)
+            if cached and time.monotonic() - cached["ts"] < _TRENDS_TTL_SECONDS:
+                return cached["data"]
+
+            wait = _TRENDS_MIN_SPACING_SECONDS - (time.monotonic() - _trends_last_request)
+            if wait > 0:
+                await asyncio.sleep(wait)
+
+            kw = f"{t} stock"
+            # pytrends is synchronous — run it off the event loop
+            def _fetch():
+                pytrends = TrendReq(hl='en-US', tz=360)
+                pytrends.build_payload([kw], timeframe='today 3-m', geo='US')
+                return pytrends.interest_over_time()
+
+            df = await asyncio.get_event_loop().run_in_executor(None, _fetch)
+            _trends_last_request = time.monotonic()
 
         if df is None or df.empty or kw not in df.columns:
             return {"trends_score": 50, "weekly_data": [], "direction": "flat"}
@@ -699,7 +734,9 @@ async def trends_endpoint(ticker: str):
         trends_score = float(max(0.0, min(100.0, 50 + z * 10)))
         direction = "up" if len(arr) >= 4 and arr[-1] > arr[-4] else ("down" if len(arr) >= 4 and arr[-1] < arr[-4] else "flat")
 
-        return {"trends_score": round(trends_score, 2), "weekly_data": weekly_data, "direction": direction}
+        result = {"trends_score": round(trends_score, 2), "weekly_data": weekly_data, "direction": direction}
+        _trends_cache[t] = {"ts": time.monotonic(), "data": result}
+        return result
     except Exception as e:
         return {"trends_score": 50, "weekly_data": [], "direction": "flat", "error": str(e)}
 
@@ -865,6 +902,12 @@ async def optimize_weights_endpoint(request: Request):
             # Include hmm_state as a feature (default 1 = neutral)
             hmm = r.get("hmm_state")
             row.append(float(hmm) if hmm is not None else 1.0)
+            # Signal direction as a control feature: the relation between
+            # component scores and being CORRECT flips with trade direction
+            # (high sentiment + correct SELL means sentiment misled).
+            sig = r.get("signal") or ""
+            direction = 1.0 if "BUY" in sig else -1.0 if "SELL" in sig else 0.0
+            row.append(direction)
             valid.append((row, 1 if r["outcome"] == "CORRECT" else 0))
 
         if len(valid) < 30:
@@ -903,18 +946,35 @@ async def optimize_weights_endpoint(request: Request):
         )
         model.fit(X_scaled, y)
 
-        # Extract coefficients for the 6 component features (exclude hmm_state)
+        # Extract coefficients for the 6 component features (exclude hmm_state + direction)
         coefs = model.coef_[0][:6]
-        accuracy_cv = float(model.scores_[1].mean())
 
-        # Weights from absolute coefficients — larger |coef| = more predictive
-        abs_coefs = np.abs(coefs)
+        # CV accuracy at the SELECTED regularisation strength — averaging over
+        # all Cs (old behaviour) mixes in deliberately under/over-regularised
+        # models and misreports the accuracy of the model actually used.
+        fold_scores = model.scores_[1]  # shape: (n_folds, n_Cs)
+        best_c_idx = int(np.argmax(fold_scores.mean(axis=0)))
+        accuracy_cv = float(fold_scores[:, best_c_idx].mean())
 
-        # Blend: 70% ML-derived, 30% prior base weights (regularisation toward base)
         base_arr = np.array([base_weights.get(k.replace("_score", ""), 1/6) for k in FEATURE_KEYS])
         base_arr = base_arr / base_arr.sum()
 
-        blended = 0.7 * (abs_coefs / abs_coefs.sum()) + 0.3 * base_arr
+        # A NEGATIVE coefficient means the component is anti-predictive —
+        # giving it weight via abs() would reward it for pointing the wrong
+        # way. Clip negatives to zero; if nothing is positively predictive,
+        # keep the base weights.
+        pos_coefs = np.clip(coefs, 0, None)
+        if pos_coefs.sum() <= 0:
+            return {
+                "error": "no_positively_predictive_components",
+                "n_samples": len(valid),
+                "accuracy_cv": round(accuracy_cv, 4),
+                "weights": base_weights,
+                "raw_coefs": {k.replace("_score", ""): round(float(c), 4) for k, c in zip(FEATURE_KEYS, coefs)},
+            }
+
+        # Blend: 70% ML-derived, 30% prior base weights (regularisation toward base)
+        blended = 0.7 * (pos_coefs / pos_coefs.sum()) + 0.3 * base_arr
         blended = blended / blended.sum()
 
         weights = {k.replace("_score", ""): round(float(w), 4) for k, w in zip(FEATURE_KEYS, blended)}
@@ -925,6 +985,7 @@ async def optimize_weights_endpoint(request: Request):
             "n_samples": len(valid),
             "raw_coefs": {k.replace("_score", ""): round(float(c), 4) for k, c in zip(FEATURE_KEYS, coefs)},
             "hmm_coef": round(float(model.coef_[0][6]), 4),
+            "direction_coef": round(float(model.coef_[0][7]), 4),
         }
 
     except Exception as e:

@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 interface PipelineData {
     compositeScore?: number | null;

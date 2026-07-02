@@ -4,7 +4,7 @@
  * get hammered all at once. Updates `lastScanned` after each enqueue.
  */
 import { Queue } from 'bullmq';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import { logWrapper } from './logger';
 
 interface SweepOptions {
@@ -31,7 +31,7 @@ export async function sweepUniverse(
     // Stale-first ordering: tickers that haven't been scanned in a while bubble
     // up first. priority desc as a secondary tiebreaker so mega-caps get re-scanned
     // sooner among the stale set.
-    const all = await (prisma as any).trackedTicker.findMany({
+    const all = await prisma.trackedTicker.findMany({
         where: {
             active: true,
             ...(cutoff ? { OR: [{ lastScanned: null }, { lastScanned: { lt: cutoff } }] } : {}),
@@ -72,7 +72,7 @@ export async function sweepUniverse(
                     removeOnFail: 1000,
                 }
             );
-            await (prisma as any).trackedTicker.update({
+            await prisma.trackedTicker.update({
                 where: { ticker: t.ticker },
                 data: { lastScanned: new Date() },
             });

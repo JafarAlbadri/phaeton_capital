@@ -1,12 +1,14 @@
 services:
+  # Dev utility — run with: docker compose --profile tools run list_models
   list_models:
+    profiles: ["tools"]
     image: oven/bun:latest
     working_dir: /app
     volumes:
       - .:/app
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-    command: bun run apps/worker/src/listModels.ts
+    command: bun run apps/worker/scripts/listModels.ts
 
   postgres:
     image: postgres:15-alpine
@@ -34,7 +36,9 @@ services:
       - .:/app
     environment:
       - DATABASE_URL=postgresql://sentiment_user:sentiment_password@postgres:5432/sentiment_db?schema=public
-    command: sh -c "cd packages/db && bun install && bun run push || true"
+    # No `|| true` here — if the schema push fails the stack must not start
+    # against a stale schema.
+    command: sh -c "cd packages/db && bun install && bun run push"
 
   redis:
     image: redis:7-alpine
@@ -69,6 +73,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - PYTHON_WORKER_URL=http://python_worker:8000
+      - WORKER_SECRET=${WORKER_SECRET:-}
     ports:
       - "8080:8080"
 
@@ -85,6 +90,7 @@ services:
       - TARGET_KEYWORD=${TARGET_KEYWORD:-Gold}
       - PYTHON_WORKER_URL=http://python_worker:8000
       - WORKER_URL=http://worker:8080
+      - WORKER_SECRET=${WORKER_SECRET:-}
     ports:
       - "3000:3000"
 

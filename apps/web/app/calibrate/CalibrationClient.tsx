@@ -18,8 +18,6 @@ interface Post {
     ai_model: string | null;
 }
 
-const WORKER_URL = process.env.NEXT_PUBLIC_WORKER_URL || "http://localhost:8080";
-
 function SentimentBar({ value, label }: { value: number; label: string }) {
     const pct = ((value + 1) / 2) * 100;
     const color = value > 0.1 ? "#0ecf8a" : value < -0.1 ? "#f5495a" : "#f59e0b";
@@ -47,7 +45,7 @@ export default function CalibrationClient({ posts, totalLabeled, total }: { post
     const save = async (id: string, admin_sentiment: number, admin_manipulation: boolean) => {
         setSaving(id);
         try {
-            await fetch(`${WORKER_URL}/feedback`, {
+            await fetch(`/api/feedback`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id, admin_sentiment, admin_manipulation }),

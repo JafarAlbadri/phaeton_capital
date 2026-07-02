@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       select: { createdAt: true }
     });
 
-    const rec = await (prisma.recommendationScore as any).findUnique({
+    const rec = await prisma.recommendationScore.findUnique({
       where: { ticker_horizon: { ticker, horizon: 15 } },
       select: { signal: true, composite_score: true, updatedAt: true }
     });

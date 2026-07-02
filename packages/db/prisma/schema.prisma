@@ -226,7 +226,9 @@ model PredictionRecord {
   ticker            String
   signal            String
   price_at_signal   Float
-  price_15d_later   Float?
+  // Price when the prediction resolved (after `horizon` days — legacy column
+  // name predates the 30/90-day horizons)
+  price_at_resolution Float? @map("price_15d_later")
   outcome           String?
   composite_score   Float?
   sentiment_score   Float?

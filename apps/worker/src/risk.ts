@@ -1,5 +1,5 @@
 import { logWrapper } from './logger';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 function getRiskRating(maxDrawdown: number | null, var95: number | null, liquidity: number | null, eventRisk: boolean): number {
   let score = 0;

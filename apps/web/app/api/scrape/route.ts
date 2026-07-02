@@ -19,10 +19,15 @@ export async function POST(req: Request) {
         }
 
         // In docker-compose, the worker service is accessible at http://worker:8080
-        const res = await fetch('http://worker:8080/trigger', {
+        const workerUrl = process.env.WORKER_URL || 'http://localhost:8080';
+        const workerSecret = process.env.WORKER_SECRET;
+        const res = await fetch(`${workerUrl}/trigger`, {
             method: 'POST',
             cache: 'no-store',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(workerSecret ? { Authorization: `Bearer ${workerSecret}` } : {}),
+            },
             body: JSON.stringify({ keyword })
         });
 

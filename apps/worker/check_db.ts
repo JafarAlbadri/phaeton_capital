@@ -1,4 +1,4 @@
-import { PrismaClient } from '@sentiment-crowd/db';
+import { PrismaClient } from '@phaeton/db';
 const prisma = new PrismaClient();
 async function main() {
     const unh = await prisma.financialHistory.findMany({ where: { ticker: 'UNH' } });

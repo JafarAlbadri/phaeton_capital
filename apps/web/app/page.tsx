@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import DashboardClient from './DashboardClient';
 
 // ── Quant helpers ────────────────────────────────────────────────────────────
@@ -188,9 +188,9 @@ export default async function Page(
     });
 
     const [h15, h30, h90] = await Promise.all([
-        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 15 } } }),
-        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 30 } } }),
-        (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 90 } } }),
+        prisma.recommendationScore.findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 15 } } }),
+        prisma.recommendationScore.findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 30 } } }),
+        prisma.recommendationScore.findUnique({ where: { ticker_horizon: { ticker: targetKeyword, horizon: 90 } } }),
     ]);
     const recommendationScore = h15 ?? null; // default to 15d for backward compat
     const recommendationScores = { h15, h30, h90 };
@@ -219,7 +219,7 @@ export default async function Page(
     const peerTickers = peerRows.map((p: any) => p.ticker);
 
     // ── Options flow for earnings setup
-    const optionsFlow = await (prisma as any).optionsFlow?.findUnique({
+    const optionsFlow = await prisma.optionsFlow.findUnique({
         where: { ticker: targetKeyword },
     }).catch(() => null) ?? null;
 
@@ -235,17 +235,17 @@ export default async function Page(
     };
 
     // V2: Trends history (last 13 weeks)
-    const trendsHistory = await (prisma as any).trendsHistory?.findMany({
+    const trendsHistory = await prisma.trendsHistory.findMany({
         where: { ticker: targetKeyword }, orderBy: { week_start: 'desc' }, take: 13
     }).catch(() => []) ?? [];
 
     // V2: Cross-listing ADR gap
-    const crossListingData = await (prisma as any).crossListingData?.findUnique({
+    const crossListingData = await prisma.crossListingData.findUnique({
         where: { ticker: targetKeyword }
     }).catch(() => null) ?? null;
 
     // V2: Regional sentiment
-    const regionalSentiment = await (prisma as any).regionalSentiment?.findMany({
+    const regionalSentiment = await prisma.regionalSentiment.findMany({
         where: { ticker: targetKeyword }
     }).catch(() => []) ?? [];
 
@@ -265,7 +265,7 @@ export default async function Page(
         orderBy: { createdAt: 'desc' },
         take: 25,
         select: {
-            id: true, signal: true, price_at_signal: true, price_15d_later: true,
+            id: true, signal: true, price_at_signal: true, price_at_resolution: true,
             outcome: true, composite_score: true, createdAt: true, horizon: true,
         },
     });
@@ -278,8 +278,8 @@ export default async function Page(
     const resolvedPredictions = predictionHistory.filter(p => p.outcome === 'CORRECT' || p.outcome === 'INCORRECT');
     if (resolvedPredictions.length > 0) {
         const returns = resolvedPredictions
-            .filter(p => p.price_at_signal && p.price_15d_later)
-            .map(p => (p.price_15d_later! - p.price_at_signal) / p.price_at_signal);
+            .filter(p => p.price_at_signal && p.price_at_resolution)
+            .map(p => (p.price_at_resolution! - p.price_at_signal) / p.price_at_signal);
         const correct = resolvedPredictions.filter(p => p.outcome === 'CORRECT').length;
         auditHitRate = correct / resolvedPredictions.length;
         if (returns.length > 0) {
@@ -294,10 +294,10 @@ export default async function Page(
 
     // ── Signal Attribution (IC / IR / T-Stat) ──────────────────────────────
     const icPairs = resolvedPredictions
-        .filter(p => p.price_at_signal && p.price_15d_later && p.composite_score != null)
+        .filter(p => p.price_at_signal && p.price_at_resolution && p.composite_score != null)
         .map(p => ({
             score: p.composite_score as number,
-            ret: (p.price_15d_later! - p.price_at_signal) / p.price_at_signal,
+            ret: (p.price_at_resolution! - p.price_at_signal) / p.price_at_signal,
         }));
 
     const ic = icPairs.length >= 5
@@ -328,8 +328,8 @@ export default async function Page(
         if (!signalGroups[p.signal]) signalGroups[p.signal] = { calls: 0, correct: 0, returns: [] };
         signalGroups[p.signal].calls++;
         if (p.outcome === 'CORRECT') signalGroups[p.signal].correct++;
-        if (p.price_at_signal && p.price_15d_later) {
-            signalGroups[p.signal].returns.push((p.price_15d_later! - p.price_at_signal) / p.price_at_signal);
+        if (p.price_at_signal && p.price_at_resolution) {
+            signalGroups[p.signal].returns.push((p.price_at_resolution! - p.price_at_signal) / p.price_at_signal);
         }
     }
     const bySignalType = Object.entries(signalGroups).map(([signal, g]) => ({

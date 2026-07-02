@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 const SIGNAL_RANK: Record<string, number> = {
     STRONG_BUY: 5, BUY: 4, HOLD: 3, SELL: 2, STRONG_SELL: 1,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
             where.signal = { in: ['STRONG_BUY', 'BUY'] };
         }
 
-        const recs = await (prisma.recommendationScore as any).findMany({
+        const recs = await prisma.recommendationScore.findMany({
             where,
             orderBy: { composite_score: 'desc' },
             take: overfetch,
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
                 where: { ticker: { in: tickers } },
                 select: { ticker: true, overall_risk_rating: true },
             }),
-            (prisma as any).trackedTicker.findMany({
+            prisma.trackedTicker.findMany({
                 where: { ticker: { in: tickers } },
                 select: { ticker: true, name: true, sector: true, lastScanned: true },
             }),

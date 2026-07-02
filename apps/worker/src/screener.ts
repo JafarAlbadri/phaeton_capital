@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 export interface ScreenerRow {
     ticker: string;
@@ -30,15 +30,15 @@ export async function screenerQuery(
     order: 'asc' | 'desc' = 'desc'
 ): Promise<ScreenerRow[]> {
     const [recs15, recs30, recs90, quants, techs, funds, risks] = await Promise.all([
-        (prisma.recommendationScore as any).findMany({
+        prisma.recommendationScore.findMany({
             where: { ticker: { in: tickers }, horizon: 15 },
             select: { ticker: true, composite_score: true, signal: true, sentiment_score: true },
         }),
-        (prisma.recommendationScore as any).findMany({
+        prisma.recommendationScore.findMany({
             where: { ticker: { in: tickers }, horizon: 30 },
             select: { ticker: true, composite_score: true },
         }),
-        (prisma.recommendationScore as any).findMany({
+        prisma.recommendationScore.findMany({
             where: { ticker: { in: tickers }, horizon: 90 },
             select: { ticker: true, composite_score: true },
         }),

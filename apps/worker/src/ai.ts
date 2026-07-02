@@ -115,7 +115,7 @@ export interface AiLabelResult {
  * Strip ```json / ``` markdown code fences that smaller open models often emit
  * around their JSON output.
  */
-function stripCodeFences(s: string): string {
+export function stripCodeFences(s: string): string {
     let out = s.trim();
     if (out.startsWith('```json')) out = out.replace(/^```json\s*/, '').replace(/\s*```$/, '');
     else if (out.startsWith('```')) out = out.replace(/^```\s*/, '').replace(/\s*```$/, '');

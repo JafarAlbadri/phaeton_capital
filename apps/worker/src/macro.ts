@@ -1,5 +1,5 @@
 import { logWrapper } from './logger';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 const SECTOR_ETF_MAP: Record<string, string> = {
   'Technology': 'XLK',

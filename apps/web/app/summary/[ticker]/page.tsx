@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import SummaryClient from './SummaryClient';
 
 const TICKER_RE = /^[A-Z0-9\-.]{1,10}$/;
@@ -29,7 +29,7 @@ export default async function SummaryPage(
     }
 
     const [recs, risk, predictions, scoreHistoryRaw, fundamentalData] = await Promise.all([
-        (prisma.recommendationScore as any).findMany({
+        prisma.recommendationScore.findMany({
             where: { ticker },
             orderBy: { horizon: 'asc' },
         }),
@@ -95,12 +95,14 @@ export default async function SummaryPage(
     const totalResolved = predictions.length;
     const hitRate = totalResolved > 0 ? Math.round((correctCount / totalResolved) * 1000) / 10 : null;
 
-    // Score sparkline
-    const scoreHistory = scoreHistoryRaw.map(p => ({
-        date: p.createdAt.toISOString().slice(0, 10),
-        score: p.composite_score,
-        signal: p.signal,
-    }));
+    // Score sparkline — records without a composite score can't be plotted
+    const scoreHistory = scoreHistoryRaw
+        .filter(p => p.composite_score != null)
+        .map(p => ({
+            date: p.createdAt.toISOString().slice(0, 10),
+            score: p.composite_score!,
+            signal: p.signal,
+        }));
 
     return (
         <SummaryClient

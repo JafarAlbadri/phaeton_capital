@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 const TICKER_RE = /^[A-Z0-9\-.]{1,10}$/;
 
@@ -35,7 +35,7 @@ export async function GET(
     try {
         // Fetch recommendations for all horizons + risk + prediction history
         const [recs, risk, predictions] = await Promise.all([
-            (prisma.recommendationScore as any).findMany({
+            prisma.recommendationScore.findMany({
                 where: { ticker },
                 orderBy: { horizon: 'asc' },
             }),

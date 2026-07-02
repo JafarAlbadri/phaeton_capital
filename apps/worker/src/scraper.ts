@@ -45,7 +45,7 @@ async function getRedditAccessToken(): Promise<string | null> {
             },
             body: 'grant_type=client_credentials'
         });
-        const data = await res.json();
+        const data: any = await res.json();
         return data.access_token || null;
     } catch {
         return null;
@@ -74,7 +74,7 @@ export async function scrapeReddit(keyword: string, limit = 100): Promise<Scrape
             return [];
         }
 
-        const json = await response.json();
+        const json: any = await response.json();
         const children = json?.data?.children || [];
 
         // Fetch user profiles to get real karma/age
@@ -88,7 +88,7 @@ export async function scrapeReddit(keyword: string, limit = 100): Promise<Scrape
                 try {
                     const uRes = await fetch(`https://oauth.reddit.com/user/${author}/about`, { headers });
                     if (uRes.ok) {
-                        const uData = await uRes.json();
+                        const uData: any = await uRes.json();
                         const createdUnix = uData?.data?.created_utc || Date.now() / 1000;
                         const ageDays = (Date.now() / 1000 - createdUnix) / 86400;
                         authorCache[author as string] = {
@@ -135,7 +135,7 @@ export async function scrapePolygonNews(keyword: string): Promise<ScrapedPost[]>
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Polygon API returned ${response.status}`);
         
-        const json = await response.json();
+        const json: any = await response.json();
         const results = json.results || [];
 
         return results.map((item: any) => {
@@ -170,7 +170,7 @@ export async function scrapeNewsAPI(keyword: string): Promise<ScrapedPost[]> {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`NewsAPI returned ${response.status}`);
         
-        const json = await response.json();
+        const json: any = await response.json();
         const articles = json.articles || [];
 
         return articles.map((item: any) => {
@@ -202,7 +202,7 @@ export async function scrapeStockTwits(ticker: string): Promise<ScrapedPost[]> {
             logWrapper.error(`StockTwits returned ${response.status}`);
             return [];
         }
-        const json = await response.json();
+        const json: any = await response.json();
         const messages = json?.messages || [];
         return messages.map((msg: any) => ({
             id: String(msg.id),
@@ -241,7 +241,7 @@ export async function scrapeOptionsFlow(ticker: string): Promise<OptionsFlowData
             signal: AbortSignal.timeout(15000)
         });
         if (!resp.ok) return null;
-        const data = await resp.json();
+        const data: any = await resp.json();
         if (data.error) return null;
         return {
             ticker,
@@ -276,7 +276,7 @@ export async function scrapeEDGAR(ticker: string): Promise<ScrapedPost[]> {
             logWrapper.error(`EDGAR returned ${response.status}`);
             return [];
         }
-        const json = await response.json();
+        const json: any = await response.json();
         const hits = json?.hits?.hits || [];
         return hits.slice(0, 10).map((hit: any) => {
             const src = hit._source || {};

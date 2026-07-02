@@ -1,4 +1,4 @@
-import { logWrapper } from './logger';
+import { logWrapper } from '../src/logger';
 async function listModels() {
     const key = process.env.GEMINI_API_KEY;
     if (!key) {
@@ -12,10 +12,9 @@ async function listModels() {
             logWrapper.error(`Failed to fetch models: ${res.statusText}`);
             process.exit(1);
         }
-        const data = await res.json();
+        const data: any = await res.json();
 
-        logWrapper.info("
-===================================================================================");
+        logWrapper.info("\n===================================================================================");
         logWrapper.info("                           AVAILABLE GEMINI MODELS                                 ");
         logWrapper.info("===================================================================================");
         logWrapper.info("Model Name".padEnd(40) + " | " + "Description");
@@ -29,15 +28,12 @@ async function listModels() {
         });
 
         logWrapper.info("-----------------------------------------------------------------------------------");
-        logWrapper.info("
-Estimated FREE Tier RPM Limits (Subject to change by Google):");
+        logWrapper.info("\nEstimated FREE Tier RPM Limits (Subject to change by Google):");
         logWrapper.info(" - gemini-1.5-pro / gemini-2.5-pro   :  2 RPM (50 Requests / Day)");
         logWrapper.info(" - gemini-1.5-flash / gemini-2.5-flash: 15 RPM (1500 Requests / Day)");
         logWrapper.info(" - older models / gemma             : Varying, often very low or discontinued on free tier.");
-        logWrapper.info("
-Set your preferred model in .env under AI_MODEL, and set AI_RPM_LIMIT accordingly.");
-        logWrapper.info("===================================================================================
-");
+        logWrapper.info("\nSet your preferred model in .env under AI_MODEL, and set AI_RPM_LIMIT accordingly.");
+        logWrapper.info("===================================================================================\n");
 
     } catch (err) {
         logWrapper.error("Error fetching models:", err);

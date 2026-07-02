@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: cd packages/db && bunx prisma generate
+
+      - name: Typecheck worker
+        run: cd apps/worker && bunx tsc --noEmit
+
+      - name: Typecheck web
+        run: cd apps/web && bunx tsc --noEmit
+
+      - name: Worker tests
+        run: cd apps/worker && bun test
+
+      - name: Python syntax check
+        run: python3 -m py_compile apps/python_worker/*.py

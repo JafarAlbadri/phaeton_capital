@@ -1,6 +1,6 @@
 import { logWrapper } from './logger';
 import { generateNarrative } from './ai';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 type Weights = {
     sentiment: number; technical: number; fundamental: number;
@@ -18,7 +18,7 @@ function clamp(v: number, min = 0, max = 100): number {
     return Math.max(min, Math.min(max, v));
 }
 
-function signalFromScore(score: number): string {
+export function signalFromScore(score: number): string {
     if (score > 65) return 'STRONG_BUY';
     if (score > 55) return 'BUY';
     if (score > 45) return 'HOLD';
@@ -44,7 +44,7 @@ async function computeOptimizedWeights(ticker: string, base: Weights): Promise<W
             orderBy: { createdAt: 'desc' },
             take: 500,
             select: {
-                outcome: true, sentiment_score: true, technical_score: true,
+                outcome: true, signal: true, sentiment_score: true, technical_score: true,
                 fundamental_score: true, quant_score: true, insider_score: true,
                 macro_score: true, hmm_state: true,
             },
@@ -69,6 +69,7 @@ async function computeOptimizedWeights(ticker: string, base: Weights): Promise<W
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 records: withFeatures.map(r => ({
+                    signal: r.signal,
                     sentiment_score: r.sentiment_score,
                     technical_score: r.technical_score,
                     fundamental_score: r.fundamental_score,
@@ -145,7 +146,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         // Options flow (optional — may not exist yet)
         let optionsFlow: { put_call_ratio: number | null } | null = null;
         try {
-            optionsFlow = await (prisma as any).optionsFlow.findUnique({ where: { ticker } });
+            optionsFlow = await prisma.optionsFlow.findUnique({ where: { ticker } });
         } catch { /* model not yet migrated */ }
 
         const baseWeights = selectRegimeWeights(quant?.hmm_state, macro?.vix);
@@ -181,7 +182,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         }
 
         // Google Trends nudge on sentiment
-        const trendsScore = (quant as any)?.trends_score as number | null | undefined;
+        const trendsScore = quant?.trends_score;
         if (trendsScore != null) {
             if (trendsScore > 70) sentimentScore = clamp(sentimentScore + 5);
             else if (trendsScore < 30) sentimentScore = clamp(sentimentScore - 5);
@@ -314,7 +315,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         // Adjust Kelly lookback and prediction resolution based on horizon
         const resolutionDays = horizon;
 
-        await (prisma.recommendationScore as any).upsert({
+        await prisma.recommendationScore.upsert({
             where: { ticker_horizon: { ticker, horizon } },
             update: {
                 composite_score: composite, signal: finalSignal,
@@ -333,16 +334,31 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
         });
 
         if (fundamental?.current_price) {
-            await prisma.predictionRecord.create({
-                data: {
-                    ticker, signal: finalSignal, price_at_signal: fundamental.current_price,
-                    composite_score: composite, outcome: 'PENDING', horizon,
-                    sentiment_score: sentimentScore, technical_score: technicalScore,
-                    fundamental_score: fundamentalScore, quant_score: quantScore,
-                    insider_score: insiderScore, macro_score: macroScore,
-                    hmm_state: quant?.hmm_state ?? null,
-                },
+            // The pipeline runs every 15 minutes — recording a prediction on every
+            // run floods the table with near-duplicate rows that poison the ML
+            // weight training (autocorrelated samples leak across CV folds).
+            // Record at most one per ticker/horizon per 24h, or sooner if the
+            // signal flipped (with a 6h cool-off so oscillation can't spam either).
+            const lastPrediction = await prisma.predictionRecord.findFirst({
+                where: { ticker, horizon },
+                orderBy: { createdAt: 'desc' },
+                select: { signal: true, createdAt: true },
             });
+            const lastAgeMs = lastPrediction ? Date.now() - lastPrediction.createdAt.getTime() : Infinity;
+            const shouldRecord = lastAgeMs > 24 * 3600_000
+                || (lastPrediction!.signal !== finalSignal && lastAgeMs > 6 * 3600_000);
+            if (shouldRecord) {
+                await prisma.predictionRecord.create({
+                    data: {
+                        ticker, signal: finalSignal, price_at_signal: fundamental.current_price,
+                        composite_score: composite, outcome: 'PENDING', horizon,
+                        sentiment_score: sentimentScore, technical_score: technicalScore,
+                        fundamental_score: fundamentalScore, quant_score: quantScore,
+                        insider_score: insiderScore, macro_score: macroScore,
+                        hmm_state: quant?.hmm_state ?? null,
+                    },
+                });
+            }
         }
 
         // Resolve pending predictions older than 15 days
@@ -352,15 +368,20 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             where: { ticker, outcome: 'PENDING', horizon, createdAt: { lte: resolutionCutoff } }
         });
         if (pending.length > 0 && fundamental?.current_price) {
+            // One symmetric band for every signal class — the old ±5% HOLD band
+            // vs ±2% BUY/SELL made HOLD far easier to score CORRECT, biasing the
+            // outcome base rates the ML weight training learns from. The band
+            // scales with horizon via √t (standard volatility-of-time scaling).
+            const moveThreshold = 0.02 * Math.sqrt(horizon / 15);
             await prisma.$transaction(pending.map(pred => {
                 const delta = (fundamental.current_price! - pred.price_at_signal) / pred.price_at_signal;
                 const correct =
-                    ((pred.signal === 'STRONG_BUY' || pred.signal === 'BUY') && delta > 0.02) ||
-                    ((pred.signal === 'STRONG_SELL' || pred.signal === 'SELL') && delta < -0.02) ||
-                    (pred.signal === 'HOLD' && Math.abs(delta) <= 0.05);
+                    ((pred.signal === 'STRONG_BUY' || pred.signal === 'BUY') && delta > moveThreshold) ||
+                    ((pred.signal === 'STRONG_SELL' || pred.signal === 'SELL') && delta < -moveThreshold) ||
+                    (pred.signal === 'HOLD' && Math.abs(delta) <= moveThreshold);
                 return prisma.predictionRecord.update({
                     where: { id: pred.id },
-                    data: { price_15d_later: fundamental.current_price, outcome: correct ? 'CORRECT' : 'INCORRECT' }
+                    data: { price_at_resolution: fundamental.current_price, outcome: correct ? 'CORRECT' : 'INCORRECT' }
                 });
             }));
         }
@@ -383,7 +404,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
                 put_call_ratio: optionsFlow?.put_call_ratio ?? null,
             }).then(narrative => {
                 if (narrative) {
-                    (prisma as any).recommendationScore.update({
+                    prisma.recommendationScore.update({
                         where: { ticker_horizon: { ticker, horizon } },
                         data: { narrative },
                     }).catch(() => {});
@@ -396,7 +417,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
             const regions = ['US', 'AU', 'UK', 'EU'];
             const regionData = await Promise.all(
                 regions.map(region =>
-                    (prisma.sentiment.aggregate as any)({
+                    prisma.sentiment.aggregate({
                         where: { ticker, region },
                         _avg: { sentiment: true },
                         _count: { id: true },
@@ -409,7 +430,7 @@ export async function computeRecommendation(ticker: string, horizon: 15 | 30 | 9
                 const divergence = Math.max(...means) - Math.min(...means);
                 await prisma.$transaction(
                     validRegions.map(r =>
-                        (prisma as any).regionalSentiment.upsert({
+                        prisma.regionalSentiment.upsert({
                             where: { ticker_region: { ticker, region: r.region } },
                             update: { mean_sentiment: r.mean, count: r.count },
                             create: { ticker, region: r.region, mean_sentiment: r.mean, count: r.count },

@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import CalibrationClient from './CalibrationClient';
 
 export const dynamic = 'force-dynamic';

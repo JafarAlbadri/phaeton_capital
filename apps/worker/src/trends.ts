@@ -1,4 +1,4 @@
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 import { logWrapper } from './logger';
 
 const PYTHON_URL = process.env.PYTHON_WORKER_URL ?? 'http://localhost:8000';
@@ -6,7 +6,9 @@ const PYTHON_URL = process.env.PYTHON_WORKER_URL ?? 'http://localhost:8000';
 export async function fetchAndSaveTrends(ticker: string): Promise<void> {
     try {
         const res = await fetch(`${PYTHON_URL}/trends/${ticker}`, {
-            signal: AbortSignal.timeout(60_000), // 60s — includes the 10s sleep inside python
+            // Cached responses return instantly; a cold fetch may queue behind
+            // the python worker's request-spacing lock.
+            signal: AbortSignal.timeout(30_000),
         });
         if (!res.ok) return;
         const data = await res.json() as {

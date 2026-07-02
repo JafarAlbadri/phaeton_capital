@@ -5,6 +5,7 @@ import { fetchFundamentals } from './fundamentals';
 import { fetchAndSaveTrends } from './trends';
 import { fetchAndSaveCrossListing } from './crosslist';
 import { getCulturalProfile, buildCulturalImplications } from './hofstede';
+import { buildTokenBatches } from './batching';
 
 // SSE client registry
 type SseClient = { write: (data: string) => void; close: () => void };
@@ -23,7 +24,7 @@ import { computeVelocity } from './velocity';
 import { evaluateAlerts } from './alerts/evaluator';
 import { screenerQuery } from './screener';
 import { sweepUniverse } from './scanner';
-import prisma from '@sentiment-crowd/db';
+import prisma from '@phaeton/db';
 
 const aiRpmLimit = parseInt(process.env.AI_RPM_LIMIT || '4', 10);
 const delayMs = Math.ceil(60000 / aiRpmLimit);
@@ -56,7 +57,7 @@ const scrapeQueue = new Queue('scrapeQueue', { connection: redisConnection });
 
 const scrapeWorker = new Worker('scrapeQueue', async (job: Job) => {
     if (job.name === 'process') {
-        await processPosts(job.data.keyword);
+        await processPosts(job.data.keyword, { skipFundamentals: job.data?.skipFundamentals === true });
     } else if (job.name === 'sweep') {
         await sweepUniverse(scrapeQueue, {
             minAgeHours: job.data?.minAgeHours ?? 6,
@@ -210,7 +211,7 @@ async function syncFundamentals(currentKeyword: string) {
     }
 }
 
-async function processPosts(keywordOverride?: string) {
+async function processPosts(keywordOverride?: string, opts?: { skipFundamentals?: boolean }) {
     if (isScraping) {
         logWrapper.info('Scrape already in progress.');
         return;
@@ -220,13 +221,18 @@ async function processPosts(keywordOverride?: string) {
         let currentKeyword = (keywordOverride || targetKeyword).trim();
         if (currentKeyword.length <= 5) currentKeyword = currentKeyword.toUpperCase();
 
-        await syncFundamentals(currentKeyword);
+        // Manual /trigger already synced fundamentals before enqueueing this job
+        if (!opts?.skipFundamentals) {
+            await syncFundamentals(currentKeyword);
+        }
 
-        // Fetch options flow (non-blocking, best-effort)
-        scrapeOptionsFlow(currentKeyword).then(async optionsData => {
+        // Fetch options flow in the background — awaited right before
+        // recommendations are computed so they read fresh put/call data
+        // instead of racing the upsert.
+        const optionsFlowDone = scrapeOptionsFlow(currentKeyword).then(async optionsData => {
             if (!optionsData) return;
             try {
-                await (prisma as any).optionsFlow.upsert({
+                await prisma.optionsFlow.upsert({
                     where: { ticker: currentKeyword },
                     update: {
                         put_call_ratio: optionsData.put_call_ratio, call_volume: optionsData.call_volume,
@@ -263,13 +269,13 @@ async function processPosts(keywordOverride?: string) {
         // Write Hofstede cultural profile from exchange country
         try {
             const macro = await prisma.macroIndicators.findUnique({ where: { ticker: currentKeyword } });
-            const exchange = (macro as any)?.sector_etf as string | undefined;
+            const exchange = macro?.sector_etf ?? undefined;
             const profile = getCulturalProfile(exchange);
             if (profile) {
                 const culturalProfile = buildCulturalImplications(profile);
                 await prisma.macroIndicators.update({
                     where: { ticker: currentKeyword },
-                    data: { country_code: profile.country_code, cultural_profile: culturalProfile } as any,
+                    data: { country_code: profile.country_code, cultural_profile: culturalProfile },
                 });
             }
         } catch (_e) { /* macro data may not exist yet */ }
@@ -288,26 +294,27 @@ async function processPosts(keywordOverride?: string) {
     const newPosts: ScrapedPost[] = [];
     const postHashes: Record<string, string> = {};
 
-    for (const post of posts) {
-        // 2. Filter: Duplicate Detection
-        const duplicateHash = generateDuplicateHash(post.content);
+    // 2. Filter: Duplicate Detection — one batched query instead of one per post
+    try {
+        const hashByPostId = new Map(posts.map(p => [p.id, generateDuplicateHash(p.content)]));
+        const existing = await prisma.sentiment.findMany({
+            where: { duplicate_hash: { in: [...new Set(hashByPostId.values())] } },
+            select: { duplicate_hash: true },
+        });
+        const knownHashes = new Set(existing.map(e => e.duplicate_hash));
 
-        // Check if duplicate exists via DB
-        try {
-            const existing = await prisma.sentiment.findUnique({
-                where: { duplicate_hash: duplicateHash }
-            });
-
-            if (existing) {
-                logWrapper.info(`Duplicate detected for hash ${duplicateHash}. Skipping.`);
-                continue;
-            }
+        for (const post of posts) {
+            const duplicateHash = hashByPostId.get(post.id)!;
+            if (knownHashes.has(duplicateHash)) continue;
+            knownHashes.add(duplicateHash); // also dedupe within this scrape
             newPosts.push(post);
             postHashes[post.id] = duplicateHash;
-        } catch (dbErr) {
-            logWrapper.error('Database connection might not be ready.', dbErr);
-            return;
         }
+        const dupes = posts.length - newPosts.length;
+        if (dupes > 0) logWrapper.info(`Skipped ${dupes} duplicate posts.`);
+    } catch (dbErr) {
+        logWrapper.error('Database connection might not be ready.', dbErr);
+        return;
     }
 
     if (newPosts.length === 0) {
@@ -318,31 +325,8 @@ async function processPosts(keywordOverride?: string) {
 
     logWrapper.info(`Found ${newPosts.length} new posts. Batching AI requests...`);
 
-    // 3. Smart Token Batching
-    // Build batches based on approximate token count (1 token ~= 4 chars) to prevent API 429 TPM errors
-    const MAX_TOKENS_PER_BATCH = 4000;
-    const MAX_POSTS_PER_BATCH = 25; // Safety net so the prompt isn't too conceptually giant
-    const allBatches: ScrapedPost[][] = [];
-
-    let currentBatch: ScrapedPost[] = [];
-    let currentTokens = 0;
-
-    for (const post of newPosts) {
-        const estTokens = Math.ceil(post.content.length / 4);
-
-        if (currentBatch.length > 0 && (currentTokens + estTokens > MAX_TOKENS_PER_BATCH || currentBatch.length >= MAX_POSTS_PER_BATCH)) {
-            allBatches.push(currentBatch);
-            currentBatch = [];
-            currentTokens = 0;
-        }
-
-        currentBatch.push(post);
-        currentTokens += estTokens;
-    }
-
-    if (currentBatch.length > 0) {
-        allBatches.push(currentBatch);
-    }
+    // 3. Smart Token Batching — prevents API 429 TPM errors
+    const allBatches = buildTokenBatches(newPosts);
 
     logWrapper.info(`Segmented ${newPosts.length} posts into ${allBatches.length} smart token-sized batches.`);
 
@@ -401,12 +385,12 @@ async function processPosts(keywordOverride?: string) {
                 ai_model: aiResult.ai_model,
                 scrape_batch_id: scrape_batch_id
             };
-        }).filter(Boolean);
+        }).filter((s): s is NonNullable<typeof s> => s !== null);
 
         if (sentimentsData.length > 0) {
             try {
                 await prisma.sentiment.createMany({
-                    data: sentimentsData as any,
+                    data: sentimentsData,
                     skipDuplicates: true
                 });
                 logWrapper.info(`Saved ${sentimentsData.length} sentiment records for batch.`);
@@ -426,6 +410,7 @@ async function processPosts(keywordOverride?: string) {
     await Promise.all([
         fetchAndSaveMacro(currentKeyword),
         computeRiskProfile(currentKeyword),
+        optionsFlowDone,
     ]);
     // Compute recommendations for all three horizons concurrently
     await Promise.allSettled([
@@ -436,10 +421,10 @@ async function processPosts(keywordOverride?: string) {
 
     // Broadcast final recommendation to all SSE clients
     try {
-        const rec = await (prisma.recommendationScore as any).findUnique({ where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } } });
+        const rec = await prisma.recommendationScore.findUnique({ where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } } });
         if (rec) broadcastSSE('recommendation', {
             ticker: currentKeyword, signal: rec.signal, score: rec.composite_score,
-            confidence: rec.confidence, narrative: (rec as any).narrative ?? null,
+            confidence: rec.confidence, narrative: rec.narrative ?? null,
             timestamp: new Date().toISOString()
         });
     } catch (_e) { /* non-critical */ }
@@ -452,9 +437,9 @@ async function processPosts(keywordOverride?: string) {
         const PYTHON = process.env.PYTHON_WORKER_URL || 'http://localhost:8000';
         const cRes = await fetch(`${PYTHON}/contrarian/${currentKeyword}`);
         if (cRes.ok) {
-            const contrarian = await cRes.json();
+            const contrarian: any = await cRes.json();
             if (!contrarian.error) {
-                await (prisma.quantMetrics as any).upsert({
+                await prisma.quantMetrics.upsert({
                     where: { ticker: currentKeyword },
                     create: { ticker: currentKeyword, contrarian_signal: contrarian },
                     update: { contrarian_signal: contrarian },
@@ -468,7 +453,7 @@ async function processPosts(keywordOverride?: string) {
 
     // Epic 2: Evaluate alerts for this ticker
     try {
-        const rec = await (prisma.recommendationScore as any).findUnique({
+        const rec = await prisma.recommendationScore.findUnique({
             where: { ticker_horizon: { ticker: currentKeyword, horizon: 15 } },
         });
         const quant = await prisma.quantMetrics.findUnique({ where: { ticker: currentKeyword } });
@@ -486,7 +471,18 @@ async function processPosts(keywordOverride?: string) {
     }
 }
 
+// Auth for state-changing endpoints. If WORKER_SECRET is unset, requests are
+// allowed (local dev) — but never expose port 8080 publicly in that state.
+function isAuthorized(req: Request): boolean {
+    const workerSecret = process.env.WORKER_SECRET;
+    if (!workerSecret) return true;
+    return req.headers.get('Authorization') === `Bearer ${workerSecret}`;
+}
+
 async function start() {
+    if (!process.env.WORKER_SECRET) {
+        logWrapper.warn('WORKER_SECRET is not set — /trigger, /scan-universe and /feedback are UNAUTHENTICATED. Fine on localhost, not fine anywhere public.');
+    }
     Bun.serve({
         port: 8080,
         async fetch(req: Request) {
@@ -529,10 +525,16 @@ async function start() {
                 }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
             }
 
-            // AI Calibration Feedback Endpoint
+            // AI Calibration Feedback Endpoint — writes admin ground-truth labels,
+            // so it gets the same auth as the other state-changing endpoints
             if (url.pathname === '/feedback' && req.method === 'POST') {
+                if (!isAuthorized(req)) {
+                    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                        status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
+                }
                 try {
-                    const body = await req.clone().json();
+                    const body: any = await req.clone().json();
                     if (!body.id || typeof body.admin_sentiment !== 'number') {
                         return new Response("Invalid feedback payload", { status: 400 });
                     }
@@ -581,19 +583,15 @@ async function start() {
             }
 
             if (url.pathname === '/trigger' && req.method === 'POST') {
-                const workerSecret = process.env.WORKER_SECRET;
-                if (workerSecret) {
-                    const auth = req.headers.get('Authorization');
-                    if (auth !== `Bearer ${workerSecret}`) {
-                        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                            status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
-                        });
-                    }
+                if (!isAuthorized(req)) {
+                    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                        status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
                 }
 
                 let dynamicKeyword = targetKeyword;
                 try {
-                    const body = await req.clone().json();
+                    const body: any = await req.clone().json();
                     if (body && body.keyword) dynamicKeyword = body.keyword;
                 } catch (e) {}
 
@@ -602,9 +600,10 @@ async function start() {
                 if (finalKeyword.length <= 5) finalKeyword = finalKeyword.toUpperCase();
                 await syncFundamentals(finalKeyword);
 
-                // Push to job queue (prevents backlog via dedup if same ticker added within 10 min)
+                // Push to job queue (prevents backlog via dedup if same ticker added within 10 min).
+                // skipFundamentals: we just synced them above — no need to hit yfinance twice.
                 const jobId = `manual_${finalKeyword}_${Math.floor(Date.now() / 600000)}`;
-                scrapeQueue.add('process', { keyword: finalKeyword }, { 
+                scrapeQueue.add('process', { keyword: finalKeyword, skipFundamentals: true }, {
                     jobId,
                     attempts: 5,
                     backoff: { type: 'exponential', delay: 2000 },
@@ -618,20 +617,16 @@ async function start() {
             }
             // ── Universe scanner trigger (manual sweep) ─────────────────────────────
             if (url.pathname === '/scan-universe' && req.method === 'POST') {
-                const workerSecret = process.env.WORKER_SECRET;
-                if (workerSecret) {
-                    const auth = req.headers.get('Authorization');
-                    if (auth !== `Bearer ${workerSecret}`) {
-                        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                            status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
-                        });
-                    }
+                if (!isAuthorized(req)) {
+                    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                        status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
                 }
 
                 let minAgeHours = 6;
                 let maxBatch = 30;
                 try {
-                    const body = await req.clone().json();
+                    const body: any = await req.clone().json();
                     if (typeof body?.minAgeHours === 'number') minAgeHours = body.minAgeHours;
                     if (typeof body?.maxBatch === 'number') maxBatch = body.maxBatch;
                 } catch {}
